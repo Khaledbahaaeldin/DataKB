@@ -5,6 +5,9 @@ import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -57,5 +60,21 @@ class FloatingPillNavBarTest {
     @Test fun hidden_bar_is_not_composed() {
         show("home", visible = false)
         rule.onNodeWithTag("pill_nav_bar").assertDoesNotExist()
+    }
+
+    @Test fun toggling_visible_removes_and_restores_the_bar() {
+        var visible by mutableStateOf(true)
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                FloatingPillNavBar(items, "home", {}, visible)
+            }
+        }
+        rule.onNodeWithTag("pill_nav_bar").assertIsDisplayed()
+        visible = false
+        rule.waitForIdle()
+        rule.onNodeWithTag("pill_nav_bar").assertDoesNotExist()
+        visible = true
+        rule.waitForIdle()
+        rule.onNodeWithTag("pill_nav_bar").assertIsDisplayed()
     }
 }
