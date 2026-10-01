@@ -1,2 +1,13 @@
 CLAUDE.md
 .superpowers/
+
+# Android / Gradle
+.gradle/
+.kotlin/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+*.apk
+*.aab
