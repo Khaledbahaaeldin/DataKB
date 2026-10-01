@@ -161,4 +161,35 @@ class SeriesBuilderTest {
         assertEquals(listOf(i("2026-09-28T00:00:00Z"), i("2026-10-05T00:00:00Z"), i("2026-10-12T00:00:00Z")), points.map { it.start })
         assertEquals(5L, points[1].wifiBytes)
     }
+
+    @Test fun month_buckets_aggregate_across_multiple_days() {
+        val points = SeriesBuilder.build(
+            DateRange(i("2026-09-01T00:00:00Z"), i("2026-11-01T00:00:00Z")), Granularity.MONTH, utc,
+            minuteRows = listOf(
+                minute("2026-09-15T12:00:00Z", NetworkKind.MOBILE, 100),
+                minute("2026-10-10T08:00:00Z", NetworkKind.MOBILE, 200),
+            ),
+            hourlyRows = listOf(
+                hourly("2026-10-10T08:00:00Z", 10001, NetworkKind.MOBILE, 350),
+            ),
+        )
+        assertEquals(listOf(i("2026-09-01T00:00:00Z"), i("2026-10-01T00:00:00Z")), points.map { it.start })
+        assertEquals(100L, points[0].mobileBytes)
+        assertEquals(350L, points[1].mobileBytes)
+    }
+
+    @Test fun combined_filter_keeps_only_matching_network_and_subscription() {
+        val points = SeriesBuilder.build(
+            DateRange(i("2026-10-07T00:00:00Z"), i("2026-10-08T00:00:00Z")), Granularity.DAY, utc,
+            minuteRows = listOf(
+                minute("2026-10-07T10:00:00Z", NetworkKind.MOBILE, 100, sub = 1),
+                minute("2026-10-07T10:00:00Z", NetworkKind.MOBILE, 200, sub = 2),
+                minute("2026-10-07T10:00:00Z", NetworkKind.WIFI, 300, sub = 1),
+            ),
+            hourlyRows = emptyList(),
+            filter = UsageFilter(network = NetworkKind.MOBILE, subscriptionId = 1),
+        )
+        assertEquals(100L, points.single().mobileBytes)
+        assertEquals(0L, points.single().wifiBytes)
+    }
 }
