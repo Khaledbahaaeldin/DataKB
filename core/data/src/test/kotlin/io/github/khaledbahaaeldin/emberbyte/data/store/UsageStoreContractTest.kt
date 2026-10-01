@@ -131,4 +131,43 @@ abstract class UsageStoreContractTest {
         assertEquals(listOf(keptHour), store.hourlyRows(everything.first, everything.second))
         assertEquals(1, store.gaps(everything.first, everything.second).size)
     }
+
+    @Test fun observeHourlyRows_emits_again_after_a_write() = runBlocking {
+        val store = createStore()
+        withTimeout(10_000) {
+            val seen = mutableListOf<List<HourlyUsage>>()
+            val job = launch { store.observeHourlyRows(wide.first, wide.second).toList(seen) }
+            while (seen.isEmpty()) delay(10)
+            store.upsertHourly(listOf(h(0, 1, 42)))
+            while (seen.last().isEmpty()) delay(10)
+            job.cancel()
+            assertEquals(42L, seen.last().single().rxBytes)
+        }
+    }
+
+    @Test fun observeAppMeta_emits_again_after_a_write() = runBlocking {
+        val store = createStore()
+        withTimeout(10_000) {
+            val seen = mutableListOf<List<AppMeta>>()
+            val job = launch { store.observeAppMeta().toList(seen) }
+            while (seen.isEmpty()) delay(10)
+            store.upsertAppMeta(listOf(AppMeta(1, "pkg", "label")))
+            while (seen.last().isEmpty()) delay(10)
+            job.cancel()
+            assertEquals("label", seen.last().single().label)
+        }
+    }
+
+    @Test fun observeGaps_emits_again_after_a_write() = runBlocking {
+        val store = createStore()
+        withTimeout(10_000) {
+            val seen = mutableListOf<List<CoverageGap>>()
+            val job = launch { store.observeGaps(wide.first, wide.second).toList(seen) }
+            while (seen.isEmpty()) delay(10)
+            store.insertGap(CoverageGap(t, t.plusSeconds(60), GapReason.SERVICE_KILLED))
+            while (seen.last().isEmpty()) delay(10)
+            job.cancel()
+            assertEquals(GapReason.SERVICE_KILLED, seen.last().single().reason)
+        }
+    }
 }
