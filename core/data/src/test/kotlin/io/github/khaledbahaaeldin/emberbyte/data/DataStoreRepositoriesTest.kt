@@ -1,6 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -32,7 +33,8 @@ class DataStoreRepositoriesTest {
             amoledBlack = true, useDynamicColor = false, unitSystem = UnitSystem.BINARY,
             lensHistoryHours = 6, hapticsEnabled = false,
         )
-        repo.update { changed }
+        val result = repo.update { changed }
+        assertEquals(Outcome.Success(Unit), result)
         assertEquals(changed, repo.observe().first())
     }
 
