@@ -159,4 +159,26 @@ class SamplerEngineTest {
         assertEquals(40L, store.rows().single { it.network == NetworkKind.MOBILE }.rxBytes) // 4 ticks x 10
         assertNotNull(store.loadCheckpoint("sampler.total"))
     }
+
+    @Test fun wifi_delta_is_clamped_to_zero_when_total_is_less_than_mobile() = runTest {
+        val store = InMemoryUsageStore()
+        val e = engine(listOf(snap(0), snap(1, mobRx = 500, totRx = 200)), store)
+        e.start(); e.tick(); e.stop()
+        val wifi = store.rows().single { it.network == NetworkKind.WIFI }
+        assertEquals(0L, wifi.rxBytes)
+        assertEquals(0L, wifi.txBytes)
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun calling_tick_before_start_throws() = runTest {
+        val e = engine(listOf(snap(0), snap(1)))
+        e.tick()
+    }
+
+    @Test fun a_tick_with_negative_elapsed_time_is_skipped() = runTest {
+        val e = engine(listOf(snap(5), snap(2, mobRx = 500)))
+        e.start(); e.tick()
+        assertTrue(e.liveSpeed.replayCache.isEmpty())
+    }
 }
+
