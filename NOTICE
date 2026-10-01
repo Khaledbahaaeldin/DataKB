@@ -1,0 +1,24 @@
+Emberbyte
+Copyright (C) 2026 Khaled Bahaaeldin
+Licensed under the GNU General Public License v3.0 (see LICENSE).
+
+Third-party material
+--------------------
+
+Floating pill navigation bar (design reference)
+  Floating-Navbar-M3-Flutter by Damantha126 (MIT License)
+  https://github.com/Damantha126/Floating-Navbar-M3-Flutter
+  The Compose implementation in this project is original; the visual design and behaviour are inspired
+  by the reference above.
+
+Roboto Flex (variable font)
+  Copyright 2017 The Roboto Flex Project Authors
+  SIL Open Font License 1.1 (see licenses/roboto-flex-OFL.txt)
+  https://github.com/googlefonts/roboto-flex
+
+Haze (backdrop blur)
+  Chris Banes (Apache License 2.0)
+  https://github.com/chrisbanes/haze
+
+AndroidX, Jetpack Compose, Material 3 and Kotlin libraries
+  Copyright The Android Open Source Project / JetBrains (Apache License 2.0)
