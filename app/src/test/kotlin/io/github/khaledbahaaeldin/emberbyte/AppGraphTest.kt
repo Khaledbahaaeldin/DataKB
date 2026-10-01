@@ -24,4 +24,30 @@ class AppGraphTest {
         assertEquals(0L, graph.usage.observeToday().first().totalBytes)
         assertEquals(false, graph.onboarding.observeCompleted().first { it != null })
     }
+
+    @Test fun the_graph_provides_working_components_and_factory() = runBlocking {
+        val graph = AppGraph(app)
+        // Permissions initial state is observable
+        val perms = graph.permissions.observe().first()
+        org.junit.Assert.assertNotNull(perms)
+        assertEquals(false, perms.vpnConsentGranted)
+
+        // Prune executes without error on real Room store
+        graph.prune()
+
+        // HomeViewModel factory creates instance
+        val factory = graph.homeViewModelFactory()
+        val viewModel = factory.create(
+            io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel::class.java,
+            androidx.lifecycle.viewmodel.CreationExtras.Empty,
+        )
+        org.junit.Assert.assertNotNull(viewModel)
+        org.junit.Assert.assertNotNull(viewModel.uiState.value)
+    }
+
+    @Test fun emberbyte_application_exposes_singleton_graph() {
+        val emberbyteApp = app as EmberbyteApplication
+        org.junit.Assert.assertNotNull(emberbyteApp.graph)
+        org.junit.Assert.assertSame(emberbyteApp.graph, emberbyteApp.graph)
+    }
 }
