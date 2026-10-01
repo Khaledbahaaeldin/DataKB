@@ -46,6 +46,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.hazeBlur
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.LocalReduceMotion
 
 enum class NavAccent { Primary, Secondary, Tertiary, Error }
@@ -65,6 +68,7 @@ fun FloatingPillNavBar(
     visible: Boolean,
     modifier: Modifier = Modifier,
     hapticsEnabled: Boolean = true,
+    glass: GlassSource? = null,
 ) {
     val reduceMotion = LocalReduceMotion.current
     val motion = MaterialTheme.motionScheme
@@ -91,6 +95,18 @@ fun FloatingPillNavBar(
             modifier = Modifier
                 .testTag("pill_nav_bar")
                 .semantics { contentDescription = "Navigation" }
+                .then(
+                    if (glass != null) {
+                        Modifier
+                            .clip(CircleShape)
+                            .hazeBlur(
+                                input = HazeInput.Sources(glass.state),
+                                style = HazeBlurStyle { blurRadius(24.dp) },
+                            )
+                    } else {
+                        Modifier
+                    },
+                )
                 .height(64.dp),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
