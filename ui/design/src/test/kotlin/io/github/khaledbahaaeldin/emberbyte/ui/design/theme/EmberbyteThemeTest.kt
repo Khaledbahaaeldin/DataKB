@@ -42,4 +42,19 @@ class EmberbyteThemeTest {
         assertFalse(isReduceMotion(1f))
         assertFalse(isReduceMotion(0.5f))
     }
+
+    @Test fun amoled_over_dynamic_dark_blackens_three_surfaces_and_keeps_the_rest() {
+        val lifted = dynDark.copy(
+            background = Color.Gray,
+            surface = Color.Gray,
+            surfaceContainerLowest = Color.Gray,
+            surfaceContainer = Color.DarkGray,
+        )
+        val scheme = resolveColorScheme(true, true, true, 34, { dynLight }, { lifted })
+        assertEquals(Color.Black, scheme.background)
+        assertEquals(Color.Black, scheme.surface)
+        assertEquals(Color.Black, scheme.surfaceContainerLowest)
+        assertEquals(Color.Blue, scheme.primary)
+        assertEquals(Color.DarkGray, scheme.surfaceContainer)
+    }
 }
