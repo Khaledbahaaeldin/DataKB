@@ -41,4 +41,20 @@ class HomeMappingEdgeTest {
         val fr = forecastToUi(forecast(3, 3, 3), now, ZoneOffset.UTC, Locale.FRENCH)
         assertEquals("jeu.", fr.headline)
     }
+
+    @Test fun run_out_exactly_six_days_away_shows_only_the_weekday() {
+        val ui = forecastToUi(forecast(6, 6, 6), now, ZoneOffset.UTC, Locale.ENGLISH)
+        assertEquals("Sun", ui.headline)
+    }
+
+    @Test fun run_out_seven_days_away_adds_the_date() {
+        val ui = forecastToUi(forecast(7, 7, 7), now, ZoneOffset.UTC, Locale.ENGLISH)
+        assertEquals("Mon 12 Oct", ui.headline)
+    }
+
+    @Test fun far_run_out_date_follows_zone_and_locale() {
+        val ui = forecastToUi(forecast(10, 10, 10), now, ZoneOffset.ofHours(13), Locale.FRENCH)
+        // 12:00Z + 10 days = 01:00 on the 16th in UTC+13
+        assertEquals("ven. 16 oct.", ui.headline)
+    }
 }

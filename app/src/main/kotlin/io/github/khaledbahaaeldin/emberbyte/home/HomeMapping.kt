@@ -16,8 +16,10 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
@@ -43,14 +45,19 @@ private fun Forecast.neverRunsOut(): Boolean =
 internal fun forecastToUi(forecast: Forecast?, now: Instant, zone: ZoneId, locale: Locale): ForecastUi? =
     forecast?.let { forecastToUi(it, now, zone, locale) }
 
-@Suppress("UNUSED_PARAMETER")
 internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale: Locale): ForecastUi {
     if (forecast.neverRunsOut()) {
         return ForecastUi("Safe", "Won't run out this cycle", confidenceLabel(forecast.confidence))
     }
     val expected = forecast.runOutExpected
     val at = expected ?: forecast.runOutEarliest ?: forecast.runOutLatest!!
-    val weekday = at.atZone(zone).dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+    val zoned = at.atZone(zone)
+    // Spec section 8: weekday, plus the date once the run-out is more than 6 days away.
+    val headline = if (Duration.between(now, at) > Duration.ofDays(6)) {
+        DateTimeFormatter.ofPattern("EEE d MMM", locale).format(zoned)
+    } else {
+        zoned.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+    }
     val spread = max(
         forecast.runOutEarliest?.let { daysBetween(at, it) } ?: 0L,
         forecast.runOutLatest?.let { daysBetween(at, it) } ?: 0L,
@@ -60,7 +67,7 @@ internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale
         1L -> "runs out (±1 day)"
         else -> "runs out (±$spread days)"
     }
-    return ForecastUi(weekday, detail, confidenceLabel(forecast.confidence))
+    return ForecastUi(headline, detail, confidenceLabel(forecast.confidence))
 }
 
 private fun spoken(bytes: Long, units: ByteUnits): String {
