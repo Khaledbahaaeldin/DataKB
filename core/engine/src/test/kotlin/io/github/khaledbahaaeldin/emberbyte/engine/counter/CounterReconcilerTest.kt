@@ -26,4 +26,10 @@ class CounterReconcilerTest {
 
     @Test fun a_different_boot_id_is_a_reset_even_if_counters_grew() =
         assertEquals(CounterDelta(5000, 900, true), CounterReconciler.delta(reading(0, 100, 50, "b1"), reading(1, 5000, 900, "b2")))
+
+    @Test fun both_counters_decreasing_is_a_reset() =
+        assertEquals(CounterDelta(50, 20, true), CounterReconciler.delta(reading(0, 1000, 200), reading(1, 50, 20)))
+
+    @Test fun negative_counter_reading_is_clamped_to_zero_on_reset() =
+        assertEquals(CounterDelta(0, 0, true), CounterReconciler.delta(reading(0, 1000, 200), reading(1, -1, -5)))
 }
