@@ -30,6 +30,13 @@ public in stable 1.4.0. It will move to stable 1.5.0 when that is released.
 
 Design and specs live in `docs/superpowers/specs/`; implementation plans in `docs/superpowers/plans/`.
 
+## Credits
+
+The floating pill navigation bar is inspired by the design of Damantha126's
+[Floating-Navbar-M3-Flutter](https://github.com/Damantha126/Floating-Navbar-M3-Flutter) (MIT).
+The Compose implementation in this repository is original; no code was copied.
+Full third-party notices are in `NOTICE`.
+
 ## Licence
 
 GPL-3.0. See `LICENSE`. Third-party credits are in `NOTICE`.
