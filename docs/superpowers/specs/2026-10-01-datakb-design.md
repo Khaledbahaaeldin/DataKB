@@ -33,7 +33,7 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 ## Architecture summary
 
 ```
-:app  (screens, ViewModels, navigation, widgets, Hilt)
+:app  (screens, ViewModels, navigation, widgets, DI: hand-written graph in M1, Hilt from M2)
   ├── :ui:design      theme, MorphingNumber, FloatingPillNavBar, Bento tiles (no domain dependency)
   ├── :feature:lens   LensVpnService, packet pipeline, LensController, Lens screen
   └── :core:data      Room, DataStore, repositories, SamplerService, workers, notifications

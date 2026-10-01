@@ -13,7 +13,7 @@ Emberbyte has no server. "Backend" means everything below the UI: `:core:engine`
 | `:core:engine` | Kotlin/JVM, no Android | Domain types, cycle/plan/forecast/spike/reconcile maths | nothing |
 | `:core:data` | Android library | Room, DataStore, repositories, samplers, workers, notifications, export/backup | `:core:engine` |
 | `:feature:lens` | Android library | `LensVpnService`, packet pipeline, `LensController`, `lens_domain_hit` | `:core:engine`, `:core:data` (settings and permissions only) |
-| `:app` | Android app | Hilt graph, manifest, widgets, navigation host | all |
+| `:app` | Android app | Dependency graph (hand-written in M1, Hilt from M2), manifest, widgets, navigation host | all |
 
 `:core:engine` having no Android dependency is a hard rule: it keeps the money-critical maths
 (cycles, caps, forecast) runnable in fast JVM unit tests.

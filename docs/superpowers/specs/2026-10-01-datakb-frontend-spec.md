@@ -5,7 +5,8 @@ Status: draft for review. Data types and repository methods come from the
 [backend spec](2026-10-01-datakb-backend-spec.md).
 
 Stack: Kotlin, Jetpack Compose, Material 3 Expressive (`androidx.compose.material3`), Glance for widgets,
-Hilt, Navigation Compose. minSdk 29, targetSdk latest stable.
+Hilt (from M2; M1 uses a hand-written `AppGraph`), Navigation Compose, Haze (backdrop blur).
+minSdk 29, targetSdk latest stable.
 
 ## 1. Principles
 
@@ -26,7 +27,7 @@ Hilt, Navigation Compose. minSdk 29, targetSdk latest stable.
 ## 3. Design tokens
 
 **Colour.** Dynamic colour (Android 12+, `Settings.useDynamicColor`) with a hand-tuned static fallback on
-API 29–30 from seed `#6750A4`-family violet. Roles used: `primary`, `secondary`, `tertiary`,
+API 29–30, generated from the ember-orange seed `#E8590C` (TonalSpot). Roles used: `primary`, `secondary`, `tertiary`,
 `surfaceContainer*`, `error`. Dark is the primary design target; light is fully supported; `amoledBlack`
 overrides `surface` to `#000000`. Per-tab accent for the navbar: Home → `primary`, Apps → `tertiary`,
 Plans → `secondary`, Lens → `error`-leaning warm accent derived from the palette (never a fixed hex).
@@ -53,9 +54,10 @@ are replaced by 150 ms fades and the Number stops reacting to throughput (see §
 
 ```kotlin
 @Composable fun MorphingNumber(
-    bytes: Long,                      // value to show, formatted by UnitSystem outside or via `formatter`
+    bytes: Long,                      // value to show
     throughputBps: Long,              // drives weight/width; 0 = at rest
-    unitSystem: UnitSystem,
+    units: ByteUnits,                 // `:ui:design` enum; `:app` maps UnitSystem -> ByteUnits
+    contentDescription: String,       // plain-language description supplied by the caller
     modifier: Modifier = Modifier,
     animate: Boolean = true,
 )
@@ -70,7 +72,7 @@ are replaced by 150 ms fades and the Number stops reacting to throughput (see §
 data class NavBarItem(val id: String, val label: String, val icon: ImageVector, val accent: NavAccent)
 
 @Composable fun BentoTile(
-    title: String, modifier: Modifier = Modifier, span: TileSpan = TileSpan.Half,
+    title: String, modifier: Modifier = Modifier,   // width is set by the caller's Row/weight (no span parameter)
     container: TileContainer = TileContainer.Default, onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 )
@@ -100,8 +102,8 @@ Recreated in Compose from the public design, with credit in the README and `NOTI
 
 - **Shape and placement.** A floating pill 64 dp tall, horizontally inset 16 dp, lifted 12 dp above the
   bottom system-bar inset. Corner radius full.
-- **Glass.** On API 31+ a real blur (`RenderEffect`/`Modifier.blur` on a backdrop layer) with a
-  translucent `surfaceContainerHigh` tint. On API 29–30 a flat tint at 92% opacity with a subtle outline.
+- **Glass.** A real backdrop blur through the Haze library behind a `GlassSource` seam (Compose has no
+  stable backdrop-blur API), with a translucent `surfaceContainerHigh` tint. On API 29–30 a flat tint at 92% opacity with a subtle outline.
 - **Selected pill.** The selected item expands to show icon + label inside a filled pill using the item's
   accent container colour. Unselected items show only an icon. Width, position and colour animate with
   `fastSpatialSpec` and `fastEffectsSpec`; spatial overshoot is allowed.
@@ -244,7 +246,7 @@ more options later). Notifications are requested right after the first plan is s
 
 ## 8. Formatting rules
 
-- Bytes: one function `formatBytes(bytes, UnitSystem)` in `:ui:design` returning value and unit
+- Bytes: one function `formatBytes(bytes, ByteUnits)` in `:ui:design` returning value and unit
   separately. Decimal: KB/MB/GB/TB (1000); binary: KiB/MiB/GiB/TiB (1024). Values ≥ 100 show no decimal,
   10–99 one decimal, below 10 two decimals.
 - Rates append "/s". Times follow the device locale and 12/24-hour setting. Run-out dates show weekday
