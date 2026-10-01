@@ -9,13 +9,17 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import org.junit.Assert.assertEquals
@@ -78,5 +82,20 @@ class NavBarHousekeepingTest {
         rule.onNodeWithTag("nav_apps").performClick()
         assertEquals("apps", picked)
         assertEquals(1, haptics.calls)
+    }
+
+    @Test fun dragging_within_the_selected_item_does_not_tick_haptics() {
+        val haptics = CountingHaptics()
+        show("home", haptics) {}
+        val home = rule.onNodeWithTag("nav_home").getBoundsInRoot()
+        val bar = rule.onNodeWithTag("pill_nav_bar").getBoundsInRoot()
+        val density = 1f
+        val startX = (home.left - bar.left).value * density + 4f
+        val endX = (home.right - bar.left).value * density - 4f
+        rule.onNodeWithTag("pill_nav_bar").performTouchInput {
+            swipe(start = Offset(startX, centerY), end = Offset(endX, centerY), durationMillis = 300)
+        }
+        rule.waitForIdle()
+        assertEquals(0, haptics.calls)
     }
 }
