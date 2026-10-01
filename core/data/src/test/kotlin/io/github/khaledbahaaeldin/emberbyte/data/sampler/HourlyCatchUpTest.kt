@@ -5,6 +5,7 @@ import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeNetworkStatsSource
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageAccess
 import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryUsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.source.UidUsage
+import io.github.khaledbahaaeldin.emberbyte.engine.counter.CounterReading
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.AppMeta
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.HourlyUsage
@@ -108,5 +109,24 @@ class HourlyCatchUpTest {
         assertEquals(listOf(AppMeta(10001, "com.video", "Video")), store.appMeta())
         assertEquals(1, info.resolved.count { it == 10001 })
         assertTrue(store.hourlyRows(open.first, open.second).none { it.uid == 10003 })
+    }
+
+    @Test fun an_old_checkpoint_is_clamped_to_max_backfill() = runBlocking {
+        val store = InMemoryUsageStore()
+        val oldHour = hour10.minusSeconds(14 * 86400L)
+        store.saveCheckpoint(CHECKPOINT_CATCHUP_HOURLY, CounterReading(oldHour, 0L, 0L, "catchup"))
+        val source = FakeNetworkStatsSource()
+        val result = catchUp(source, store).run()
+        assertEquals(CatchUpResult.Done(7 * 24 + 1), result)
+        assertEquals(Instant.parse("2026-09-30T10:00:00Z"), source.queries.minOf { it.second })
+    }
+
+    @Test fun the_current_hour_is_not_scaled_even_with_minute_totals() = runBlocking {
+        val store = InMemoryUsageStore()
+        repeat(30) { store.addMinute(MinuteTotal(hour10.plusSeconds(it * 60L), NetworkKind.MOBILE, -1, 100, 0)) }
+        val source = FakeNetworkStatsSource(mapOf((NetworkKind.MOBILE to hour10) to listOf(UidUsage(10001, 10_000, 0))))
+        catchUp(source, store).run()
+        val row = store.hourlyRows(hour10, hour10.plusSeconds(3600)).single()
+        assertEquals(10_000L, row.totalBytes)
     }
 }
