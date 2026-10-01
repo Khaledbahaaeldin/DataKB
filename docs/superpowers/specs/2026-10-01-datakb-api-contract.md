@@ -1,11 +1,11 @@
-# DataKB API Contract (v1)
+# Emberbyte API Contract (v1)
 
 Status: draft for review. Source of truth for every name used in the
 [frontend spec](2026-10-01-datakb-frontend-spec.md) and
 [backend spec](2026-10-01-datakb-backend-spec.md). If a name differs between documents, this file wins.
 
-DataKB has no server. The "API" is the set of typed boundaries between modules, plus the Android
-component, storage and file-format contracts. Root package: `io.github.khaledbahaaeldin.datakb`
+Emberbyte has no server. The "API" is the set of typed boundaries between modules, plus the Android
+component, storage and file-format contracts. Root package: `io.github.khaledbahaaeldin.emberbyte`
 (omitted below; written `…`).
 
 ## 1. Conventions
@@ -25,16 +25,16 @@ const val CONTRACT_VERSION = 1
 
 sealed interface Outcome<out T> {
     data class Success<T>(val value: T) : Outcome<T>
-    data class Failure(val error: DataKbError) : Outcome<Nothing>
+    data class Failure(val error: EmberbyteError) : Outcome<Nothing>
 }
 
-sealed interface DataKbError {
-    data object MissingUsageAccess : DataKbError
-    data object MissingPhoneState : DataKbError
-    data object NotFound : DataKbError
-    data class Invalid(val field: String, val reason: String) : DataKbError
-    data class Storage(val cause: String) : DataKbError
-    data class Unexpected(val cause: String) : DataKbError
+sealed interface EmberbyteError {
+    data object MissingUsageAccess : EmberbyteError
+    data object MissingPhoneState : EmberbyteError
+    data object NotFound : EmberbyteError
+    data class Invalid(val field: String, val reason: String) : EmberbyteError
+    data class Storage(val cause: String) : EmberbyteError
+    data class Unexpected(val cause: String) : EmberbyteError
 }
 ```
 
@@ -318,7 +318,7 @@ Guarantees: while `state != Running`, `observeSnapshot()` emits nothing. `stop()
 and the foreground service before returning. Lens never writes to the usage tables; it only owns
 `lens_domain_hit`.
 
-## 5. Storage contract (Room, database `datakb.db`, version 1)
+## 5. Storage contract (Room, database `emberbyte.db`, version 1)
 
 | Table | Key | Columns |
 |---|---|---|
@@ -355,12 +355,12 @@ and an exported schema JSON.
 Notification channels: `live` (low importance, ongoing), `alerts` (default importance),
 `lens` (low importance, ongoing), `spikes` (default importance).
 
-Deep links: `datakb://home`, `datakb://apps`, `datakb://apps/{packageName}`, `datakb://plans`,
-`datakb://plans/{planId}`, `datakb://lens`, `datakb://settings`. Notifications and widgets use only these.
+Deep links: `emberbyte://home`, `emberbyte://apps`, `emberbyte://apps/{packageName}`, `emberbyte://plans`,
+`emberbyte://plans/{planId}`, `emberbyte://lens`, `emberbyte://settings`. Notifications and widgets use only these.
 
 ## 7. File formats
 
-**JSON export** (`datakb-export-v1.json`):
+**JSON export** (`emberbyte-export-v1.json`):
 
 ```json
 {
@@ -378,8 +378,8 @@ Deep links: `datakb://home`, `datakb://apps`, `datakb://apps/{packageName}`, `da
 
 **CSV export** header: `hourStart,package,network,subscriptionId,rxBytes,txBytes`.
 
-**Backup file** (`.datakb`): the JSON export, gzip-compressed, then encrypted with AES-256-GCM using a key
-derived from the passphrase with Argon2id. Restore fails with `DataKbError.Invalid("passphrase", …)` on
+**Backup file** (`.emberbyte`): the JSON export, gzip-compressed, then encrypted with AES-256-GCM using a key
+derived from the passphrase with Argon2id. Restore fails with `EmberbyteError.Invalid("passphrase", …)` on
 a wrong passphrase and never partially applies.
 
 ## 8. Change rules

@@ -1,4 +1,4 @@
-# DataKB Frontend Spec
+# Emberbyte Frontend Spec
 
 Status: draft for review. Data types and repository methods come from the
 [API contract](2026-10-01-datakb-api-contract.md); behaviour of the engine is in the
@@ -197,7 +197,7 @@ history for that app is listed. A shortcut opens the system app-data settings.
 Cards per active plan: name, SIM label, cap ring (`fractionUsed`), remaining, days left, forecast, add-on
 chips. FAB-style "New plan". Archived plans behind a toggle.
 
-**Plan editor** (one scrolling form, saves on "Save", validates inline against `DataKbError.Invalid`):
+**Plan editor** (one scrolling form, saves on "Save", validates inline against `EmberbyteError.Invalid`):
 name; SIM (from `SubscriptionManager`, or "Not tied to a SIM"); cap (value + unit); cycle (segmented:
 *Monthly on day N* / *Every N days from date*, plus time); rollover (None / Full / Capped with amount);
 **Add-on packs** list (label, bytes, valid from/until); **Free windows** list (days, start, end, optional
@@ -230,17 +230,17 @@ and quick fixes), About (version, GPL-3.0 licence, source link, third-party noti
 
 ### 6.6 Onboarding
 
-Three steps with skippable pages: 1) what DataKB measures and that it is local-only; 2) Usage Access
+Three steps with skippable pages: 1) what Emberbyte measures and that it is local-only; 2) Usage Access
 (explain, open system settings, detect grant on return); 3) create the first plan (guided minimal form,
 more options later). Notifications are requested right after the first plan is saved, not up front.
 
 ## 7. Notification and widgets
 
 - **Live notification** (contract channel `live`): text format "1.24 GB today · 3.8 GB left · ↓4.2 MB/s".
-  Tapping opens `datakb://home`.
+  Tapping opens `emberbyte://home`.
 - **HeroWidget** (Glance, 2×2 and 4×2): the Number plus remaining data. **BentoWidget** (4×2 and 4×4):
   today, forecast, speed, top two apps. Both use the app's dynamic colours, refresh per contract §6, and
-  open `datakb://home`. A widget with no plan shows "Set up a plan".
+  open `emberbyte://home`. A widget with no plan shows "Set up a plan".
 
 ## 8. Formatting rules
 

@@ -1,9 +1,9 @@
-# DataKB Backend Spec (on-device engine and data layer)
+# Emberbyte Backend Spec (on-device engine and data layer)
 
 Status: draft for review. Names and signatures come from the
 [API contract](2026-10-01-datakb-api-contract.md). Companion: [frontend spec](2026-10-01-datakb-frontend-spec.md).
 
-DataKB has no server. "Backend" means everything below the UI: `:core:engine`, `:core:data`,
+Emberbyte has no server. "Backend" means everything below the UI: `:core:engine`, `:core:data`,
 `:feature:lens`, and the Android services and workers that feed them. Nothing leaves the device.
 
 ## 1. Module responsibilities
@@ -79,7 +79,7 @@ All functions are in `:core:engine` and take plain data.
 ## 5. Dual-SIM and the attribution constraint
 
 Android 10+ withholds the subscriber id (IMSI) that `NetworkStatsManager` uses to separate SIMs from
-non-privileged apps. So per-SIM history cannot be queried directly. DataKB handles this as follows:
+non-privileged apps. So per-SIM history cannot be queried directly. Emberbyte handles this as follows:
 
 1. **Live and minute data is attributed per SIM.** When the sampler flushes a mobile delta it tags it with
    `SubscriptionManager`'s current default-data subscription id. This is accurate for as long as the app

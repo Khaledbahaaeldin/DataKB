@@ -1,8 +1,8 @@
-# DataKB Design (master)
+# Emberbyte Design (master)
 
 Status: draft for review. Date: 2026-10-01.
 
-DataKB is an open-source Android data-usage monitor with a Material 3 Expressive interface: daily and
+Emberbyte is an open-source Android data-usage monitor with a Material 3 Expressive interface: daily and
 real-time usage, flexible data plans, a forecast of when the cap runs out, and an opt-in live per-app view.
 
 ## Documents
@@ -18,6 +18,7 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 
 | Topic | Decision |
 |---|---|
+| Name | **Emberbyte** (store title "Emberbyte: Data Monitor"). "DataKB" is the codename: the GitHub repo and these spec file names keep it. Package and `applicationId`: `io.github.khaledbahaaeldin.emberbyte`. Name check (web search, not a formal trademark search) found no clash on GitHub, F-Droid or Google Play |
 | Audience | Open source on GitHub and F-Droid |
 | Licence | GPL-3.0 |
 | Platform | Native Android, Kotlin + Jetpack Compose, minSdk 29 |
