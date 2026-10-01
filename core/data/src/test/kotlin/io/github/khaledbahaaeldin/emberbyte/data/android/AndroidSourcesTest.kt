@@ -21,6 +21,7 @@ class AndroidSourcesTest {
     @Test fun special_uids_have_friendly_names() {
         assertEquals(AppMeta(NetworkStats.Bucket.UID_REMOVED, "uid:removed", "Removed apps"), specialUidMeta(NetworkStats.Bucket.UID_REMOVED))
         assertEquals(AppMeta(NetworkStats.Bucket.UID_TETHERING, "uid:tethering", "Hotspot & tethering"), specialUidMeta(NetworkStats.Bucket.UID_TETHERING))
+        assertEquals(AppMeta(0, "uid:root", "Root"), specialUidMeta(0))
         assertEquals(AppMeta(1000, "android", "Android system"), specialUidMeta(1000))
         assertNull(specialUidMeta(10_123))
     }
@@ -33,5 +34,27 @@ class AndroidSourcesTest {
 
     @Test fun subscription_source_never_throws_and_returns_minus_one_or_an_id() {
         assertTrue(TelephonySubscriptionSource().defaultDataSubscriptionId() >= -1)
+    }
+
+    @Test fun traffic_stats_counter_source_reads_valid_snapshot() {
+        val snapshot = TrafficStatsCounterSource(context).read()
+        assertTrue(snapshot.mobileRxBytes >= 0)
+        assertTrue(snapshot.mobileTxBytes >= 0)
+        assertTrue(snapshot.totalRxBytes >= 0)
+        assertTrue(snapshot.totalTxBytes >= 0)
+        assertTrue(snapshot.bootId.isNotEmpty())
+    }
+
+    @Test fun package_manager_app_info_source_resolves_special_uids_and_handles_missing() {
+        val resolver = PackageManagerAppInfoSource(context)
+        assertEquals("uid:root", resolver.resolve(0)?.packageName)
+        assertEquals("uid:removed", resolver.resolve(NetworkStats.Bucket.UID_REMOVED)?.packageName)
+        assertNull(resolver.resolve(99999))
+    }
+
+    @Test fun app_ops_usage_access_reports_boolean_without_throwing() {
+        val access = AppOpsUsageAccess(context)
+        // Under Robolectric, AppOps defaults to allowed (true)
+        assertEquals(true, access.isGranted())
     }
 }
