@@ -2,6 +2,7 @@
 
 package io.github.khaledbahaaeldin.emberbyte.ui.design.theme
 
+import android.annotation.SuppressLint
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -46,6 +47,8 @@ internal fun resolveColorScheme(
     }
 }
 
+// The dynamic lambdas are only invoked when resolveColorScheme sees sdkInt >= 31; lint cannot see through it.
+@SuppressLint("NewApi")
 @Composable
 fun EmberbyteTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
