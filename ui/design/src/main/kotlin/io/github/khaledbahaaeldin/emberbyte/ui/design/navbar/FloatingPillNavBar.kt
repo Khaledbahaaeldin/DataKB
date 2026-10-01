@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -144,6 +145,7 @@ private fun PillSurface(
                     Modifier
                 },
             )
+            .fillMaxWidth()
             .height(64.dp),
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -163,9 +165,10 @@ private fun PillSurface(
                                 val center = (starts[index] + ends[index]) / 2f
                                 val half = (ends[index] - starts[index]) / 2f
                                 dragDx = dragResistance((x - center).coerceIn(-half, half))
-                                if (index != previewIndex) {
-                                    previewIndex = index
-                                    if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                val previous = previewIndex ?: selectedIndex
+                                previewIndex = index
+                                if (index != previous && hapticsEnabled) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                 }
                             }
                             detectHorizontalDragGestures(
@@ -194,7 +197,12 @@ private fun PillSurface(
                         starts[index] = start
                         ends[index] = end
                     },
-                    onClick = { onSelect(item.id) },
+                    onClick = {
+                        if (item.id != selectedId) {
+                            if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            onSelect(item.id)
+                        }
+                    },
                 )
             }
         }
