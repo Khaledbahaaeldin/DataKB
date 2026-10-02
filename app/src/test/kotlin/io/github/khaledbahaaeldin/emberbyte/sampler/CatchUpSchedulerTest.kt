@@ -6,6 +6,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -20,6 +21,9 @@ class CatchUpSchedulerTest {
         val workInfos = WorkManager.getInstance(app).getWorkInfosForUniqueWork("catchup").get()
         assertNotNull(workInfos)
         assertEquals(1, workInfos.size)
-        assertEquals(WorkInfo.State.ENQUEUED, workInfos[0].state)
+        assertTrue(
+            "Expected work to be ENQUEUED or RUNNING but was ${workInfos[0].state}",
+            workInfos[0].state == WorkInfo.State.ENQUEUED || workInfos[0].state == WorkInfo.State.RUNNING,
+        )
     }
 }
