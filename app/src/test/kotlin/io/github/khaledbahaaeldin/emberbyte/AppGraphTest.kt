@@ -50,4 +50,25 @@ class AppGraphTest {
         org.junit.Assert.assertNotNull(emberbyteApp.graph)
         org.junit.Assert.assertSame(emberbyteApp.graph, emberbyteApp.graph)
     }
+
+    @Test fun the_graph_provides_app_detail_and_history_factories() {
+        val graph = AppGraph(app)
+
+        val detailFactory = graph.appDetailViewModelFactory("com.example.test")
+        val detailViewModel = detailFactory.create(
+            io.github.khaledbahaaeldin.emberbyte.apps.AppDetailViewModel::class.java,
+            androidx.lifecycle.viewmodel.CreationExtras.Empty,
+        )
+        org.junit.Assert.assertNotNull(detailViewModel)
+        org.junit.Assert.assertNotNull(detailViewModel.uiState.value)
+        assertEquals("com.example.test", detailViewModel.uiState.value.packageName)
+
+        val historyFactory = graph.historyViewModelFactory()
+        val historyViewModel = historyFactory.create(
+            io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel::class.java,
+            androidx.lifecycle.viewmodel.CreationExtras.Empty,
+        )
+        org.junit.Assert.assertNotNull(historyViewModel)
+        org.junit.Assert.assertNotNull(historyViewModel.uiState.value)
+    }
 }
