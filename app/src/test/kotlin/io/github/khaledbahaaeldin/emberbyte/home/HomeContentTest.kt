@@ -62,6 +62,11 @@ class HomeContentTest {
         rule.onNodeWithText("Data plan").assertIsDisplayed()
     }
 
+    @Test fun with_a_plan_the_data_plan_tile_is_hidden() {
+        show(HomeUiState(hasPlan = true))
+        rule.onNodeWithText("Data plan").assertDoesNotExist()
+    }
+
     @Test fun the_history_tile_opens_history() {
         var opened = false
         show(HomeUiState(), onHistory = { opened = true })

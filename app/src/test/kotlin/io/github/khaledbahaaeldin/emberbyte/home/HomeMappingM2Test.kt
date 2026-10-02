@@ -76,5 +76,39 @@ class HomeMappingM2Test {
 
     @Test fun hasPlan_follows_the_plan_state() {
         assertFalse(build().hasPlan)
+        val plan = io.github.khaledbahaaeldin.emberbyte.engine.model.Plan(
+            1, "Main SIM", null, 10_000_000_000L,
+            io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle.MonthlyOnDay(12, java.time.LocalTime.MIDNIGHT, zone),
+            io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover.None,
+        )
+        val planState = io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState(
+            plan = plan,
+            window = io.github.khaledbahaaeldin.emberbyte.engine.model.CycleWindow(now, now),
+            effectiveCapBytes = 10_000_000_000L,
+            usedBytes = 6_200_000_000L,
+            remainingBytes = 3_800_000_000L,
+            rolledOverBytes = 0,
+            addOnBytes = 0,
+            freeBytes = 0,
+            daysLeft = 9,
+            fractionUsed = 0.62f,
+            isApproximate = false,
+        )
+        val ui = buildHomeUiState(
+            today = DayUsage(LocalDate.of(2026, 10, 7), 0, 0), live = null, planState = planState, forecast = null,
+            apps = emptyList(), week = emptyList(), units = UnitSystem.DECIMAL, selectedDay = null,
+            now = now, zone = zone, locale = Locale.ENGLISH,
+        )
+        assertTrue(ui.hasPlan)
+    }
+
+    @Test fun counter_reset_gap_reason_is_described_properly() {
+        val ui = build(coverage = CoverageStatus(listOf(gap(130, 20, GapReason.COUNTER_RESET)), null))
+        assertEquals("Not measured 09:50–11:40 because the counters reset", ui.gap?.message)
+    }
+
+    @Test fun five_minute_gap_is_included() {
+        val ui = build(coverage = CoverageStatus(listOf(gap(15, 10, GapReason.SERVICE_KILLED)), null))
+        assertEquals("Not measured 11:45–11:50 because the app was stopped", ui.gap?.message)
     }
 }
