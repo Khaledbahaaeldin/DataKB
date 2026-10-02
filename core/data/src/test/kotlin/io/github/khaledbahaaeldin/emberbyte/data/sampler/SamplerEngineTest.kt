@@ -11,6 +11,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -56,7 +57,7 @@ class SamplerEngineTest {
 
     @Test fun wifi_is_total_minus_mobile_and_rows_carry_their_subscription() = runTest {
         val store = InMemoryUsageStore()
-        val e = engine(listOf(snap(0), snap(1, mobRx = 200, totRx = 1000)), store)
+        val e = engine(listOf(snap(0), snap(1, mobRx = 200, totRx = 1000)), store, kind = NetworkKind.WIFI)
         e.start(); e.tick(); e.stop()
         val rows = store.rows()
         val mobile = rows.single { it.network == NetworkKind.MOBILE }
@@ -130,11 +131,11 @@ class SamplerEngineTest {
         assertEquals(100L, store.rows().single { it.network == NetworkKind.MOBILE }.rxBytes)
     }
 
-    @Test fun a_counter_decrease_records_a_reset_gap_and_counts_the_new_value() = runTest {
+    @Test fun a_counter_decrease_records_a_reset_gap_and_counts_nothing() = runTest {
         val store = InMemoryUsageStore()
         val e = engine(listOf(snap(0), snap(1, mobRx = 1000), snap(2, mobRx = 50)), store)
         e.start(); e.tick(); e.tick(); e.stop()
-        assertEquals(1050L, store.rows().single { it.network == NetworkKind.MOBILE }.rxBytes)
+        assertEquals(1000L, store.rows().single { it.network == NetworkKind.MOBILE }.rxBytes)
         val gap = store.gaps(open.first, open.second).single()
         assertEquals(GapReason.COUNTER_RESET, gap.reason)
         assertEquals(t0.plusSeconds(1), gap.from); assertEquals(t0.plusSeconds(2), gap.to)
@@ -179,6 +180,50 @@ class SamplerEngineTest {
         val e = engine(listOf(snap(5), snap(2, mobRx = 500)))
         e.start(); e.tick()
         assertTrue(e.liveSpeed.replayCache.isEmpty())
+    }
+
+    @Test fun a_mobile_counter_that_vanishes_and_returns_does_not_create_usage() = runTest {
+        val store = InMemoryUsageStore()
+        val two = 2_000_000_000L
+        val e = engine(listOf(snap(0, mobRx = two, totRx = two), snap(1, mobRx = 0, totRx = two), snap(2, mobRx = two, totRx = two + 10_000)), store, kind = NetworkKind.MOBILE)
+        e.start(); e.tick(); e.tick(); e.stop()
+        val mobile = store.rows().filter { it.network == NetworkKind.MOBILE }.sumOf { it.rxBytes }
+        assertTrue("mobile was $mobile", mobile <= 10_000L)
+        assertEquals(0L, store.rows().filter { it.network == NetworkKind.WIFI }.sumOf { it.totalBytes })
+    }
+
+    @Test fun wifi_is_not_booked_while_the_default_network_is_cellular_or_offline() = runTest {
+        for (kind in listOf(NetworkKind.MOBILE, null)) {
+            val store = InMemoryUsageStore()
+            val e = engine(listOf(snap(0), snap(1, totRx = 500)), store, kind = kind)
+            e.start(); e.tick(); e.stop()
+            assertEquals("kind=$kind", 0L, store.rows().filter { it.network == NetworkKind.WIFI }.sumOf { it.totalBytes })
+        }
+    }
+
+    @Test fun a_tick_that_arrives_very_late_is_not_lumped_into_one_minute() = runTest {
+        val store = InMemoryUsageStore()
+        val e = engine(listOf(snap(0), snap(600, mobRx = 50_000_000), snap(601, mobRx = 50_000_100)), store)
+        e.start(); e.tick()
+        assertEquals(0L, store.rows().sumOf { it.totalBytes })
+        val gap = store.gaps(open.first, open.second).single()
+        assertEquals(GapReason.DEVICE_ASLEEP, gap.reason)
+        assertEquals(t0, gap.from); assertEquals(t0.plusSeconds(600), gap.to)
+        e.tick(); e.stop()
+        assertEquals(100L, store.rows().filter { it.network == NetworkKind.MOBILE }.sumOf { it.rxBytes })
+    }
+
+    @Test fun overlapping_runs_are_serialised_instead_of_failing() = runTest {
+        val script = (0L..40L).map { snap(it, mobRx = it * 10) }
+        val e = SamplerEngine(FakeCounterSource(script), FakeNetworkKindSource(), FakeSubscriptionSource(7), InMemoryUsageStore(), tickMillis = 1_000)
+        val first = launch { e.run() }
+        advanceTimeBy(1_500); runCurrent()
+        val second = launch { e.run() }          // must wait for the first run to finish
+        advanceTimeBy(1_500); runCurrent()
+        first.cancelAndJoin()
+        advanceTimeBy(2_500); runCurrent()
+        assertTrue(second.isActive)               // it took over without an IllegalStateException
+        second.cancelAndJoin()
     }
 }
 

@@ -111,4 +111,7 @@ class HomeMappingM2Test {
         val ui = build(coverage = CoverageStatus(listOf(gap(15, 10, GapReason.SERVICE_KILLED)), null))
         assertEquals("Not measured 11:45–11:50 because the app was stopped", ui.gap?.message)
     }
+
+    @Test fun device_asleep_gaps_are_never_shown_in_the_banner() =
+        assertNull(build(coverage = CoverageStatus(listOf(gap(130, 20, GapReason.DEVICE_ASLEEP)), null)).gap)
 }

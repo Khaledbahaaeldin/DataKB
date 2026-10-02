@@ -191,12 +191,17 @@ private fun gapReasonText(reason: GapReason): String = when (reason) {
     GapReason.REBOOT -> "the device restarted"
     GapReason.COUNTER_RESET -> "the counters reset"
     GapReason.PERMISSION_MISSING -> "usage access was off"
+    GapReason.DEVICE_ASLEEP -> "the device was asleep"
 }
 
 /** The newest gap of at least 5 minutes that ended within the last 24 hours, as a banner message. */
 internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId): GapUi? {
     val gap: CoverageGap = coverage.gaps
-        .filter { Duration.between(it.from, it.to) >= MIN_GAP_FOR_BANNER && it.to >= now.minus(GAP_BANNER_WINDOW) }
+        .filter {
+            Duration.between(it.from, it.to) >= MIN_GAP_FOR_BANNER &&
+                it.to >= now.minus(GAP_BANNER_WINDOW) &&
+                it.reason != GapReason.DEVICE_ASLEEP
+        }
         .maxByOrNull { it.to } ?: return null
     val from = GAP_CLOCK.format(gap.from.atZone(zone))
     val to = GAP_CLOCK.format(gap.to.atZone(zone))

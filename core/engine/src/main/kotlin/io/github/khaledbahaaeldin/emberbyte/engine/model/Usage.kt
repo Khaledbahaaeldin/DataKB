@@ -35,7 +35,7 @@ data class AppUsage(
 
 enum class AppSort { BYTES_DESC, BYTES_ASC, NAME, SCREEN_TIME_DESC }
 
-enum class GapReason { SERVICE_KILLED, REBOOT, COUNTER_RESET, PERMISSION_MISSING }
+enum class GapReason { SERVICE_KILLED, REBOOT, COUNTER_RESET, PERMISSION_MISSING, DEVICE_ASLEEP }
 
 data class CoverageGap(val from: Instant, val to: Instant, val reason: GapReason)
 

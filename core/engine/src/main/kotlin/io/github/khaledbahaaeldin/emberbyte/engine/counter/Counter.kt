@@ -8,19 +8,19 @@ data class CounterDelta(val rxBytes: Long, val txBytes: Long, val wasReset: Bool
 
 object CounterReconciler {
     /**
-     * Turns cumulative counter readings into a non-negative delta.
-     * previous == null -> zero delta, not a reset. A different bootId, or EITHER counter decreasing, is a reset:
-     * the delta is the current reading (both directions) and wasReset is true.
+     * previous == null -> zero delta, not a reset.
+     * A different bootId means the counters restarted from zero: the delta is the current reading (wasReset = true).
+     * In the SAME boot a decreasing counter means an interface vanished (for example mobile data went away): the delta is 0
+     * (wasReset = true) so nothing is invented; when the interface returns, the caller clamps the jump (see SamplerEngine).
      */
     fun delta(previous: CounterReading?, current: CounterReading): CounterDelta {
         if (previous == null) return CounterDelta(0L, 0L, wasReset = false)
-        val reset = previous.bootId != current.bootId ||
-            current.rxBytes < previous.rxBytes ||
-            current.txBytes < previous.txBytes
-        return if (reset) {
-            CounterDelta(current.rxBytes.coerceAtLeast(0L), current.txBytes.coerceAtLeast(0L), wasReset = true)
-        } else {
-            CounterDelta(current.rxBytes - previous.rxBytes, current.txBytes - previous.txBytes, wasReset = false)
+        if (previous.bootId != current.bootId) {
+            return CounterDelta(current.rxBytes.coerceAtLeast(0L), current.txBytes.coerceAtLeast(0L), wasReset = true)
         }
+        if (current.rxBytes < previous.rxBytes || current.txBytes < previous.txBytes) {
+            return CounterDelta(0L, 0L, wasReset = true)
+        }
+        return CounterDelta(current.rxBytes - previous.rxBytes, current.txBytes - previous.txBytes, wasReset = false)
     }
 }

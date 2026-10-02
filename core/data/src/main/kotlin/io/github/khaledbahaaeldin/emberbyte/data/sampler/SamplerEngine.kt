@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToLong
 
@@ -56,6 +58,7 @@ class SamplerEngine(
     private var emaTx = 0.0
     private var hasEma = false
     private var started = false
+    private val runLock = Mutex()
     private val pending = LinkedHashMap<MinuteKey, Pending>()
 
     suspend fun start() {
@@ -77,32 +80,44 @@ class SamplerEngine(
         val mobileNow = CounterReading(snapshot.at, snapshot.mobileRxBytes, snapshot.mobileTxBytes, snapshot.bootId)
         val totalNow = CounterReading(snapshot.at, snapshot.totalRxBytes, snapshot.totalTxBytes, snapshot.bootId)
         val before = previousTotal!!
-        val mobileDelta = CounterReconciler.delta(previousMobile, mobileNow)
-        val totalDelta = CounterReconciler.delta(before, totalNow)
         val elapsedMs = Duration.between(before.at, snapshot.at).toMillis()
+        val mobileRaw = CounterReconciler.delta(previousMobile, mobileNow)
+        val totalRaw = CounterReconciler.delta(before, totalNow)
         previousMobile = mobileNow
         previousTotal = totalNow
         if (elapsedMs <= 0L) return
 
-        if (mobileDelta.wasReset || totalDelta.wasReset) {
+        if (elapsedMs > GAP_THRESHOLD_MS) {
+            // The device slept or the process was frozen: these bytes belong to hours the catch-up fills from system data.
+            store.insertGap(CoverageGap(before.at, snapshot.at, GapReason.DEVICE_ASLEEP))
+            hasEma = false
+            return
+        }
+        if (mobileRaw.wasReset || totalRaw.wasReset) {
             store.insertGap(CoverageGap(before.at, snapshot.at, GapReason.COUNTER_RESET))
         }
-        val wifiRx = (totalDelta.rxBytes - mobileDelta.rxBytes).coerceAtLeast(0L)
-        val wifiTx = (totalDelta.txBytes - mobileDelta.txBytes).coerceAtLeast(0L)
+
+        val kind = network.current.value
+        // The all-interface total includes mobile, so mobile can never exceed it (a returning mobile counter must not create usage).
+        val mobileRx = minOf(mobileRaw.rxBytes, totalRaw.rxBytes)
+        val mobileTx = minOf(mobileRaw.txBytes, totalRaw.txBytes)
+        // Wi-Fi is only derived while Wi-Fi is the default network; offline noise, tethering and cellular-side VPN bytes are not Wi-Fi.
+        val wifiRx = if (kind == NetworkKind.WIFI) (totalRaw.rxBytes - mobileRx).coerceAtLeast(0L) else 0L
+        val wifiTx = if (kind == NetworkKind.WIFI) (totalRaw.txBytes - mobileTx).coerceAtLeast(0L) else 0L
 
         val seconds = elapsedMs / 1000.0
-        val instantRx = (mobileDelta.rxBytes + wifiRx) / seconds
-        val instantTx = (mobileDelta.txBytes + wifiTx) / seconds
+        val instantRx = (mobileRx + wifiRx) / seconds
+        val instantTx = (mobileTx + wifiTx) / seconds
         if (!hasEma) {
             emaRx = instantRx; emaTx = instantTx; hasEma = true
         } else {
             emaRx = EMA_ALPHA * instantRx + (1 - EMA_ALPHA) * emaRx
             emaTx = EMA_ALPHA * instantTx + (1 - EMA_ALPHA) * emaTx
         }
-        _liveSpeed.tryEmit(LiveSpeed(emaRx.roundToLong(), emaTx.roundToLong(), network.current.value, snapshot.at))
+        _liveSpeed.tryEmit(LiveSpeed(emaRx.roundToLong(), emaTx.roundToLong(), kind, snapshot.at))
 
         val minute = snapshot.at.truncatedTo(ChronoUnit.MINUTES)
-        add(MinuteKey(minute, NetworkKind.MOBILE, subscription.defaultDataSubscriptionId()), mobileDelta.rxBytes, mobileDelta.txBytes)
+        add(MinuteKey(minute, NetworkKind.MOBILE, subscription.defaultDataSubscriptionId()), mobileRx, mobileTx)
         add(MinuteKey(minute, NetworkKind.WIFI, NO_SUBSCRIPTION), wifiRx, wifiTx)
         flush(olderThan = minute)
     }
@@ -115,8 +130,8 @@ class SamplerEngine(
         started = false
     }
 
-    /** Runs until cancelled; always flushes and saves checkpoints on the way out. */
-    suspend fun run() {
+    /** Runs until cancelled; always flushes and saves checkpoints on the way out. Runs never overlap (they are serialised). */
+    suspend fun run() = runLock.withLock {
         start()
         try {
             while (true) {
