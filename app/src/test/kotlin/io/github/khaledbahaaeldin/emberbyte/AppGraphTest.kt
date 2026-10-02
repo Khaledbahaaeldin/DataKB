@@ -71,4 +71,24 @@ class AppGraphTest {
         org.junit.Assert.assertNotNull(historyViewModel)
         org.junit.Assert.assertNotNull(historyViewModel.uiState.value)
     }
+
+    @Test fun the_graph_provides_settings_and_onboarding_factories() {
+        val graph = AppGraph(app)
+
+        val settingsFactory = graph.settingsViewModelFactory()
+        val settingsViewModel = settingsFactory.create(
+            io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel::class.java,
+            androidx.lifecycle.viewmodel.CreationExtras.Empty,
+        )
+        org.junit.Assert.assertNotNull(settingsViewModel)
+        org.junit.Assert.assertNotNull(settingsViewModel.uiState.value)
+
+        val onboardingFactory = graph.onboardingViewModelFactory()
+        val onboardingViewModel = onboardingFactory.create(
+            io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel::class.java,
+            androidx.lifecycle.viewmodel.CreationExtras.Empty,
+        )
+        org.junit.Assert.assertNotNull(onboardingViewModel)
+        org.junit.Assert.assertNotNull(onboardingViewModel.uiState.value)
+    }
 }
