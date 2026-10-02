@@ -25,10 +25,22 @@ import org.robolectric.annotation.Config
 class SettingsContentTest {
     @get:Rule val rule = createComposeRule()
 
-    private fun show(settings: Settings = Settings(), onUpdate: ((Settings) -> Settings) -> Unit = {}, onBack: () -> Unit = {}) =
+    private fun show(
+        settings: Settings = Settings(),
+        onUpdate: ((Settings) -> Settings) -> Unit = {},
+        onBack: () -> Unit = {},
+        onOpenBatterySettings: () -> Unit = {},
+    ) =
         rule.setContent {
             EmberbyteTheme(darkTheme = true, dynamicColor = false) {
-                SettingsContent(settings, onUpdate, onBack, versionName = "0.2.0", onOpenSource = {})
+                SettingsContent(
+                    settings = settings,
+                    onUpdate = onUpdate,
+                    onBack = onBack,
+                    versionName = "0.2.0",
+                    onOpenSource = {},
+                    onOpenBatterySettings = onOpenBatterySettings,
+                )
             }
         }
 
@@ -70,5 +82,13 @@ class SettingsContentTest {
         assertTrue(back)
         scrollTo("Emberbyte 0.2.0")
         rule.onNodeWithText("Emberbyte 0.2.0").assertIsDisplayed()
+    }
+
+    @Test fun scrolling_to_and_clicking_battery_settings_calls_callback() {
+        var opened = false
+        show(onOpenBatterySettings = { opened = true })
+        scrollTo("Battery settings")
+        rule.onNodeWithText("Battery settings").performClick()
+        assertTrue(opened)
     }
 }

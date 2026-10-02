@@ -5,4 +5,8 @@
     <string name="channel_live_description">Today\'s data usage and your current speed</string>
     <string name="notification_measuring">Measuring data usage</string>
     <string name="fgs_subtype">Continuously reads local network traffic counters to show data usage and live speed</string>
+    <string name="channel_status_name">Status</string>
+    <string name="channel_status_description">Tells you when measuring has paused</string>
+    <string name="notification_paused_title">Measurement paused</string>
+    <string name="notification_paused_text">Tap to resume measuring your data usage.</string>
 </resources>

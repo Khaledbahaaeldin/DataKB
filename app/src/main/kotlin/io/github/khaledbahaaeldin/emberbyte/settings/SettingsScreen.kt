@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.settings
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,7 +45,14 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, modifier: M
         onUpdate = viewModel::update,
         onBack = onBack,
         versionName = versionName,
-        onOpenSource = { uriHandler.openUri(SOURCE_URL) },
+        onOpenSource = { runCatching { uriHandler.openUri(SOURCE_URL) } },
+        onOpenBatterySettings = {
+            runCatching {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        },
         modifier = modifier,
     )
 }
@@ -56,6 +64,7 @@ internal fun SettingsContent(
     onBack: () -> Unit,
     versionName: String,
     onOpenSource: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -76,6 +85,15 @@ internal fun SettingsContent(
                 onUpdate { s -> s.copy(notificationShowsSpeed = it) }
             }
         }
+        item { SectionTitle("Background") }
+        item {
+            Text(
+                "Some phones stop background apps. Allow Emberbyte in the battery settings so it can keep measuring.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item { TextButton(onClick = onOpenBatterySettings) { Text("Battery settings") } }
         item { SectionTitle("Appearance") }
         item {
             SwitchRow("Dynamic colour", "Use your wallpaper colours (Android 12 and newer)", settings.useDynamicColor) {

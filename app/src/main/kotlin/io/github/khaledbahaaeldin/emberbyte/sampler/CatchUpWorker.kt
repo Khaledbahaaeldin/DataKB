@@ -7,6 +7,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import io.github.khaledbahaaeldin.emberbyte.AppGraph
 import io.github.khaledbahaaeldin.emberbyte.EmberbyteApplication
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
@@ -17,10 +18,25 @@ class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val graph = (applicationContext as EmberbyteApplication).graph
         graph.catchUp.run()
         graph.prune()
-        if (graph.onboarding.observeCompleted().first { it != null } == true) {
-            ServiceStarter.start(applicationContext)
-        }
+        CatchUpRecovery.afterCatchUp(applicationContext, graph)
         return Result.success()
+    }
+}
+
+internal object CatchUpRecovery {
+    /**
+     * If measuring should be running but is not: try to restart it; when Android refuses (background start on Android 12+), tell the
+     * user with a "Measurement paused" notification instead of failing silently.
+     */
+    suspend fun afterCatchUp(
+        context: Context,
+        graph: AppGraph,
+        serviceRunning: () -> Boolean = { SamplerService.running.get() },
+        tryStart: (Context) -> Boolean = ServiceStarter::start,
+    ) {
+        if (graph.onboardingCompleted.first { it != null } != true) return
+        if (serviceRunning()) return
+        if (!tryStart(context)) StatusNotifications.showPaused(context)
     }
 }
 

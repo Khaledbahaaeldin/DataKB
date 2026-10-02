@@ -8,14 +8,15 @@ import androidx.core.content.ContextCompat
 object ServiceStarter {
     private const val TAG = "ServiceStarter"
 
-    /** Starts the sampler service. Never throws: Android may refuse a foreground start from the background. */
-    fun start(context: Context) {
-        try {
-            ContextCompat.startForegroundService(context, Intent(context, SamplerService::class.java))
-        } catch (error: IllegalStateException) { // includes ForegroundServiceStartNotAllowedException
-            Log.w(TAG, "Foreground start not allowed right now", error)
-        } catch (error: SecurityException) {
-            Log.w(TAG, "Foreground start refused", error)
-        }
+    /** Starts the sampler service. Returns false when Android refused (a foreground start from the background); never throws. */
+    fun start(context: Context): Boolean = try {
+        ContextCompat.startForegroundService(context, Intent(context, SamplerService::class.java))
+        true
+    } catch (error: IllegalStateException) { // includes ForegroundServiceStartNotAllowedException
+        Log.w(TAG, "Foreground start not allowed right now", error)
+        false
+    } catch (error: SecurityException) {
+        Log.w(TAG, "Foreground start refused", error)
+        false
     }
 }

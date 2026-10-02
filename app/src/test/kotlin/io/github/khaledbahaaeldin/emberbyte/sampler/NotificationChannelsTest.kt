@@ -21,4 +21,12 @@ class NotificationChannelsTest {
         assertNotNull(channel)
         assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
     }
+
+    @Test fun ensure_creates_the_status_channel_with_low_importance() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        NotificationChannels.ensure(app)
+        val channel = app.getSystemService(NotificationManager::class.java).getNotificationChannel(NotificationChannels.STATUS)
+        assertNotNull(channel)
+        assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
+    }
 }

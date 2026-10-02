@@ -37,6 +37,12 @@ class LiveNotificationTest {
         assertEquals("1.00 MiB today", liveNotificationText(1_048_576L, 0L, ByteUnits.BINARY, showSpeed = false).title)
     }
 
+    @Test fun offline_says_no_connection_instead_of_a_stale_speed() {
+        val text = liveNotificationText(1_000_000L, 195L, ByteUnits.DECIMAL, showSpeed = true, offline = true)
+        assertEquals("1.00 MB today", text.title)
+        assertEquals("No connection", text.text)
+    }
+
     @Test fun the_built_notification_is_ongoing_on_the_live_channel() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val notification = LiveNotificationBuilder(app).build(LiveNotificationText("1.24 GB today", "↓ 4.20 MB/s"))
