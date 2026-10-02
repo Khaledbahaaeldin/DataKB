@@ -11,6 +11,7 @@ import io.github.khaledbahaaeldin.emberbyte.data.OnboardingRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.RoomUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
 import io.github.khaledbahaaeldin.emberbyte.data.android.AppOpsUsageAccess
@@ -31,6 +32,13 @@ import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
 import java.time.Clock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * Hand-written dependency graph (no DI framework). One instance per process, owned by [EmberbyteApplication].
@@ -45,6 +53,16 @@ class AppGraph(context: Context, private val clock: Clock = Clock.systemDefaultZ
     val onboarding: OnboardingRepository = preferences.onboarding
     val permissions: PermissionRepository = AndroidPermissionRepository(appContext)
     val plans: PlanRepository = NoPlanRepository()
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Hot cache of the onboarding flag. `null` only until the first read; collecting it never restarts the underlying flow. */
+    val onboardingCompleted: StateFlow<Boolean?> =
+        onboarding.observeCompleted().stateIn(appScope, SharingStarted.Eagerly, null)
+
+    /** Hot cache of the settings. `null` only until the first read; collecting it never restarts the underlying flow. */
+    val settingsState: StateFlow<Settings?> =
+        settings.observe().map<Settings, Settings?> { it }.stateIn(appScope, SharingStarted.Eagerly, null)
 
     val sampler = SamplerEngine(
         counters = TrafficStatsCounterSource(appContext, clock),

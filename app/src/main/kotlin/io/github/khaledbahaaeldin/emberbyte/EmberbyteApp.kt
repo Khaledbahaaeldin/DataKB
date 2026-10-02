@@ -1,6 +1,5 @@
 package io.github.khaledbahaaeldin.emberbyte
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -17,7 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -50,14 +48,10 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.LocalReduceMotion
 
 @Composable
 fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
-    val completed by graph.onboarding.observeCompleted().collectAsStateWithLifecycle(initialValue = null)
+    val completed by graph.onboardingCompleted.collectAsStateWithLifecycle()
     val value = completed
-    if (value == null) {
-        // The stored value is still loading: draw only the background so the right start screen is chosen once.
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-    } else {
-        AppScaffold(graph, startOnboarding = !value, hapticsEnabled = hapticsEnabled)
-    }
+    // `null` only before the first read. The scaffold is created ONCE with the right start destination and then stays.
+    if (value != null) AppScaffold(graph, startOnboarding = !value, hapticsEnabled = hapticsEnabled)
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -142,7 +136,7 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 selectedId = selected.id,
                 onSelect = { id ->
                     navController.navigate(Destination.fromId(id).route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        popUpTo(Destination.Home.route) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
