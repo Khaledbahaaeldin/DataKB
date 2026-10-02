@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Emberbyte</string>
+    <string name="channel_live_name">Live usage</string>
+    <string name="channel_live_description">Today\'s data usage and your current speed</string>
+    <string name="notification_measuring">Measuring data usage</string>
+    <string name="fgs_subtype">Continuously reads local network traffic counters to show data usage and live speed</string>
 </resources>
