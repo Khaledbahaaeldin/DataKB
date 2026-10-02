@@ -53,7 +53,12 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
             popExitTransition = { tabExitTransition(motion, reduceMotion) },
         ) {
             composable(Destination.Home.route) {
-                HomeScreen(viewModel(factory = graph.homeViewModelFactory()))
+                HomeScreen(
+                    viewModel(factory = graph.homeViewModelFactory()),
+                    onOpenSettings = {},
+                    onOpenHistory = {},
+                    onPromptAction = {},
+                )
             }
             composable(Destination.Apps.route) {
                 PlaceholderScreen("Apps", "Per-app usage arrives in the next milestone.")

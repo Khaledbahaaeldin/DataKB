@@ -1,16 +1,20 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
+import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -35,7 +39,16 @@ class HomeViewModelTest {
     private fun viewModel(
         tick: MutableSharedFlow<Unit> = MutableSharedFlow(),
         settings: FakeSettingsRepository = FakeSettingsRepository(),
-    ) = HomeViewModel(FakeUsageRepository(clock, tick), FakePlanRepository(clock), settings, clock, Locale.ENGLISH)
+        permissions: FakePermissionRepository = FakePermissionRepository(),
+    ) = HomeViewModel(
+        usage = FakeUsageRepository(clock, tick),
+        plans = FakePlanRepository(clock),
+        settings = settings,
+        permissions = permissions,
+        clock = clock,
+        locale = Locale.ENGLISH,
+        dates = flowOf(LocalDate.of(2026, 10, 5)),
+    )
 
     @Test fun emits_today_total_plan_and_forecast() = runTest(dispatcher) {
         val vm = viewModel()
@@ -85,6 +98,18 @@ class HomeViewModelTest {
         settings.update { it.copy(unitSystem = UnitSystem.BINARY) }
         advanceUntilIdle()
         assertEquals(io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits.BINARY, vm.uiState.value.units)
+        job.cancel()
+    }
+
+    @Test fun missing_permissions_become_prompts() = runTest(dispatcher) {
+        val permissions = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val vm = HomeViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakePlanRepository(clock), FakeSettingsRepository(), permissions, clock, Locale.ENGLISH, flowOf(LocalDate.of(2026, 10, 5)))
+        val job = launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+        assertEquals(listOf("usage_access"), vm.uiState.value.prompts.map { it.id })
+        permissions.set(PermissionState(true, true, true, false))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.prompts.isEmpty())
         job.cancel()
     }
 }

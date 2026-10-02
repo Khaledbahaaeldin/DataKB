@@ -1,16 +1,19 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
+import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -35,7 +38,15 @@ class HomeViewModelBehaviourTest {
     @Test fun selected_day_survives_live_ticks_and_settings_changes() = runTest(dispatcher) {
         val tick = MutableSharedFlow<Unit>()
         val settings = FakeSettingsRepository()
-        val vm = HomeViewModel(FakeUsageRepository(clock, tick), FakePlanRepository(clock), settings, clock, Locale.ENGLISH)
+        val vm = HomeViewModel(
+            usage = FakeUsageRepository(clock, tick),
+            plans = FakePlanRepository(clock),
+            settings = settings,
+            permissions = FakePermissionRepository(),
+            clock = clock,
+            locale = Locale.ENGLISH,
+            dates = flowOf(LocalDate.of(2026, 10, 5)),
+        )
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
@@ -52,7 +63,15 @@ class HomeViewModelBehaviourTest {
     }
 
     @Test fun selecting_a_different_day_moves_the_selection_instead_of_clearing_it() = runTest(dispatcher) {
-        val vm = HomeViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakePlanRepository(clock), FakeSettingsRepository(), clock, Locale.ENGLISH)
+        val vm = HomeViewModel(
+            usage = FakeUsageRepository(clock, MutableSharedFlow()),
+            plans = FakePlanRepository(clock),
+            settings = FakeSettingsRepository(),
+            permissions = FakePermissionRepository(),
+            clock = clock,
+            locale = Locale.ENGLISH,
+            dates = flowOf(LocalDate.of(2026, 10, 5)),
+        )
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
         vm.onEvent(HomeEvent.SelectDay(1))

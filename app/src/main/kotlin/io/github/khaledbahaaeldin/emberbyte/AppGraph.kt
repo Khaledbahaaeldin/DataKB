@@ -60,6 +60,6 @@ class AppGraph(context: Context, private val clock: Clock = Clock.systemDefaultZ
     suspend fun prune() = store.prune(clock.instant())
 
     fun homeViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { HomeViewModel(usage, plans, settings) }
+        initializer { HomeViewModel(usage, plans, settings, permissions) }
     }
 }
