@@ -24,6 +24,7 @@ import io.github.khaledbahaaeldin.emberbyte.data.sampler.SamplerEngine
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStores
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
+import io.github.khaledbahaaeldin.emberbyte.apps.AppsViewModel
 import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
 import java.time.Clock
 
@@ -61,5 +62,9 @@ class AppGraph(context: Context, private val clock: Clock = Clock.systemDefaultZ
 
     fun homeViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
         initializer { HomeViewModel(usage, plans, settings, permissions) }
+    }
+
+    fun appsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
+        initializer { AppsViewModel(usage, settings, permissions) }
     }
 }
