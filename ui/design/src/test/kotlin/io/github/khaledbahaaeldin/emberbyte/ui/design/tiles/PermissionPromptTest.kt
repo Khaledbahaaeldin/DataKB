@@ -1,9 +1,11 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.tiles
 
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
@@ -33,6 +35,18 @@ class PermissionPromptTest {
         rule.onNodeWithText("See which apps use your data.").assertIsDisplayed()
         rule.onNodeWithText("Open settings").performClick()
         assertEquals(1, clicks)
+    }
+
+    @Test fun prompt_action_button_meets_minimum_touch_target_height() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                PermissionPrompt(
+                    PermissionPromptUi("usage_access", "Allow usage access", "See which apps use your data.", "Open settings"),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Open settings").assertHeightIsAtLeast(48.dp)
     }
 
     @Test fun gap_banner_shows_its_message() {
