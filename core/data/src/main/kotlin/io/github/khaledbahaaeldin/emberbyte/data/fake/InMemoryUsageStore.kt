@@ -39,6 +39,10 @@ class InMemoryUsageStore : UsageStore {
         map + rows.associateBy { HourKey(it.hourStart, it.uid, it.network, it.subscriptionId) }
     }
 
+    override suspend fun replaceHourly(hourStart: Instant, rows: List<HourlyUsage>) = hours.update { map ->
+        map.filterKeys { it.hourStart != hourStart } + rows.associateBy { HourKey(it.hourStart, it.uid, it.network, it.subscriptionId) }
+    }
+
     override suspend fun upsertAppMeta(meta: List<AppMeta>) = this.meta.update { map -> map + meta.associateBy { it.uid } }
 
     override suspend fun insertGap(gap: CoverageGap) = gapList.update { it + gap }

@@ -6,13 +6,14 @@ import io.github.khaledbahaaeldin.emberbyte.data.source.UsageAccess
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStore
 import io.github.khaledbahaaeldin.emberbyte.engine.counter.CounterReading
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
-import io.github.khaledbahaaeldin.emberbyte.engine.usage.HourlyReconciler
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.HourlyUsage
+import io.github.khaledbahaaeldin.emberbyte.engine.usage.SeriesBuilder
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.dominantSubscriptionId
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 const val CHECKPOINT_CATCHUP_HOURLY = "catchup.hourly"
 
@@ -21,7 +22,13 @@ sealed interface CatchUpResult {
     data object MissingUsageAccess : CatchUpResult
 }
 
-/** Pulls per-app hourly usage from the system's network stats into the store. */
+private val WINDOW: Duration = Duration.ofSeconds(SeriesBuilder.WINDOW_SECONDS)
+
+/**
+ * Pulls per-app usage from the system's network stats, ONE 2-hour window at a time (the platform's bucket size, so nothing is
+ * interpolated; the open window is clamped to now), and atomically replaces each window's rows. `hoursUpdated` counts windows.
+ * Runs are serialised: the service loop, the worker and a manual refresh can all call [run].
+ */
 class HourlyCatchUp(
     private val source: NetworkStatsSource,
     private val store: UsageStore,
@@ -30,43 +37,46 @@ class HourlyCatchUp(
     private val clock: Clock,
     private val maxBackfill: Duration = Duration.ofDays(7),
 ) {
-    suspend fun run(): CatchUpResult {
+    private val lock = Mutex()
+
+    suspend fun run(): CatchUpResult = lock.withLock { runLocked() }
+
+    private suspend fun runLocked(): CatchUpResult {
         if (!access.isGranted()) return CatchUpResult.MissingUsageAccess
 
         val now = clock.instant()
-        val currentHour = now.truncatedTo(ChronoUnit.HOURS)
-        val floor = currentHour.minus(maxBackfill)
+        val currentWindow = SeriesBuilder.windowStart(now)
+        val floor = SeriesBuilder.windowStart(now.minus(maxBackfill))
         val checkpoint = store.loadCheckpoint(CHECKPOINT_CATCHUP_HOURLY)
         val start = checkpoint
-            ?.let { it.at.truncatedTo(ChronoUnit.HOURS).minus(2, ChronoUnit.HOURS) }
+            ?.let { SeriesBuilder.windowStart(it.at).minus(WINDOW) } // the previous window may have closed since the last run
             ?.let { if (it < floor) floor else it }
             ?: floor
 
         val knownUids = store.appMeta().map { it.uid }.toHashSet()
-        var hour = start
+        var window = start
         var updated = 0
-        while (hour <= currentHour) {
-            val end = hour.plus(1, ChronoUnit.HOURS)
-            val minuteRows = store.minuteRows(hour, end)
+        while (window <= currentWindow) {
+            val end = window.plus(WINDOW)
+            val queryEnd: Instant = if (end < now) end else now
+            val minuteRows = store.minuteRows(window, end)
             val rows = ArrayList<HourlyUsage>()
             for (network in NetworkKind.entries) {
                 val subscription = if (network == NetworkKind.MOBILE) dominantSubscriptionId(minuteRows) else -1
-                val queryEnd = if (end < now) end else now
-                for (usage in source.query(network, hour, queryEnd)) {
+                for (usage in source.query(network, window, queryEnd)) {
                     if (usage.rxBytes + usage.txBytes > 0L) {
-                        rows += HourlyUsage(hour, usage.uid, network, subscription, usage.rxBytes, usage.txBytes)
+                        rows += HourlyUsage(window, usage.uid, network, subscription, usage.rxBytes, usage.txBytes)
                     }
                 }
             }
-            val finalRows = if (end <= now) HourlyReconciler.scale(hour, rows, minuteRows) else rows
-            if (finalRows.isNotEmpty()) store.upsertHourly(finalRows)
-            for (uid in finalRows.map { it.uid }.distinct()) {
+            store.replaceHourly(window, rows)
+            for (uid in rows.map { it.uid }.distinct()) {
                 if (knownUids.add(uid)) appInfo.resolve(uid)?.let { store.upsertAppMeta(listOf(it)) }
             }
             updated++
-            hour = end
+            window = end
         }
-        store.saveCheckpoint(CHECKPOINT_CATCHUP_HOURLY, CounterReading(currentHour, 0L, 0L, "catchup"))
+        store.saveCheckpoint(CHECKPOINT_CATCHUP_HOURLY, CounterReading(currentWindow, 0L, 0L, "catchup"))
         return CatchUpResult.Done(updated)
     }
 }

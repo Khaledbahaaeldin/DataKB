@@ -36,6 +36,9 @@ class RoomUsageStore(db: EmberbyteDatabase) : UsageStore {
 
     override suspend fun upsertHourly(rows: List<HourlyUsage>) = dao.upsertHourly(rows.map { it.toEntity() })
 
+    override suspend fun replaceHourly(hourStart: Instant, rows: List<HourlyUsage>) =
+        dao.replaceHourly(hourStart.ms(), rows.map { it.toEntity() })
+
     override suspend fun upsertAppMeta(meta: List<AppMeta>) =
         dao.upsertAppMeta(meta.map { AppMetaEntity(it.uid, it.packageName, it.label, System.currentTimeMillis()) })
 

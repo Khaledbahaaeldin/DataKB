@@ -126,4 +126,23 @@ class RoomUsageRepositoryTest {
         catchUp = CatchUpResult.MissingUsageAccess
         assertEquals(Outcome.Failure(EmberbyteError.MissingUsageAccess), repo.refreshNow())
     }
+
+    @Test fun today_is_exactly_the_matching_bucket_of_the_series_in_a_half_hour_zone() = runBlocking {
+        val kolkata = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), java.time.ZoneId.of("Asia/Kolkata"))
+        val store = InMemoryUsageStore()
+        store.upsertHourly(listOf(hourly("2026-10-06T18:00:00Z", 10001, NetworkKind.WIFI, 1_000), hourly("2026-10-07T08:00:00Z", 10001, NetworkKind.WIFI, 400)))
+        val repo = RoomUsageRepository(store, flowOf(live), DayClock(kolkata), kolkata) { catchUp }
+        val today = repo.observeToday().first()
+        val range = DateRange(Instant.parse("2026-10-06T18:30:00Z"), Instant.parse("2026-10-07T18:30:00Z"))
+        val bar = repo.observeSeries(range, Granularity.DAY).first().single()
+        assertEquals(bar.totalBytes, today.totalBytes)
+    }
+
+    @Test fun apps_use_the_same_start_instant_rule() = runBlocking {
+        val store = InMemoryUsageStore()
+        store.upsertAppMeta(listOf(AppMeta(10001, "com.video", "Video")))
+        store.upsertHourly(listOf(hourly("2026-10-06T23:00:00Z", 10001, NetworkKind.MOBILE, 700), hourly("2026-10-07T01:00:00Z", 10001, NetworkKind.MOBILE, 300)))
+        val range = DateRange(Instant.parse("2026-10-07T00:00:00Z"), Instant.parse("2026-10-08T00:00:00Z"))
+        assertEquals(300L, repo(store).observeApps(range).first().single().totalBytes)
+    }
 }

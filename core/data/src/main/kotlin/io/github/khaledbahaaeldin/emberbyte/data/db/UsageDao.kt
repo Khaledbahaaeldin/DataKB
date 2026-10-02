@@ -47,6 +47,15 @@ abstract class UsageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertHourly(rows: List<UsageHourlyEntity>)
 
+    @Query("DELETE FROM usage_hourly WHERE hourStart = :hourStart")
+    abstract suspend fun deleteHour(hourStart: Long)
+
+    @Transaction
+    open suspend fun replaceHourly(hourStart: Long, rows: List<UsageHourlyEntity>) {
+        deleteHour(hourStart)
+        if (rows.isNotEmpty()) upsertHourly(rows)
+    }
+
     @Query("DELETE FROM usage_hourly WHERE hourStart < :before")
     abstract suspend fun pruneHourly(before: Long)
 

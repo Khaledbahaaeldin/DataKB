@@ -142,14 +142,23 @@ class SeriesBuilderTest {
         assertTrue(SeriesBuilder.build(DateRange(t, t), Granularity.DAY, utc, emptyList(), emptyList()).isEmpty())
     }
 
-    @Test fun an_hour_straddling_the_first_bucket_start_is_counted_in_the_first_bucket() {
+    @Test fun an_hour_belongs_to_the_bucket_that_contains_its_start_instant() {
         val kolkata = ZoneId.of("Asia/Kolkata") // UTC+5:30: local 7 Oct starts at 2026-10-06T18:30Z
+        // window 18:00Z-20:00Z holds hours 18:00Z (yesterday locally) and 19:00Z (today); nothing else is known, so it is shared equally
         val points = SeriesBuilder.build(
             DateRange(i("2026-10-06T18:30:00Z"), i("2026-10-07T18:30:00Z")), Granularity.DAY, kolkata,
             minuteRows = emptyList(),
-            hourlyRows = listOf(hourly("2026-10-06T18:00:00Z", 10001, NetworkKind.MOBILE, 123)),
+            hourlyRows = listOf(hourly("2026-10-06T18:00:00Z", 10001, NetworkKind.MOBILE, 1_000)),
         )
-        assertEquals(123L, points.single().mobileBytes)
+        assertEquals(500L, points.single().mobileBytes)
+    }
+
+    @Test fun the_same_instant_rule_makes_today_and_the_week_bar_agree() {
+        val kolkata = ZoneId.of("Asia/Kolkata")
+        val rows = listOf(hourly("2026-10-06T18:00:00Z", 10001, NetworkKind.WIFI, 1_000), hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.WIFI, 400))
+        val today = SeriesBuilder.build(DateRange(i("2026-10-06T18:30:00Z"), i("2026-10-07T18:30:00Z")), Granularity.DAY, kolkata, emptyList(), rows).single()
+        val week = SeriesBuilder.build(DateRange(i("2026-10-01T00:00:00Z"), i("2026-10-08T00:00:00Z")), Granularity.DAY, kolkata, emptyList(), rows)
+        assertEquals(today.totalBytes, week.single { it.start == today.start }.totalBytes)
     }
 
     @Test fun week_buckets_start_on_monday() {
@@ -191,5 +200,58 @@ class SeriesBuilderTest {
         )
         assertEquals(100L, points.single().mobileBytes)
         assertEquals(0L, points.single().wifiBytes)
+    }
+
+    @Test fun a_burst_in_the_first_half_of_a_window_is_not_counted_twice() {
+        // 100 MB used between 10:00 and 10:30. The sampler wrote hour 10 = 100 and hour 11 = 0 (zero rows exist);
+        // the system window row says 100 (all of it). The day must show 100, not 150.
+        val minutes = (0 until 60).map { minute("2026-10-07T11:${"%02d".format(it)}:00Z", NetworkKind.MOBILE, 0) } +
+            minute("2026-10-07T10:05:00Z", NetworkKind.MOBILE, 100_000_000)
+        val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 100_000_000))
+        val day = SeriesBuilder.build(DateRange(i("2026-10-07T00:00:00Z"), i("2026-10-08T00:00:00Z")), Granularity.DAY, utc, minutes, system).single()
+        assertEquals(100_000_000L, day.mobileBytes)
+    }
+
+    @Test fun a_window_the_sampler_only_saw_the_end_of_is_not_counted_twice() {
+        // The device test case: the sampler started at 13:44 inside the system window 12:00-14:00 (hour 12 uncovered, hour 13 covered 16 minutes).
+        val minutes = (44 until 60).map { minute("2026-10-07T13:${"%02d".format(it)}:00Z", NetworkKind.WIFI, 2_278_750) } // 36.46 MB
+        val system = listOf(hourly("2026-10-07T12:00:00Z", 10001, NetworkKind.WIFI, 37_890_000))
+        val day = SeriesBuilder.build(DateRange(i("2026-10-07T00:00:00Z"), i("2026-10-08T00:00:00Z")), Granularity.DAY, utc, minutes, system).single()
+        assertEquals(37_890_000L, day.wifiBytes)
+    }
+
+    @Test fun a_window_only_the_system_knows_is_shared_equally_between_its_two_hours() {
+        val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 300))
+        val points = SeriesBuilder.build(DateRange(i("2026-10-07T10:00:00Z"), i("2026-10-07T12:00:00Z")), Granularity.HOUR, utc, emptyList(), system)
+        assertEquals(listOf(150L, 150L), points.map { it.mobileBytes })
+    }
+
+    @Test fun the_surplus_goes_to_the_hour_the_sampler_covered_less() {
+        val hour11 = (0 until 60).map { minute("2026-10-07T11:${"%02d".format(it)}:00Z", NetworkKind.MOBILE, 10) } // 600, fully covered
+        val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 1_000))
+        val points = SeriesBuilder.build(DateRange(i("2026-10-07T10:00:00Z"), i("2026-10-07T12:00:00Z")), Granularity.HOUR, utc, hour11, system)
+        assertEquals(listOf(400L, 600L), points.map { it.mobileBytes })
+    }
+
+    @Test fun hours_that_start_before_the_range_are_ignored_even_when_their_window_overlaps_it() {
+        val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 300))
+        val points = SeriesBuilder.build(DateRange(i("2026-10-07T11:00:00Z"), i("2026-10-07T12:00:00Z")), Granularity.HOUR, utc, emptyList(), system)
+        assertEquals(listOf(150L), points.map { it.mobileBytes })
+    }
+
+    @Test fun the_total_never_decreases_while_the_sampler_catches_up_with_the_system() {
+        val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 500))
+        var previous = 0L
+        for (sampled in listOf(0L, 100L, 300L, 500L, 700L)) {
+            val minutes = if (sampled == 0L) emptyList() else listOf(minute("2026-10-07T10:05:00Z", NetworkKind.MOBILE, sampled))
+            val total = SeriesBuilder.build(DateRange(i("2026-10-07T00:00:00Z"), i("2026-10-08T00:00:00Z")), Granularity.DAY, utc, minutes, system).single().mobileBytes
+            assertTrue("$total < $previous", total >= previous)
+            previous = total
+        }
+    }
+
+    @Test fun a_range_that_ends_before_it_starts_has_no_buckets() {
+        val from = i("2026-10-07T12:00:00Z")
+        assertTrue(SeriesBuilder.build(DateRange(from, from.minusSeconds(60)), Granularity.DAY, utc, emptyList(), emptyList()).isEmpty())
     }
 }

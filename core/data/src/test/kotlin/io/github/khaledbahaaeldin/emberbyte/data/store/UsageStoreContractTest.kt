@@ -170,4 +170,19 @@ abstract class UsageStoreContractTest {
             assertEquals(GapReason.SERVICE_KILLED, seen.last().single().reason)
         }
     }
+
+    @Test fun replaceHourly_removes_every_row_of_that_window_and_keeps_the_others() = runBlocking {
+        val store = createStore()
+        store.upsertHourly(listOf(h(0, 1, 100, sub = -1), h(0, 2, 200, sub = 3), h(2, 1, 999)))
+        store.replaceHourly(t.plusSeconds(0), listOf(h(0, 1, 111, sub = 3)))
+        val rows = store.hourlyRows(wide.first, wide.second).sortedWith(compareBy({ it.hourStart }, { it.uid }))
+        assertEquals(listOf(h(0, 1, 111, sub = 3), h(2, 1, 999)), rows)
+    }
+
+    @Test fun replaceHourly_with_no_rows_empties_that_window() = runBlocking {
+        val store = createStore()
+        store.upsertHourly(listOf(h(0, 1, 100)))
+        store.replaceHourly(t, emptyList())
+        assertTrue(store.hourlyRows(wide.first, wide.second).isEmpty())
+    }
 }

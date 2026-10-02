@@ -64,6 +64,17 @@ class UsageAggregationTest {
         assertEquals(listOf("com.browser", "com.video"), AppAggregator.aggregate(rows, meta, sort = AppSort.SCREEN_TIME_DESC).map { it.packageName })
     }
 
+    @Test fun subscription_filter_drops_other_subscriptions() {
+        val rows = listOf(
+            hourly(10001, NetworkKind.MOBILE, 100, sub = 1),
+            hourly(10001, NetworkKind.MOBILE, 200, sub = 2),
+            hourly(10002, NetworkKind.MOBILE, 300, sub = 2),
+        )
+        val apps = AppAggregator.aggregate(rows, meta, UsageFilter(subscriptionId = 1))
+        assertEquals(listOf("com.video"), apps.map { it.packageName })
+        assertEquals(100L, apps.single().mobileBytes)
+    }
+
     // ---- dominantSubscriptionId ----
     @Test fun dominant_subscription_is_the_one_with_most_mobile_bytes() {
         val rows = listOf(
@@ -79,68 +90,5 @@ class UsageAggregationTest {
         assertEquals(-1, dominantSubscriptionId(emptyList()))
         assertEquals(-1, dominantSubscriptionId(listOf(minute(0, NetworkKind.WIFI, 10))))
     }
-
-    // ---- HourlyReconciler ----
-    private fun fullHour(mobilePerMinute: Long, wifiPerMinute: Long = 0) = (0L until 60L).flatMap { m ->
-        listOf(minute(m, NetworkKind.MOBILE, mobilePerMinute), minute(m, NetworkKind.WIFI, wifiPerMinute))
-    }
-
-    @Test fun incomplete_minute_coverage_leaves_rows_untouched() {
-        val rows = listOf(hourly(10001, NetworkKind.MOBILE, 20_000))
-        val minutes = (0L until 54L).map { minute(it, NetworkKind.MOBILE, 100) } // 54 < 55 covered minutes
-        assertEquals(rows, HourlyReconciler.scale(h, rows, minutes))
-    }
-
-    @Test fun rows_within_tolerance_are_untouched() {
-        val rows = listOf(hourly(10001, NetworkKind.MOBILE, 6_100)) // trusted 6000 (60 x 100): +1.7%
-        assertEquals(rows, HourlyReconciler.scale(h, rows, fullHour(100)))
-    }
-
-    @Test fun rows_far_from_the_trusted_total_are_scaled_proportionally() {
-        val rows = listOf(
-            hourly(10001, NetworkKind.MOBILE, 9_000, 3_000), // 12_000
-            hourly(10002, NetworkKind.MOBILE, 6_000, 0),     // 6_000  -> actual 18_000, trusted 6_000
-        )
-        val scaled = HourlyReconciler.scale(h, rows, fullHour(100))
-        assertEquals(6_000L, scaled.sumOf { it.totalBytes })
-        assertEquals(4_000L, scaled.first { it.uid == 10001 }.totalBytes)
-        assertEquals(2_000L, scaled.first { it.uid == 10002 }.totalBytes)
-    }
-
-    @Test fun networks_are_scaled_independently() {
-        val rows = listOf(hourly(10001, NetworkKind.MOBILE, 12_000), hourly(10001, NetworkKind.WIFI, 3_000))
-        val scaled = HourlyReconciler.scale(h, rows, fullHour(mobilePerMinute = 100, wifiPerMinute = 50))
-        assertEquals(6_000L, scaled.first { it.network == NetworkKind.MOBILE }.totalBytes)
-        assertEquals(3_000L, scaled.first { it.network == NetworkKind.WIFI }.totalBytes) // 3000 == trusted 3000
-    }
-
-    @Test fun subscription_filter_drops_other_subscriptions() {
-        val rows = listOf(
-            hourly(10001, NetworkKind.MOBILE, 100, sub = 1),
-            hourly(10001, NetworkKind.MOBILE, 200, sub = 2),
-            hourly(10002, NetworkKind.MOBILE, 300, sub = 2),
-        )
-        val apps = AppAggregator.aggregate(rows, meta, UsageFilter(subscriptionId = 1))
-        assertEquals(listOf("com.video"), apps.map { it.packageName })
-        assertEquals(100L, apps.single().mobileBytes)
-    }
-
-    @Test fun minutes_outside_target_hour_do_not_count_towards_coverage_or_trusted_total() {
-        val rows = listOf(hourly(10001, NetworkKind.MOBILE, 12_000))
-        // 50 minutes in target hour + 10 minutes in next hour = 60 minutes total, but only 50 in target hour (< 55)
-        val minutes = (0L until 50L).map { minute(it, NetworkKind.MOBILE, 100) } +
-            (60L until 70L).map { minute(it, NetworkKind.MOBILE, 100) }
-        assertEquals(rows, HourlyReconciler.scale(h, rows, minutes))
-    }
-
-    @Test fun rows_scaled_up_when_actual_is_far_below_trusted_total() {
-        val rows = listOf(hourly(10001, NetworkKind.MOBILE, 3_000))
-        val scaled = HourlyReconciler.scale(h, rows, fullHour(100)) // trusted 6_000
-        assertEquals(6_000L, scaled.single().totalBytes)
-    }
-
-    @Test fun a_zero_trusted_total_leaves_rows_untouched() {
-        val rows = listOf(hourly(10001, NetworkKind.MOBILE, 5_000))
-        assertEquals(rows, HourlyReconciler.scale(h, rows, fullHour(mobilePerMinute = 0)))
-    }
 }
+

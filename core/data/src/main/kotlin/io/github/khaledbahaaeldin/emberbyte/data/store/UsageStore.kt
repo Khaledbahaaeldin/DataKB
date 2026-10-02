@@ -17,6 +17,8 @@ interface UsageStore {
     suspend fun addMinute(row: MinuteTotal)
     /** Replaces rows with the same (hour, uid, network, subscription) key. */
     suspend fun upsertHourly(rows: List<HourlyUsage>)
+    /** Atomically deletes ALL rows whose hourStart == [hourStart] (any uid/network/subscription), then inserts [rows]. */
+    suspend fun replaceHourly(hourStart: Instant, rows: List<HourlyUsage>)
     suspend fun upsertAppMeta(meta: List<AppMeta>)
     suspend fun insertGap(gap: CoverageGap)
     suspend fun saveCheckpoint(source: String, reading: CounterReading)
