@@ -6,6 +6,7 @@ import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
+import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppSort
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
@@ -109,7 +110,7 @@ class AppsViewModel(
     usage: UsageRepository,
     settings: SettingsRepository,
     permissions: PermissionRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
+    private val clock: Clock = SystemZoneClock(),
     dates: Flow<LocalDate> = DayClock(clock).dates(),
 ) : ViewModel() {
     private val selection = MutableStateFlow(Selection())

@@ -8,6 +8,7 @@ import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
+import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageStatus
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
@@ -54,7 +55,7 @@ class HomeViewModel(
     plans: PlanRepository,
     settings: SettingsRepository,
     permissions: PermissionRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
+    private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     dates: Flow<LocalDate> = DayClock(clock).dates(),
 ) : ViewModel() {

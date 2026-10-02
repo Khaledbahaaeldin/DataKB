@@ -25,6 +25,7 @@ import io.github.khaledbahaaeldin.emberbyte.data.sampler.SamplerEngine
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStores
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
+import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
 import io.github.khaledbahaaeldin.emberbyte.apps.AppDetailViewModel
 import io.github.khaledbahaaeldin.emberbyte.apps.AppsViewModel
 import io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel
@@ -44,7 +45,7 @@ import kotlinx.coroutines.flow.stateIn
  * Hand-written dependency graph (no DI framework). One instance per process, owned by [EmberbyteApplication].
  * Production wiring only: the `Fake*` classes in `:core:data` are for tests and previews.
  */
-class AppGraph(context: Context, private val clock: Clock = Clock.systemDefaultZone()) {
+class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     private val appContext = context.applicationContext
     private val preferences = AppPreferences.create(appContext)
     private val store: UsageStore = UsageStores.create(appContext)

@@ -22,6 +22,7 @@ import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
+import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Granularity
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
@@ -117,7 +118,7 @@ internal fun buildHistoryUiState(
 class HistoryViewModel(
     usage: UsageRepository,
     settings: SettingsRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
+    private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     dates: Flow<LocalDate> = DayClock(clock).dates(),
 ) : ViewModel() {
