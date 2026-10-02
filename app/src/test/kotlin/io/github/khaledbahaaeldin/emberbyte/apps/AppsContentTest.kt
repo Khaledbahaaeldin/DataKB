@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasSetTextAction
+import io.github.khaledbahaaeldin.emberbyte.engine.model.AppSort
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import org.junit.Assert.assertEquals
@@ -74,5 +75,13 @@ class AppsContentTest {
     @Test fun an_empty_loaded_list_explains_itself() {
         show(AppsUiState(loaded = true))
         rule.onNodeWithText("No app data yet", substring = true).assertIsDisplayed()
+    }
+
+    @Test fun selecting_a_sort_option_sends_the_sort_event() {
+        val events = mutableListOf<AppsEvent>()
+        show(onEvent = { events += it })
+        rule.onNodeWithText("Sort: Most data").performClick()
+        rule.onNodeWithText("Least data").performClick()
+        assertEquals(listOf(AppsEvent.SetSort(AppSort.BYTES_ASC)), events)
     }
 }
