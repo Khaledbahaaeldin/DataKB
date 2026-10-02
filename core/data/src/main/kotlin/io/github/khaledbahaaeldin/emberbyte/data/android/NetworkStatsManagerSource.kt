@@ -20,7 +20,8 @@ class NetworkStatsManagerSource(context: Context) : NetworkStatsSource {
             val totals = HashMap<Int, LongArray>()
             try {
                 // subscriberId = null: on Android 10+ an unprivileged app queries all subscriptions together.
-                val stats = manager.querySummary(type, null, from.toEpochMilli(), to.toEpochMilli())
+                val stats = manager?.querySummary(type, null, from.toEpochMilli(), to.toEpochMilli())
+                    ?: return@withContext emptyList()
                 try {
                     val bucket = NetworkStats.Bucket()
                     while (stats.hasNextBucket()) {

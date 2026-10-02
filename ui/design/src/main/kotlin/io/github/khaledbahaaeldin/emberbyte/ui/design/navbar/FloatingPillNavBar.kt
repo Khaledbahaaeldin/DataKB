@@ -14,7 +14,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -43,7 +45,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -121,6 +122,19 @@ private fun PillSurface(
     val starts = remember(items.size) { FloatArray(items.size) }
     val ends = remember(items.size) { FloatArray(items.size) }
 
+    var dragX by remember { mutableFloatStateOf(0f) }
+    fun resolve(x: Float) {
+        val index = itemIndexAt(x, starts.asList(), ends.asList())
+        val center = (starts[index] + ends[index]) / 2f
+        val half = (ends[index] - starts[index]) / 2f
+        dragDx = dragResistance((x - center).coerceIn(-half, half))
+        val previous = previewIndex ?: selectedIndex
+        previewIndex = index
+        if (index != previous && hapticsEnabled) {
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        }
+    }
+
     // The previewed pill follows the finger with resistance while dragging, then springs home on release.
     val followDx by animateFloatAsState(
         targetValue = if (previewIndex != null) dragDx else 0f,
@@ -157,32 +171,20 @@ private fun PillSurface(
         Row(
             modifier = Modifier
                 .padding(8.dp)
-                .then(
-                    if (dragEnabled) {
-                        Modifier.pointerInput(items, selectedIndex, hapticsEnabled) {
-                            fun resolve(x: Float) {
-                                val index = itemIndexAt(x, starts.asList(), ends.asList())
-                                val center = (starts[index] + ends[index]) / 2f
-                                val half = (ends[index] - starts[index]) / 2f
-                                dragDx = dragResistance((x - center).coerceIn(-half, half))
-                                val previous = previewIndex ?: selectedIndex
-                                previewIndex = index
-                                if (index != previous && hapticsEnabled) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                }
-                            }
-                            detectHorizontalDragGestures(
-                                onDragStart = { offset -> resolve(offset.x) },
-                                onDragEnd = {
-                                    previewIndex?.let { if (it != selectedIndex) onSelect(items[it].id) }
-                                    previewIndex = null
-                                },
-                                onDragCancel = { previewIndex = null },
-                                onHorizontalDrag = { change, _ -> resolve(change.position.x) },
-                            )
-                        }
-                    } else {
-                        Modifier
+                .draggable(
+                    state = rememberDraggableState { delta ->
+                        dragX += delta
+                        resolve(dragX)
+                    },
+                    orientation = Orientation.Horizontal,
+                    enabled = dragEnabled,
+                    onDragStarted = { offset ->
+                        dragX = offset.x
+                        resolve(dragX)
+                    },
+                    onDragStopped = {
+                        previewIndex?.let { if (it != selectedIndex) onSelect(items[it].id) }
+                        previewIndex = null
                     },
                 ),
             horizontalArrangement = Arrangement.SpaceBetween,

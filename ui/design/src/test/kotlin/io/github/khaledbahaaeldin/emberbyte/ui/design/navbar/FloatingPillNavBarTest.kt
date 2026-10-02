@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -75,6 +76,13 @@ class FloatingPillNavBarTest {
         var picked: String? = null
         show("home") { picked = it }
         rule.onNodeWithTag("nav_apps").performClick()
+        assertEquals("apps", picked)
+    }
+
+    @Test fun touching_an_item_reports_its_id() {
+        var picked: String? = null
+        show("home") { picked = it }
+        rule.onNodeWithTag("nav_apps").performTouchInput { click() }
         assertEquals("apps", picked)
     }
 

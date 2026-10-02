@@ -9,6 +9,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.khaledbahaaeldin.emberbyte.EmberbyteApplication
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 /** Pulls per-app hourly usage even when the sampler service is not running, and tries to restart the service. */
 class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -16,7 +17,9 @@ class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val graph = (applicationContext as EmberbyteApplication).graph
         graph.catchUp.run()
         graph.prune()
-        ServiceStarter.start(applicationContext)
+        if (graph.onboarding.observeCompleted().first { it != null } == true) {
+            ServiceStarter.start(applicationContext)
+        }
         return Result.success()
     }
 }
