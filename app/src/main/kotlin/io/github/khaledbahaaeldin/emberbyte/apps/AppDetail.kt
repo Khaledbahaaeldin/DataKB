@@ -35,6 +35,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.Granularity
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.home.toByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.number.MorphingNumber
@@ -137,10 +138,12 @@ fun AppDetailScreen(viewModel: AppDetailViewModel, onBack: () -> Unit, modifier:
             val mobile = formatBytes(state.mobileBytes, state.units)
             val wifi = formatBytes(state.wifiBytes, state.units)
             BentoTile(title = "By network", modifier = Modifier.fillMaxWidth(), container = TileContainer.Primary) {
-                Text(
-                    "Mobile ${mobile.value} ${mobile.unit}  ·  Wi-Fi ${wifi.value} ${wifi.unit}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                ForceLtr {
+                    Text(
+                        "Mobile ${mobile.value} ${mobile.unit}  ·  Wi-Fi ${wifi.value} ${wifi.unit}",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
             }
         }
         item { UsageBarRow(points = state.bars, selectedIndex = null, onSelect = {}) }

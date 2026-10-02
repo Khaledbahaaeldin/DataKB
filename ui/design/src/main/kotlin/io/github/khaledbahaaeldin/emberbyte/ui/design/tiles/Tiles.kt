@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
@@ -32,12 +33,14 @@ fun SpeedTile(
         if (network == null) {
             Text("No connection", style = MaterialTheme.typography.headlineSmall)
         } else {
-            Text("↓ ${down.value} ${down.unit}/s", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "↑ ${up.value} ${up.unit}/s",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            ForceLtr {
+                Text("↓ ${down.value} ${down.unit}/s", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "↑ ${up.value} ${up.unit}/s",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

@@ -147,6 +147,7 @@ internal fun buildHomeUiState(
         forecast = forecastUi,
         topApps = apps.sortedByDescending { it.totalBytes }.take(3)
             .map { AppRowUi(it.packageName, it.label, it.mobileBytes, it.wifiBytes) },
+        topAppsLocked = permissions?.usageAccess == false,
         week = bars,
         selectedDay = validSelection,
         prompts = permissionPrompts(permissions),

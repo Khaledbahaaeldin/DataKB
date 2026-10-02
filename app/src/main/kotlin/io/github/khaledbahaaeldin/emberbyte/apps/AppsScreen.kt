@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppSort
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.AppRow
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.PermissionPrompt
@@ -95,11 +96,13 @@ internal fun AppsContent(
             item { PermissionPrompt(USAGE_ACCESS_PROMPT, onAction = { onPromptAction(USAGE_ACCESS_PROMPT.id) }) }
         }
         item {
-            Text(
-                "${plainBytes(state.totalBytes, state.units)} in total",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            ForceLtr {
+                Text(
+                    "${plainBytes(state.totalBytes, state.units)} in total",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (state.loaded && state.apps.isEmpty()) {
             item {

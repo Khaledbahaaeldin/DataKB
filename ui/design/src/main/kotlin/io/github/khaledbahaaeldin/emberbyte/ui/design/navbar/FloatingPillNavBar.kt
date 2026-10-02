@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -72,6 +76,8 @@ data class NavBarItem(
 /** Opacity of the pill tint: translucent over a live Haze blur (API 31+), a near-opaque flat tint otherwise. */
 internal fun glassTintAlpha(hasGlass: Boolean, sdkInt: Int): Float = if (hasGlass && sdkInt >= 31) 0.6f else 0.92f
 
+private const val MAX_NAV_FONT_SCALE = 1.15f
+
 @Composable
 fun FloatingPillNavBar(
     items: List<NavBarItem>,
@@ -84,21 +90,25 @@ fun FloatingPillNavBar(
 ) {
     val reduceMotion = LocalReduceMotion.current
     val motion = MaterialTheme.motionScheme
-    val content: @Composable () -> Unit = {
-        PillSurface(items, selectedId, onSelect, hapticsEnabled, glass, dragEnabled = !reduceMotion)
-    }
-    if (reduceMotion) {
-        // Reduced motion: no hide animation and no scroll-hide at all; the bar always stays visible.
-        Box(modifier) { content() }
-    } else {
-        AnimatedVisibility(
-            visible = visible,
-            modifier = modifier,
-            enter = slideInVertically(motion.defaultSpatialSpec<IntOffset>()) { it } +
-                fadeIn(motion.defaultEffectsSpec()),
-            exit = slideOutVertically(motion.defaultSpatialSpec<IntOffset>()) { it } +
-                fadeOut(motion.defaultEffectsSpec()),
-        ) { content() }
+    val density = LocalDensity.current
+    val cappedDensity = remember(density) { Density(density.density, minOf(density.fontScale, MAX_NAV_FONT_SCALE)) }
+    CompositionLocalProvider(LocalDensity provides cappedDensity) {
+        val content: @Composable () -> Unit = {
+            PillSurface(items, selectedId, onSelect, hapticsEnabled, glass, dragEnabled = !reduceMotion)
+        }
+        if (reduceMotion) {
+            // Reduced motion: no hide animation and no scroll-hide at all; the bar always stays visible.
+            Box(modifier) { content() }
+        } else {
+            AnimatedVisibility(
+                visible = visible,
+                modifier = modifier,
+                enter = slideInVertically(motion.defaultSpatialSpec<IntOffset>()) { it } +
+                    fadeIn(motion.defaultEffectsSpec()),
+                exit = slideOutVertically(motion.defaultSpatialSpec<IntOffset>()) { it } +
+                    fadeOut(motion.defaultEffectsSpec()),
+            ) { content() }
+        }
     }
 }
 
@@ -260,6 +270,7 @@ private fun NavItem(
                 color = foreground,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

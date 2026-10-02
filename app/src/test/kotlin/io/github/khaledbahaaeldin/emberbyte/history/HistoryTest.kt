@@ -1,5 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte.history
 
+import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
+import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Granularity
@@ -76,13 +78,26 @@ class HistoryTest {
 
     @Test fun the_view_model_switches_granularity() = runTest(dispatcher) {
         val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
-        val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), clock, Locale.ENGLISH, flowOf(today))
+        val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), FakePermissionRepository(), clock, Locale.ENGLISH, flowOf(today))
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
         assertEquals(Granularity.DAY, vm.uiState.value.granularity)
         vm.onEvent(HistoryEvent.SetGranularity(Granularity.MONTH))
         advanceUntilIdle()
         assertEquals(Granularity.MONTH, vm.uiState.value.granularity)
+        job.cancel()
+    }
+
+    @Test fun history_ui_state_needs_usage_access_follows_permission() = runTest(dispatcher) {
+        val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
+        val perms = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), perms, clock, Locale.ENGLISH, flowOf(today))
+        val job = launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+        assertEquals(true, vm.uiState.value.needsUsageAccess)
+        perms.set(PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false))
+        advanceUntilIdle()
+        assertEquals(false, vm.uiState.value.needsUsageAccess)
         job.cancel()
     }
 }

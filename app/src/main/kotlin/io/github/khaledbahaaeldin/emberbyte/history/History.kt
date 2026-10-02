@@ -19,8 +19,10 @@ import androidx.lifecycle.viewModelScope
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
 import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
 import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
+import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
 import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
@@ -28,6 +30,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.Granularity
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.home.toByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.BentoTile
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.TileContainer
@@ -55,6 +58,7 @@ data class HistoryUiState(
     val totalBytes: Long = 0L,
     val averageBytes: Long = 0L,
     val units: ByteUnits = ByteUnits.DECIMAL,
+    val needsUsageAccess: Boolean = false,
     val loaded: Boolean = false,
 )
 
@@ -101,6 +105,7 @@ internal fun buildHistoryUiState(
     units: ByteUnits,
     zone: ZoneId,
     locale: Locale,
+    needsUsageAccess: Boolean = false,
 ): HistoryUiState {
     val total = points.sumOf { it.totalBytes }
     return HistoryUiState(
@@ -109,6 +114,7 @@ internal fun buildHistoryUiState(
         totalBytes = total,
         averageBytes = if (points.isEmpty()) 0L else total / points.size,
         units = units,
+        needsUsageAccess = needsUsageAccess,
         loaded = true,
     )
 }
@@ -118,6 +124,7 @@ internal fun buildHistoryUiState(
 class HistoryViewModel(
     usage: UsageRepository,
     settings: SettingsRepository,
+    permissions: PermissionRepository = FakePermissionRepository(),
     private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     dates: Flow<LocalDate> = DayClock(clock).dates(),
@@ -126,8 +133,12 @@ class HistoryViewModel(
 
     val uiState: StateFlow<HistoryUiState> = combine(dates, granularity) { date, g -> date to g }
         .flatMapLatest { (date, g) ->
-            combine(usage.observeSeries(rangeForHistory(g, date, clock.zone), g), settings.observe()) { points, s ->
-                buildHistoryUiState(g, points, s.unitSystem.toByteUnits(), clock.zone, locale)
+            combine(
+                usage.observeSeries(rangeForHistory(g, date, clock.zone), g),
+                settings.observe(),
+                permissions.observe(),
+            ) { points, s, perm ->
+                buildHistoryUiState(g, points, s.unitSystem.toByteUnits(), clock.zone, locale, needsUsageAccess = !perm.usageAccess)
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState())
@@ -175,20 +186,26 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, modifier: Mod
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BentoTile(title = "Total", modifier = Modifier.weight(1f), container = TileContainer.Primary) {
-                    Text(plainBytes(state.totalBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                    ForceLtr {
+                        Text(plainBytes(state.totalBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                    }
                 }
                 BentoTile(title = "Average per $unit", modifier = Modifier.weight(1f)) {
-                    Text(plainBytes(state.averageBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                    ForceLtr {
+                        Text(plainBytes(state.averageBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                    }
                 }
             }
         }
         item { UsageBarRow(points = state.bars, selectedIndex = null, onSelect = {}) }
-        item {
-            Text(
-                "Without usage access only the last 7 days are available; older bars stay empty.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (state.needsUsageAccess) {
+            item {
+                Text(
+                    "Without usage access only the last 7 days are available; older bars stay empty.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

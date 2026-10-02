@@ -23,6 +23,7 @@ data class HomeUiState(
     val wifiBytes: Long = 0L,
     val forecast: ForecastUi? = null,
     val topApps: List<AppRowUi> = emptyList(),
+    val topAppsLocked: Boolean = false,
     val week: List<BarUi> = emptyList(),
     val selectedDay: Int? = null,
     val prompts: List<PermissionPromptUi> = emptyList(),

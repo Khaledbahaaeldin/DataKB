@@ -1,7 +1,9 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.number
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
@@ -30,5 +32,22 @@ class MorphingNumberTest {
             }
         }
         rule.onNodeWithContentDescription("1.24 gigabytes used today").assertIsDisplayed()
+    }
+
+    @Test
+    fun digits_are_not_separate_semantics_nodes() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                MorphingNumber(
+                    bytes = 213_000_000L,
+                    throughputBps = 0L,
+                    units = ByteUnits.DECIMAL,
+                    contentDescription = "213 megabytes used today",
+                    animate = false,
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("213 megabytes used today").assertIsDisplayed()
+        rule.onAllNodesWithText("2", useUnmergedTree = true).assertCountEquals(0)
     }
 }

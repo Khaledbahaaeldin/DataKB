@@ -21,8 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
@@ -96,42 +97,45 @@ fun MorphingNumber(
     val rollSpatial = motion.defaultSpatialSpec<IntOffset>()
     val rollEffects = motion.defaultEffectsSpec<Float>()
 
-    Column(modifier.semantics(mergeDescendants = true) { this.contentDescription = contentDescription }) {
-        Row {
-            val text = formatted.value
-            text.forEachIndexed { index, char ->
-                // Keyed from the right so existing digits keep their identity when the length changes.
-                key(text.length - index) {
-                    AnimatedContent(
-                        targetState = char,
-                        transitionSpec = {
-                            if (live) {
-                                (slideInVertically(rollSpatial) { it } + fadeIn(rollEffects)) togetherWith
-                                    (slideOutVertically(rollSpatial) { -it } + fadeOut(rollEffects))
-                            } else {
-                                EnterTransition.None togetherWith ExitTransition.None
-                            }
-                        },
-                        label = "digit",
-                    ) { digit ->
-                        Text(
-                            text = digit.toString(),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.displayLarge.copy(
-                                fontFamily = family,
-                                fontSize = 72.sp,
-                                lineHeight = 72.sp,
-                                letterSpacing = (-2).sp,
-                            ),
-                        )
+    ForceLtr {
+        Column(modifier.clearAndSetSemantics { this.contentDescription = contentDescription }) {
+            Row {
+                val text = formatted.value
+                text.forEachIndexed { index, char ->
+                    // Keyed from the right so existing digits keep their identity when the length changes.
+                    key(text.length - index) {
+                        AnimatedContent(
+                            targetState = char,
+                            transitionSpec = {
+                                if (live) {
+                                    (slideInVertically(rollSpatial) { it } + fadeIn(rollEffects)) togetherWith
+                                        (slideOutVertically(rollSpatial) { -it } + fadeOut(rollEffects))
+                                } else {
+                                    EnterTransition.None togetherWith ExitTransition.None
+                                }
+                            },
+                            label = "digit",
+                        ) { digit ->
+                            Text(
+                                text = digit.toString(),
+                                modifier = Modifier.clearAndSetSemantics { },
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.displayLarge.copy(
+                                    fontFamily = family,
+                                    fontSize = 72.sp,
+                                    lineHeight = 72.sp,
+                                    letterSpacing = (-2).sp,
+                                ),
+                            )
+                        }
                     }
                 }
             }
+            Text(
+                text = formatted.unit,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.headlineMedium,
+            )
         }
-        Text(
-            text = formatted.unit,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.headlineMedium,
-        )
     }
 }

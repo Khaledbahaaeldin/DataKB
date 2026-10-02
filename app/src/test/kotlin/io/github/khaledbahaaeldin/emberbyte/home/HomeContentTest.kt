@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
@@ -28,9 +29,17 @@ class HomeContentTest {
         onSettings: () -> Unit = {},
         onHistory: () -> Unit = {},
         onPrompt: (String) -> Unit = {},
+        onOpenApp: (String) -> Unit = {},
     ) = rule.setContent {
         EmberbyteTheme(darkTheme = true, dynamicColor = false) {
-            HomeContent(state, onEvent = {}, onOpenSettings = onSettings, onOpenHistory = onHistory, onPromptAction = onPrompt)
+            HomeContent(
+                state = state,
+                onEvent = {},
+                onOpenSettings = onSettings,
+                onOpenHistory = onHistory,
+                onPromptAction = onPrompt,
+                onOpenApp = onOpenApp,
+            )
         }
     }
 
@@ -73,5 +82,22 @@ class HomeContentTest {
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("History"))
         rule.onNodeWithText("History").performClick()
         assertEquals(true, opened)
+    }
+
+    @Test fun tapping_a_top_app_opens_it() {
+        var opened: String? = null
+        show(
+            HomeUiState(topApps = listOf(AppRowUi("com.video", "Video", 1, 1))),
+            onOpenApp = { opened = it },
+        )
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Video"))
+        rule.onNodeWithText("Video").performClick()
+        assertEquals("com.video", opened)
+    }
+
+    @Test fun locked_top_apps_explain_why() {
+        show(HomeUiState(topAppsLocked = true))
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Allow usage access to see which apps use your data."))
+        rule.onNodeWithText("Allow usage access to see which apps use your data.").assertIsDisplayed()
     }
 }

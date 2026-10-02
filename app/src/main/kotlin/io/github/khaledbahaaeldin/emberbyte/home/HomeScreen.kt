@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
 import io.github.khaledbahaaeldin.emberbyte.ui.design.number.MorphingNumber
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.AppRow
@@ -41,6 +42,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
     onPromptAction: (String) -> Unit,
+    onOpenApp: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -50,6 +52,7 @@ fun HomeScreen(
         onOpenSettings = onOpenSettings,
         onOpenHistory = onOpenHistory,
         onPromptAction = onPromptAction,
+        onOpenApp = onOpenApp,
         modifier = modifier,
     )
 }
@@ -61,6 +64,7 @@ internal fun HomeContent(
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
     onPromptAction: (String) -> Unit,
+    onOpenApp: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -124,10 +128,12 @@ internal fun HomeContent(
                 modifier = Modifier.fillMaxWidth(),
                 container = TileContainer.Primary,
             ) {
-                Text(
-                    "Mobile ${mobile.value} ${mobile.unit}  ·  Wi-Fi ${wifi.value} ${wifi.unit}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                ForceLtr {
+                    Text(
+                        "Mobile ${mobile.value} ${mobile.unit}  ·  Wi-Fi ${wifi.value} ${wifi.unit}",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
             }
         }
         if (!state.hasPlan) {
@@ -142,13 +148,10 @@ internal fun HomeContent(
         }
         item {
             BentoTile(title = "Top apps today", modifier = Modifier.fillMaxWidth()) {
-                if (state.topApps.isEmpty()) {
-                    Text(
-                        "No per-app data yet. It appears within about 15 minutes once usage access is allowed.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    state.topApps.forEach { app -> AppRow(app, state.units, onClick = {}) }
+                when {
+                    state.topAppsLocked -> Text("Allow usage access to see which apps use your data.", style = MaterialTheme.typography.bodyMedium)
+                    state.topApps.isEmpty() -> Text("No per-app data yet. It appears within about 5 minutes once usage access is allowed.", style = MaterialTheme.typography.bodyMedium)
+                    else -> state.topApps.forEach { app -> AppRow(app, state.units, onClick = { onOpenApp(app.packageName) }) }
                 }
             }
         }

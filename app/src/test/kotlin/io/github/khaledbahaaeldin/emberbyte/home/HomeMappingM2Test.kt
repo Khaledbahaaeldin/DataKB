@@ -114,4 +114,10 @@ class HomeMappingM2Test {
 
     @Test fun device_asleep_gaps_are_never_shown_in_the_banner() =
         assertNull(build(coverage = CoverageStatus(listOf(gap(130, 20, GapReason.DEVICE_ASLEEP)), null)).gap)
+
+    @Test fun top_apps_locked_follows_usage_access_permission() {
+        assertTrue(build(permissions = PermissionState(false, true, true, false)).topAppsLocked)
+        assertFalse(build(permissions = PermissionState(true, true, true, false)).topAppsLocked)
+        assertFalse(build(permissions = null).topAppsLocked)
+    }
 }
