@@ -28,7 +28,8 @@ enum class Destination(val id: String, val route: String, private val label: Str
     )
 
     companion object {
-        fun fromRoute(route: String?): Destination = entries.firstOrNull { it.route == route } ?: Home
+        fun fromRoute(route: String?): Destination =
+            entries.firstOrNull { route == it.route || route?.startsWith(it.route + "/") == true } ?: Home
         fun fromId(id: String): Destination = entries.first { it.id == id }
     }
 }

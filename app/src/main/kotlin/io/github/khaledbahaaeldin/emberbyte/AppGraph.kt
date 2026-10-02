@@ -28,6 +28,8 @@ import io.github.khaledbahaaeldin.emberbyte.apps.AppDetailViewModel
 import io.github.khaledbahaaeldin.emberbyte.apps.AppsViewModel
 import io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel
 import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
+import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
+import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
 import java.time.Clock
 
 /**
@@ -76,5 +78,13 @@ class AppGraph(context: Context, private val clock: Clock = Clock.systemDefaultZ
 
     fun historyViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
         initializer { HistoryViewModel(usage, settings) }
+    }
+
+    fun settingsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
+        initializer { SettingsViewModel(settings) }
+    }
+
+    fun onboardingViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
+        initializer { OnboardingViewModel(onboarding, permissions) }
     }
 }
