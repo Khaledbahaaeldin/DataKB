@@ -10,7 +10,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
-import kotlin.math.roundToLong
 
 private data class NetworkHour(val hour: Instant, val network: NetworkKind)
 
@@ -38,10 +37,9 @@ object SeriesBuilder {
 
     /**
      * Zero-filled buckets covering [range]. The two sources are merged per (2-hour window, network), never per hour:
-     * total = max(sampler minute sum, system window sum). The surplus over the minute sum is shared between the window's two hours in
-     * proportion to how little the sampler covered each hour (equally when both are fully covered). An hour contributes to the bucket that
-     * contains its START instant; hours that start before the first bucket or at/after range.to are ignored, so Home, Apps and History
-     * all use the same rule.
+     * total = max(sampler minute sum, system window sum); the surplus over the minute sum is booked on the window's first hour.
+     * An hour contributes to the bucket that contains its START instant; hours that start before the first bucket or at/after
+     * range.to are ignored, so Home, Apps and History all use the same rule.
      */
     fun build(
         range: DateRange,
@@ -60,12 +58,6 @@ object SeriesBuilder {
             cursor = nextBucketStart(cursor, granularity, zone)
         }
         if (starts.isEmpty()) return emptyList()
-
-        // How much of each hour the sampler saw, whatever the network or filter: distinct minutes that have a row.
-        val coveredMinutes = HashMap<Instant, HashSet<Instant>>()
-        for (row in minuteRows) {
-            coveredMinutes.getOrPut(row.minuteStart.truncatedTo(ChronoUnit.HOURS)) { HashSet() }.add(row.minuteStart)
-        }
 
         val minuteByHour = HashMap<NetworkHour, Long>()
         for (row in minuteRows) {
@@ -89,9 +81,11 @@ object SeriesBuilder {
             val minuteValues = hours.map { minuteByHour[NetworkHour(it, window.network)] ?: 0L }
             val minuteSum = minuteValues.sum()
             val total = maxOf(minuteSum, systemByWindow[window] ?: 0L)
-            val shares = surplusShares(total - minuteSum, hours.map { coveredMinutes[it]?.size ?: 0 })
+            // The surplus (system bytes the sampler did not see) is booked on the window's FIRST hour: the same window-start rule the
+            // per-app rows use, and never on an hour that has not started yet (that made "today" start high and then fall).
+            val values = longArrayOf(minuteValues[0] + (total - minuteSum), minuteValues[1])
             hours.forEachIndexed { i, hour ->
-                val value = minuteValues[i] + shares[i]
+                val value = values[i]
                 if (value > 0L && hour >= first && hour < range.to) {
                     val index = indexFor(starts, hour)
                     if (window.network == NetworkKind.MOBILE) mobile[index] += value else wifi[index] += value
@@ -99,16 +93,6 @@ object SeriesBuilder {
             }
         }
         return starts.indices.map { UsagePoint(starts[it], mobile[it], wifi[it]) }
-    }
-
-    /** Splits [surplus] over two hours in proportion to how little the sampler covered each; equally when both are fully covered. */
-    private fun surplusShares(surplus: Long, covered: List<Int>): LongArray {
-        if (surplus <= 0L) return longArrayOf(0L, 0L)
-        val w0 = 1.0 - (covered[0] / 60.0).coerceIn(0.0, 1.0)
-        val w1 = 1.0 - (covered[1] / 60.0).coerceIn(0.0, 1.0)
-        val sum = w0 + w1
-        val firstShare = if (sum <= 0.0) surplus / 2 else (surplus * (w0 / sum)).roundToLong()
-        return longArrayOf(firstShare, surplus - firstShare)
     }
 
     private fun matches(network: NetworkKind, subscriptionId: Int, filter: UsageFilter): Boolean =

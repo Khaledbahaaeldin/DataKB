@@ -144,13 +144,13 @@ class SeriesBuilderTest {
 
     @Test fun an_hour_belongs_to_the_bucket_that_contains_its_start_instant() {
         val kolkata = ZoneId.of("Asia/Kolkata") // UTC+5:30: local 7 Oct starts at 2026-10-06T18:30Z
-        // window 18:00Z-20:00Z holds hours 18:00Z (yesterday locally) and 19:00Z (today); nothing else is known, so it is shared equally
+        // The whole window 18:00Z-20:00Z is booked on its first hour 18:00Z, which started BEFORE local midnight: it belongs to yesterday.
         val points = SeriesBuilder.build(
             DateRange(i("2026-10-06T18:30:00Z"), i("2026-10-07T18:30:00Z")), Granularity.DAY, kolkata,
             minuteRows = emptyList(),
             hourlyRows = listOf(hourly("2026-10-06T18:00:00Z", 10001, NetworkKind.MOBILE, 1_000)),
         )
-        assertEquals(500L, points.single().mobileBytes)
+        assertEquals(0L, points.single().mobileBytes)
     }
 
     @Test fun the_same_instant_rule_makes_today_and_the_week_bar_agree() {
@@ -220,13 +220,13 @@ class SeriesBuilderTest {
         assertEquals(37_890_000L, day.wifiBytes)
     }
 
-    @Test fun a_window_only_the_system_knows_is_shared_equally_between_its_two_hours() {
+    @Test fun a_window_only_the_system_knows_is_booked_on_its_first_hour() {
         val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 300))
         val points = SeriesBuilder.build(DateRange(i("2026-10-07T10:00:00Z"), i("2026-10-07T12:00:00Z")), Granularity.HOUR, utc, emptyList(), system)
-        assertEquals(listOf(150L, 150L), points.map { it.mobileBytes })
+        assertEquals(listOf(300L, 0L), points.map { it.mobileBytes })
     }
 
-    @Test fun the_surplus_goes_to_the_hour_the_sampler_covered_less() {
+    @Test fun the_surplus_is_booked_on_the_first_hour() {
         val hour11 = (0 until 60).map { minute("2026-10-07T11:${"%02d".format(it)}:00Z", NetworkKind.MOBILE, 10) } // 600, fully covered
         val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 1_000))
         val points = SeriesBuilder.build(DateRange(i("2026-10-07T10:00:00Z"), i("2026-10-07T12:00:00Z")), Granularity.HOUR, utc, hour11, system)
@@ -236,7 +236,51 @@ class SeriesBuilderTest {
     @Test fun hours_that_start_before_the_range_are_ignored_even_when_their_window_overlaps_it() {
         val system = listOf(hourly("2026-10-07T10:00:00Z", 10001, NetworkKind.MOBILE, 300))
         val points = SeriesBuilder.build(DateRange(i("2026-10-07T11:00:00Z"), i("2026-10-07T12:00:00Z")), Granularity.HOUR, utc, emptyList(), system)
-        assertEquals(listOf(150L), points.map { it.mobileBytes })
+        assertEquals(listOf(0L), points.map { it.mobileBytes })   // the first hour (10:00Z) carries all 300 and is outside the range
+    }
+
+    private val cairo: ZoneId = ZoneId.of("Africa/Cairo") // UTC+3 on 2026-10-01/02: local midnight is 21:00Z, in the MIDDLE of the window 20:00Z-22:00Z
+
+    private fun cairoDay(day: String, minutes: List<MinuteTotal>, system: List<HourlyUsage>): Long {
+        val from = i("${day}T21:00:00Z").minusSeconds(86_400)                      // local midnight of `day`
+        val range = DateRange(from, from.plusSeconds(86_400))
+        return SeriesBuilder.build(range, Granularity.DAY, cairo, minutes, system).single().mobileBytes
+    }
+
+    @Test fun today_never_decreases_across_a_day_boundary_that_splits_a_window() {
+        // 60 MB arrived while the sampler slept, 20:00Z-20:30Z (23:00-23:30 Cairo, the evening of Oct 1). The system window row says 60 MB.
+        val system = listOf(hourly("2026-10-01T20:00:00Z", 10001, NetworkKind.MOBILE, 60_000_000))
+        val zeros = (30 until 60).map { minute("2026-10-01T20:${"%02d".format(it)}:00Z", NetworkKind.MOBILE, 0) } +
+            (0 until 60).map { minute("2026-10-01T21:${"%02d".format(it)}:00Z", NetworkKind.MOBILE, 0) }
+        // "today" is Oct 2 (Cairo). Sample it at several moments by adding more zero rows: it must stay 0 and never go negative or fall.
+        var previous = -1L
+        for (upTo in listOf(0, 1, 30, 59, 60)) {
+            val rows = zeros.filter { it.minuteStart <= i("2026-10-01T21:00:00Z").plusSeconds(upTo * 60L) }
+            val today = cairoDay("2026-10-02", rows, system)
+            assertTrue("today=$today previous=$previous", today >= previous)
+            previous = today
+        }
+        assertEquals(0L, previous)
+    }
+
+    @Test fun yesterdays_evening_burst_stays_in_yesterday_and_matches_the_apps_rule() {
+        val system = listOf(hourly("2026-10-01T20:00:00Z", 10001, NetworkKind.MOBILE, 60_000_000))
+        assertEquals(60_000_000L, cairoDay("2026-10-01", emptyList(), system))   // Home "yesterday" == the per-app window row
+        assertEquals(0L, cairoDay("2026-10-02", emptyList(), system))
+    }
+
+    @Test fun traffic_after_midnight_inside_the_split_window_moves_from_yesterdays_surplus_to_today() {
+        val system = listOf(hourly("2026-10-01T20:00:00Z", 10001, NetworkKind.MOBILE, 60_000_000))
+        val after = listOf(minute("2026-10-01T21:10:00Z", NetworkKind.MOBILE, 10_000_000))   // 00:10 Cairo, Oct 2
+        assertEquals(10_000_000L, cairoDay("2026-10-02", after, system))      // today gets exactly what was measured in its hour
+        assertEquals(50_000_000L, cairoDay("2026-10-01", after, system))      // yesterday keeps the rest; the sum is still 60 MB
+    }
+
+    @Test fun a_half_hour_zone_boundary_behaves_the_same_way() {
+        val kolkata = ZoneId.of("Asia/Kolkata")
+        val system = listOf(hourly("2026-10-06T18:00:00Z", 10001, NetworkKind.WIFI, 1_000))   // first hour 18:00Z = 23:30 IST, yesterday
+        val today = SeriesBuilder.build(DateRange(i("2026-10-06T18:30:00Z"), i("2026-10-07T18:30:00Z")), Granularity.DAY, kolkata, emptyList(), system).single()
+        assertEquals(0L, today.wifiBytes)
     }
 
     @Test fun the_total_never_decreases_while_the_sampler_catches_up_with_the_system() {
