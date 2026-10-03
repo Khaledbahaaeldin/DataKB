@@ -20,7 +20,7 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 |---|---|
 | Name | **Emberbyte** (store title "Emberbyte: Data Monitor"). "DataKB" is the codename: the GitHub repo and these spec file names keep it. Package and `applicationId`: `io.github.khaledbahaaeldin.emberbyte`. Name check (web search, not a formal trademark search) found no clash on GitHub, F-Droid or Google Play |
 | Audience | Open source on GitHub and F-Droid |
-| Licence | GPL-3.0 |
+| Licence | **GPL-3.0-or-later** (SPDX `GPL-3.0-or-later`): GPLv3 text in `LICENSE`, with the "version 3 or, at your option, any later version" notice in README and NOTICE |
 | Platform | Native Android, Kotlin + Jetpack Compose, minSdk 29 |
 | Real-time engine | Hybrid: light by default (`TrafficStats` + `NetworkStatsManager`), opt-in Live Lens (local VPN) |
 | Plan model | Flexible: per-SIM plans, renewal cycles, rollover, add-on packs, free windows |
@@ -33,7 +33,7 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 ## Architecture summary
 
 ```
-:app  (screens, ViewModels, navigation, widgets, DI: hand-written graph in M1, Hilt from M2)
+:app  (screens, ViewModels, navigation, widgets, DI: hand-written graph; Hilt dropped because KSP+Hilt on AGP 9 is risk for little gain)
   ├── :ui:design      theme, MorphingNumber, FloatingPillNavBar, Bento tiles (no domain dependency)
   ├── :feature:lens   LensVpnService, packet pipeline, LensController, Lens screen
   └── :core:data      Room, DataStore, repositories, SamplerService, workers, notifications

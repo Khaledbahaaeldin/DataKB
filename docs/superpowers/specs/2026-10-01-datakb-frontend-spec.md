@@ -5,7 +5,7 @@ Status: draft for review. Data types and repository methods come from the
 [backend spec](2026-10-01-datakb-backend-spec.md).
 
 Stack: Kotlin, Jetpack Compose, Material 3 Expressive (`androidx.compose.material3`), Glance for widgets,
-Hilt (from M2; M1 uses a hand-written `AppGraph`), Navigation Compose, Haze (backdrop blur).
+a hand-written `AppGraph` (no DI framework), Navigation Compose, Haze (backdrop blur).
 minSdk 29, targetSdk latest stable.
 
 ## 1. Principles
@@ -159,16 +159,21 @@ Data: `UsageRepository.observeToday`, `observeLiveSpeed`, `observeApps` (today),
 
 ```kotlin
 data class HomeUiState(
-    val todayBytes: Long, val mobileBytes: Long, val wifiBytes: Long,
-    val throughputBps: Long, val live: LiveSpeed?,
-    val plan: PlanSummaryUi?,         // null => no plan yet (empty state)
+    // hero: today by default, or the day picked in the week bar
+    val heroLabel: String, val heroBytes: Long, val heroDescription: String, val isToday: Boolean,
+    val subtitle: String?,            // "3.80 GB left · runs out Thu (±1 day)"; null without a plan
+    val isEstimated: Boolean,
+    // live tile: UI primitives only, never contract types
+    val throughputBps: Long, val liveRxBps: Long, val liveTxBps: Long, val network: NetworkKindUi?,
+    val mobileBytes: Long, val wifiBytes: Long,
     val forecast: ForecastUi?,
     val topApps: List<AppRowUi>,
-    val week: List<BarUi>,
-    val gap: GapUi?, val prompts: List<PermissionPromptUi>,
-    val unitSystem: UnitSystem,
+    val week: List<BarUi>, val selectedDay: Int?,
+    val prompts: List<PermissionPromptUi>, val gap: GapUi?,
+    val hasPlan: Boolean,             // false => "Data plan" tile explaining plans are coming (M2)
+    val units: ByteUnits,
 )
-sealed interface HomeEvent { data object OpenSettings; data class OpenApp(val pkg: String); data class SelectDay(val index: Int); data object RefreshNow }
+sealed interface HomeEvent { data class SelectDay(val index: Int) }   // navigation (settings, history, prompts) goes through screen callbacks
 ```
 
 Behaviour: the hero shows "today" by default; tapping a week bar switches the hero to that day (number
@@ -228,7 +233,7 @@ data class LensUiState(val state: LensState, val snapshot: LensSnapshot?, val ex
 Sections: Notifications (live notification, show speed, spike alerts), Appearance (dynamic colour,
 AMOLED black, haptics), Units (decimal/binary), Privacy (Lens history hours, clear Lens history, privacy
 statement), Data (export CSV/JSON, backup/restore, with a passphrase dialog), Permissions (current status
-and quick fixes), About (version, GPL-3.0 licence, source link, third-party notices).
+and quick fixes), About (version, GPL-3.0-or-later licence, source link, third-party notices).
 
 ### 6.6 Onboarding
 
@@ -277,7 +282,7 @@ more options later). Notifications are requested right after the first plan is s
 
 ## 11. Credits and licensing
 
-The app is GPL-3.0. The floating pill navbar design is credited to
+The app is GPL-3.0-or-later. The floating pill navbar design is credited to
 [Floating-Navbar-M3-Flutter](https://github.com/Damantha126/Floating-Navbar-M3-Flutter) (MIT) in the README
 and `NOTICE`; the Compose implementation is original. Roboto Flex is OFL-licensed and listed in the
 third-party notices.
