@@ -39,4 +39,5 @@ Full third-party notices are in `NOTICE`.
 
 ## Licence
 
-GPL-3.0. See `LICENSE`. Third-party credits are in `NOTICE`.
+Emberbyte is free software, licensed under the **GNU General Public License, version 3 or (at your option) any later
+version** (SPDX: `GPL-3.0-or-later`). The licence text is in `LICENSE`; third-party credits are in `NOTICE`.
