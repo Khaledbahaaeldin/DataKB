@@ -3,6 +3,7 @@ package io.github.khaledbahaaeldin.emberbyte.data
 import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryUsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.sampler.CatchUpResult
 import io.github.khaledbahaaeldin.emberbyte.data.util.DayClock
+import io.github.khaledbahaaeldin.emberbyte.data.util.MutableZoneClock
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppSort
 import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageGap
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
@@ -20,13 +21,19 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RoomUsageRepositoryTest {
     private val now = Instant.parse("2026-10-07T12:00:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
@@ -144,5 +151,34 @@ class RoomUsageRepositoryTest {
         store.upsertHourly(listOf(hourly("2026-10-06T23:00:00Z", 10001, NetworkKind.MOBILE, 700), hourly("2026-10-07T01:00:00Z", 10001, NetworkKind.MOBILE, 300)))
         val range = DateRange(Instant.parse("2026-10-07T00:00:00Z"), Instant.parse("2026-10-08T00:00:00Z"))
         assertEquals(300L, repo(store).observeApps(range).first().single().totalBytes)
+    }
+
+    @Test fun today_follows_a_time_zone_change_on_the_same_date() = runTest {
+        val cairo = java.time.ZoneId.of("Africa/Cairo")
+        val clock = MutableZoneClock(testScheduler, Instant.parse("2026-10-02T00:30:00Z"), cairo) // Oct 2 in both Cairo (03:30) and London (01:30)
+        val store = InMemoryUsageStore()
+        store.addMinute(MinuteTotal(Instant.parse("2026-10-01T22:10:00Z"), NetworkKind.MOBILE, -1, 5_000_000, 0)) // Cairo: today (01:10 Oct 2); London: yesterday
+        store.addMinute(MinuteTotal(Instant.parse("2026-10-02T00:10:00Z"), NetworkKind.MOBILE, -1, 7_000_000, 0)) // today in both
+        val repo = RoomUsageRepository(store, flowOf(live), DayClock(clock, pollMillis = 30_000), clock) { catchUp }
+        val seen = mutableListOf<Long>()
+        val job = launch { repo.observeToday().collect { seen += it.totalBytes } }
+        runCurrent()
+        assertEquals(12_000_000L, seen.last())                              // Cairo day
+        clock.zoneId = java.time.ZoneId.of("Europe/London")
+        advanceTimeBy(31_000); runCurrent()
+        assertEquals(7_000_000L, seen.last())                               // London day: exactly the London day, not a slice of yesterday
+        clock.zoneId = cairo
+        advanceTimeBy(31_000); runCurrent()
+        assertEquals(12_000_000L, seen.last())
+        job.cancel()
+    }
+
+    @Test fun the_week_strip_never_grows_beyond_its_range_after_a_zone_change() = runTest {
+        val clock = MutableZoneClock(testScheduler, Instant.parse("2026-10-02T00:30:00Z"), java.time.ZoneId.of("Africa/Cairo"))
+        val repo = RoomUsageRepository(InMemoryUsageStore(), flowOf(live), DayClock(clock), clock) { catchUp }
+        clock.zoneId = java.time.ZoneId.of("Europe/London")
+        val from = Instant.parse("2026-09-25T23:00:00Z")                   // 7 London days
+        val bars = repo.observeSeries(DateRange(from, from.plusSeconds(7 * 86_400L)), Granularity.DAY).first()
+        assertEquals(7, bars.size)
     }
 }

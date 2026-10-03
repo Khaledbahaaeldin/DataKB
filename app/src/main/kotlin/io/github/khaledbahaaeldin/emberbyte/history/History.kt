@@ -133,12 +133,13 @@ class HistoryViewModel(
 
     val uiState: StateFlow<HistoryUiState> = combine(dates, granularity) { date, g -> date to g }
         .flatMapLatest { (date, g) ->
+            val zone = clock.zone
             combine(
-                usage.observeSeries(rangeForHistory(g, date, clock.zone), g),
+                usage.observeSeries(rangeForHistory(g, date, zone), g),
                 settings.observe(),
                 permissions.observe(),
             ) { points, s, perm ->
-                buildHistoryUiState(g, points, s.unitSystem.toByteUnits(), clock.zone, locale, needsUsageAccess = !perm.usageAccess)
+                buildHistoryUiState(g, points, s.unitSystem.toByteUnits(), zone, locale, needsUsageAccess = !perm.usageAccess)
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState())

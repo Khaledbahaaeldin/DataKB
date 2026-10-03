@@ -20,6 +20,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +42,7 @@ private data class HomeData(
     val forecast: Forecast?,
     val apps: List<AppUsage>,
     val week: List<UsagePoint>,
+    val zone: ZoneId,
 )
 
 private data class HomeBundle(val data: HomeData, val coverage: CoverageStatus, val permissions: PermissionState)
@@ -83,7 +85,7 @@ class HomeViewModel(
             usage.observeApps(todayRange),
             usage.observeSeries(weekRange, Granularity.DAY),
         ) { today, liveSpeed, pf, apps, week ->
-            HomeData(today, liveSpeed, pf.first, pf.second, apps, week)
+            HomeData(today, liveSpeed, pf.first, pf.second, apps, week, zone)
         }
     }
 
@@ -101,7 +103,7 @@ class HomeViewModel(
             units = s.unitSystem,
             selectedDay = selected,
             now = clock.instant(),
-            zone = clock.zone,
+            zone = b.data.zone,
             locale = locale,
             coverage = b.coverage,
             permissions = b.permissions,

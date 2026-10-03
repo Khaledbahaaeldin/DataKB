@@ -39,21 +39,25 @@ class RoomUsageRepository(
 
     override fun observeLiveSpeed(): Flow<LiveSpeed> = liveSpeed
 
-    override fun observeToday(filter: UsageFilter): Flow<DayUsage> = dayClock.dates().flatMapLatest { date ->
-        val from = date.atStartOfDay(zone).toInstant()
-        val to = date.plusDays(1).atStartOfDay(zone).toInstant()
-        observeSeries(DateRange(from, to), Granularity.DAY, filter).map { points ->
-            val point = points.firstOrNull()
-            DayUsage(date, point?.mobileBytes ?: 0L, point?.wifiBytes ?: 0L)
-        }
-    }
-
-    override fun observeSeries(range: DateRange, granularity: Granularity, filter: UsageFilter): Flow<List<UsagePoint>> {
+    private fun series(range: DateRange, granularity: Granularity, filter: UsageFilter, zone: ZoneId): Flow<List<UsagePoint>> {
         val padded = SeriesBuilder.bucketStart(range.from, granularity, zone).minusSeconds(SeriesBuilder.WINDOW_SECONDS)
         return combine(store.observeMinuteRows(padded, range.to), store.observeHourlyRows(padded, range.to)) { minutes, hours ->
             SeriesBuilder.build(range, granularity, zone, minutes, hours, filter)
         }
     }
+
+    override fun observeToday(filter: UsageFilter): Flow<DayUsage> = dayClock.dates().flatMapLatest { date ->
+        val zone = this.zone                                       // one zone for the whole emission
+        val from = date.atStartOfDay(zone).toInstant()
+        val to = date.plusDays(1).atStartOfDay(zone).toInstant()
+        series(DateRange(from, to), Granularity.DAY, filter, zone).map { points ->
+            val point = points.firstOrNull { it.start == from }
+            DayUsage(date, point?.mobileBytes ?: 0L, point?.wifiBytes ?: 0L)
+        }
+    }
+
+    override fun observeSeries(range: DateRange, granularity: Granularity, filter: UsageFilter): Flow<List<UsagePoint>> =
+        series(range, granularity, filter, zone)                   // captured when the flow is created
 
     override fun observeApps(range: DateRange, filter: UsageFilter, sort: AppSort): Flow<List<AppUsage>> =
         combine(
@@ -62,6 +66,7 @@ class RoomUsageRepository(
         ) { rows, meta -> AppAggregator.aggregate(rows, meta.associateBy { it.uid }, filter, sort) }
 
     override fun observeAppSeries(packageName: String, range: DateRange, granularity: Granularity): Flow<List<UsagePoint>> {
+        val zone = this.zone
         val padded = SeriesBuilder.bucketStart(range.from, granularity, zone).minusSeconds(SeriesBuilder.WINDOW_SECONDS)
         return combine(store.observeHourlyRows(padded, range.to), store.observeAppMeta()) { rows, meta ->
             val uids = meta.filter { it.packageName == packageName }.map { it.uid }.toSet()
