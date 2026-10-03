@@ -107,7 +107,8 @@ internal fun AppsContent(
         if (state.loaded && state.apps.isEmpty()) {
             item {
                 Text(
-                    "No app data yet. Per-app numbers appear within about 15 minutes once usage access is allowed.",
+                    if (state.query.isNotBlank()) "No apps match \"${state.query.trim()}\"."
+                    else "No app data yet. Per-app numbers appear within about 5 minutes once usage access is allowed.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }

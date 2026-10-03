@@ -154,8 +154,9 @@ class SamplerEngine(
         val closed = pending.keys.filter { olderThan == null || it.minuteStart < olderThan }
         if (closed.isEmpty()) return
         for (key in closed) {
-            val entry = pending.remove(key)!!
+            val entry = pending.getValue(key)
             store.addMinute(MinuteTotal(key.minuteStart, key.network, key.subscriptionId, entry.rx, entry.tx))
+            pending.remove(key)                                    // only after the write succeeded
         }
         previousMobile?.let { store.saveCheckpoint(CHECKPOINT_SAMPLER_MOBILE, it) }
         previousTotal?.let { store.saveCheckpoint(CHECKPOINT_SAMPLER_TOTAL, it) }

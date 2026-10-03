@@ -5,9 +5,11 @@ import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeNetworkKindSource
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSubscriptionSource
 import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryUsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.source.CounterSnapshot
+import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStore
 import io.github.khaledbahaaeldin.emberbyte.engine.counter.CounterReading
 import io.github.khaledbahaaeldin.emberbyte.engine.model.GapReason
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
+import io.github.khaledbahaaeldin.emberbyte.engine.usage.MinuteTotal
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
@@ -224,6 +226,25 @@ class SamplerEngineTest {
         advanceTimeBy(2_500); runCurrent()
         assertTrue(second.isActive)               // it took over without an IllegalStateException
         second.cancelAndJoin()
+    }
+
+    @Test fun a_failed_write_keeps_the_minute_so_the_next_flush_retries_it() = runTest {
+        val real = InMemoryUsageStore()
+        var failOnce = true
+        val flaky = object : UsageStore by real {
+            override suspend fun addMinute(row: MinuteTotal) {
+                if (failOnce) { failOnce = false; error("disk full") }
+                real.addMinute(row)
+            }
+        }
+        val e = SamplerEngine(
+            FakeCounterSource(listOf(snap(0), snap(30, mobRx = 100), snap(61, mobRx = 300))),
+            FakeNetworkKindSource(NetworkKind.MOBILE), FakeSubscriptionSource(7), flaky,
+        )
+        e.start(); e.tick()
+        runCatching { e.tick() }                                      // the minute rolls over: the flush throws once
+        e.stop()                                                      // the pending minutes are written now
+        assertEquals(300L, real.rows().filter { it.network == NetworkKind.MOBILE }.sumOf { it.rxBytes })
     }
 }
 

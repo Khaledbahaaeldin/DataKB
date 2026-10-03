@@ -84,4 +84,9 @@ class AppsContentTest {
         rule.onNodeWithText("Least data").performClick()
         assertEquals(listOf(AppsEvent.SetSort(AppSort.BYTES_ASC)), events)
     }
+
+    @Test fun a_search_without_matches_says_so() {
+        show(AppsUiState(query = "zzz", apps = emptyList(), loaded = true))
+        rule.onNodeWithText("No apps match \"zzz\".").assertIsDisplayed()
+    }
 }

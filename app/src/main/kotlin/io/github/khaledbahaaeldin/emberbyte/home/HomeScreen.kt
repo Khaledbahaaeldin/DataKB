@@ -42,7 +42,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
     onPromptAction: (String) -> Unit,
-    onOpenApp: (String) -> Unit = {},
+    onOpenApp: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -64,7 +64,7 @@ internal fun HomeContent(
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
     onPromptAction: (String) -> Unit,
-    onOpenApp: (String) -> Unit = {},
+    onOpenApp: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
