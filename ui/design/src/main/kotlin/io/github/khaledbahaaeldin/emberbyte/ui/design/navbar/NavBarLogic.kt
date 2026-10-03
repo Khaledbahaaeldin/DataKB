@@ -1,10 +1,5 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.navbar
 
-/** Index of the equal-width slot containing [x]; clamped to the valid range. */
-internal fun indexAt(x: Float, width: Float, count: Int): Int {
-    if (count <= 0 || width <= 0f) return 0
-    return ((x / width) * count).toInt().coerceIn(0, count - 1)
-}
 
 /**
  * Index of the item whose measured bounds contain [x]; in gaps or beyond the ends, the item with the nearest edge.

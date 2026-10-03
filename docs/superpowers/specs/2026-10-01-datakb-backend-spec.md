@@ -13,7 +13,7 @@ Emberbyte has no server. "Backend" means everything below the UI: `:core:engine`
 | `:core:engine` | Kotlin/JVM, no Android | Domain types, cycle/plan/forecast/spike/reconcile maths | nothing |
 | `:core:data` | Android library | Room, DataStore, repositories, samplers, workers, notifications, export/backup | `:core:engine` |
 | `:feature:lens` | Android library | `LensVpnService`, packet pipeline, `LensController`, `lens_domain_hit` | `:core:engine`, `:core:data` (settings and permissions only) |
-| `:app` | Android app | Dependency graph (hand-written in M1, Hilt from M2), manifest, widgets, navigation host | all |
+| `:app` | Android app | Dependency graph (hand-written; Hilt is not planned - see design doc), manifest, widgets, navigation host | all |
 
 `:core:engine` having no Android dependency is a hard rule: it keeps the money-critical maths
 (cycles, caps, forecast) runnable in fast JVM unit tests.
@@ -36,7 +36,9 @@ TrafficStats ──1 Hz──► LiveTrafficSource ──► in-memory LiveSpeed
                               │
                               └─ every 60 s ─► CounterReconciler ─► total_minute (per network, per SIM)
 
-NetworkStatsManager ─ CatchUpWorker (15 min) ─► usage_hourly (per UID) ─► reconcile against total_minute
+NetworkStatsManager ─ catch-up (service loop 5 min, worker 15 min) ─► usage_hourly (per UID, 2-hour window rows)
+
+Totals = SeriesBuilder merge of total_minute and the window rows (max per window), never a per-hour comparison.
 ```
 
 1. **Live speed.** `SamplerService` reads cumulative counters each second, differences them with
@@ -45,15 +47,15 @@ NetworkStatsManager ─ CatchUpWorker (15 min) ─► usage_hourly (per UID) ─
 2. **Minute totals.** The service accumulates deltas and writes one `total_minute` row per network and
    subscription each minute (or on network change, or on service stop). These feed "today" and the Number
    with minute freshness and no `NetworkStatsManager` latency.
-3. **Per-app history.** `CatchUpWorker` calls `NetworkStatsManager.querySummary` per network type for the
-   window since its last checkpoint and writes `usage_hourly`. The per-hour total for all UIDs is compared
-   with the matching `total_minute` sum. If they disagree by more than 5%, the per-app rows are scaled
-   proportionally so app totals add up to the trusted system total.
-4. **Counter resets and reboots.** `CounterReconciler.delta` treats any decrease or a changed `bootId` as a
-   reset: the new reading is the delta, `wasReset = true`, and a `coverage_gap` with
-   `COUNTER_RESET` or `REBOOT` is recorded.
-5. **Gaps.** If `SamplerService` is killed, `CatchUpWorker` detects the missing minutes, records a
-   `SERVICE_KILLED` gap, and backfills per-app data from `NetworkStatsManager`. Minute totals inside a gap are
+3. **Per-app history.** The catch-up calls `NetworkStatsManager.querySummary` per network type **one 2-hour window at a time**
+   (the platform's bucket size, so nothing is interpolated) and atomically replaces that window's `usage_hourly` rows. Totals
+   merge sampler minutes and system windows per window (`SeriesBuilder`, contract 9.4); per-app rows are never rescaled.
+4. **Counter resets and reboots.** `CounterReconciler.delta` treats a changed `bootId` as a restart (delta = current reading) and a
+   same-boot decrease as a vanished interface (delta 0, re-baseline). The mobile delta is clamped to the total delta, and Wi-Fi
+   is only derived while the default network is Wi-Fi (contract 9.4). A `COUNTER_RESET`, `REBOOT`, `SERVICE_KILLED` or
+   `DEVICE_ASLEEP` `coverage_gap` records each case.
+5. **Gaps.** When `SamplerService` restarts after more than 90 s, the sampler itself records a `SERVICE_KILLED` (or `REBOOT`) gap;
+   the catch-up then backfills per-app data from `NetworkStatsManager`. Minute totals inside a gap are
    not invented; `observeCoverage()` exposes the gap and the UI states it honestly.
 
 ## 4. Plan engine
@@ -178,8 +180,8 @@ allowed type for a VPN service, update this table and the manifest together.
 |---|---|
 | Usage Access missing | `Outcome.Failure(MissingUsageAccess)` from per-app refresh; totals continue; UI shows an inline prompt |
 | `READ_PHONE_STATE` missing | SIM-bound plans use the default subscription and set `isApproximate` |
-| Sampler killed by OS | `CatchUpWorker` restarts it and records a `SERVICE_KILLED` gap |
-| Counter decrease | Treated as reset, gap recorded, no negative or inflated delta |
+| Sampler killed by OS | The worker tries to restart it (Android 12+ may refuse: then it posts "Measurement paused"); the sampler records the `SERVICE_KILLED` gap when it starts again |
+| Counter decrease | Same boot: re-baseline with delta 0 and a `COUNTER_RESET` gap; new boot: delta = current reading; mobile never exceeds total |
 | Plan with invalid cycle | `upsertPlan` returns `Invalid(field, reason)`; nothing is saved |
 | Room migration failure | App opens a recovery screen offering export of the last backup; never silently wipes data |
 | Backup wrong passphrase | `Invalid("passphrase", …)`; database untouched |

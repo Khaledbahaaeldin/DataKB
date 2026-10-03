@@ -3,14 +3,16 @@
 An open-source Android data monitor with a Material 3 Expressive interface: daily and real-time usage,
 flexible data plans, a forecast of when your cap runs out, and an opt-in live per-app view.
 
-> Status: milestone M1 (foundation). The app runs on fake data. Real measurement arrives in M2.
+> Status: milestone M2 (real usage): measures mobile and Wi-Fi data, per-app history and a live notification; data plans, widgets and Live Lens are not in yet.
 > "DataKB" is the project codename; the repository keeps that name.
 
 ## Privacy
 
-Everything stays on your device. There are no accounts, no analytics and no cloud. The optional
-**Live Lens** feature (milestone 5) uses a local-only VPN to show which app is using data right now; it is
-off unless you turn it on, and nothing it sees leaves the phone.
+Everything stays on your device. There are no accounts, no analytics and no cloud. The app
+requests `QUERY_ALL_PACKAGES` only to show app names and `PACKAGE_USAGE_STATS` only for per-app
+history, both optional for totals. The optional **Live Lens** feature (milestone 5) uses a
+local-only VPN to show which app is using data right now; it is off unless you turn it on,
+and nothing it sees leaves the phone.
 
 ## Build
 

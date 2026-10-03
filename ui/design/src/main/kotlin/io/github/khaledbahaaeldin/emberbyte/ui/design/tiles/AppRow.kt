@@ -17,10 +17,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.spokenUnit
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
+
+private fun spoken(bytes: Long, units: ByteUnits): String {
+    val f = formatBytes(bytes, units)
+    return "${f.value} ${spokenUnit(f.unit)}"
+}
 
 @Composable
 fun AppRow(
@@ -36,6 +45,9 @@ fun AppRow(
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
+            .semantics {
+                stateDescription = "Mobile ${spoken(model.mobileBytes, units)}, Wi-Fi ${spoken(model.wifiBytes, units)}"
+            }
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -61,6 +73,8 @@ fun AppRow(
                 }
             }
         }
-        Text("${total.value} ${total.unit}", style = MaterialTheme.typography.labelLarge)
+        ForceLtr {
+            Text("${total.value} ${total.unit}", style = MaterialTheme.typography.labelLarge)
+        }
     }
 }

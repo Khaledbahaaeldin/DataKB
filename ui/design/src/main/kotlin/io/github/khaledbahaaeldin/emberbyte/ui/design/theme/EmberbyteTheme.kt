@@ -3,7 +3,11 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.theme
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.database.ContentObserver
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -14,8 +18,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +34,32 @@ private const val DYNAMIC_COLOR_MIN_SDK = 31
 val LocalReduceMotion: ProvidableCompositionLocal<Boolean> = staticCompositionLocalOf { false }
 
 internal fun isReduceMotion(animatorDurationScale: Float): Boolean = animatorDurationScale == 0f
+
+internal fun readReduceMotion(context: Context): Boolean = isReduceMotion(
+    Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f),
+)
+
+/** True while the system animator scale is 0; updates live when the user changes the setting. */
+@Composable
+internal fun rememberReduceMotion(): Boolean {
+    val context = LocalContext.current
+    var reduce by remember(context) { mutableStateOf(readReduceMotion(context)) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                reduce = readReduceMotion(context)
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+            false,
+            observer,
+        )
+        reduce = readReduceMotion(context)
+        onDispose { context.contentResolver.unregisterContentObserver(observer) }
+    }
+    return reduce
+}
 
 internal fun resolveColorScheme(
     darkTheme: Boolean,
@@ -65,11 +99,7 @@ fun EmberbyteTheme(
         dynamicLight = { dynamicLightColorScheme(context) },
         dynamicDark = { dynamicDarkColorScheme(context) },
     )
-    val reduceMotion = remember(context) {
-        isReduceMotion(
-            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f),
-        )
-    }
+    val reduceMotion = rememberReduceMotion()
     CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
         MaterialExpressiveTheme(
             colorScheme = scheme,

@@ -1,6 +1,10 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.tiles
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -76,5 +80,15 @@ class TilesTest {
         }
         rule.onNodeWithText("YouTube").assertIsDisplayed()
         rule.onNodeWithText("610 MB").assertIsDisplayed()
+    }
+
+    @Test fun an_app_row_speaks_its_mobile_and_wifi_split() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                AppRow(AppRowUi("com.video", "Video", 600_000_000L, 400_000_000L), ByteUnits.DECIMAL, onClick = {})
+            }
+        }
+        rule.onNode(hasText("Video"))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Mobile 600 megabytes, Wi-Fi 400 megabytes"))
     }
 }

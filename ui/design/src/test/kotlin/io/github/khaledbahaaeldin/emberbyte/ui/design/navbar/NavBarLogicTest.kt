@@ -6,23 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NavBarLogicTest {
-    @Test fun indexAt_splits_the_bar_into_equal_slots() {
-        assertEquals(0, indexAt(x = 10f, width = 400f, count = 4))
-        assertEquals(1, indexAt(x = 150f, width = 400f, count = 4))
-        assertEquals(2, indexAt(x = 250f, width = 400f, count = 4))
-        assertEquals(3, indexAt(x = 399f, width = 400f, count = 4))
-    }
-
-    @Test fun indexAt_clamps_outside_the_bar() {
-        assertEquals(0, indexAt(x = -50f, width = 400f, count = 4))
-        assertEquals(3, indexAt(x = 900f, width = 400f, count = 4))
-    }
-
-    @Test fun indexAt_handles_degenerate_input() {
-        assertEquals(0, indexAt(x = 10f, width = 0f, count = 4))
-        assertEquals(0, indexAt(x = 10f, width = 400f, count = 0))
-    }
-
     @Test fun tracker_starts_visible() =
         assertTrue(ScrollVisibilityTracker(thresholdPx = 40f).visible)
 

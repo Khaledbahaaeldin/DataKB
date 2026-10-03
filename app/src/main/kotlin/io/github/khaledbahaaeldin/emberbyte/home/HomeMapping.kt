@@ -1,21 +1,27 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
+import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
+import io.github.khaledbahaaeldin.emberbyte.common.weekdayBars
+import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Confidence
+import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageGap
+import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageStatus
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DayUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Forecast
+import io.github.khaledbahaaeldin.emberbyte.engine.model.GapReason
 import io.github.khaledbahaaeldin.emberbyte.engine.model.LiveSpeed
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
-import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
-import io.github.khaledbahaaeldin.emberbyte.ui.design.format.spokenUnit
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
-import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -70,16 +76,6 @@ internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale
     return ForecastUi(headline, detail, confidenceLabel(forecast.confidence))
 }
 
-private fun spoken(bytes: Long, units: ByteUnits): String {
-    val f = formatBytes(bytes, units)
-    return "${f.value} ${spokenUnit(f.unit)}"
-}
-
-private fun plain(bytes: Long, units: ByteUnits): String {
-    val f = formatBytes(bytes, units)
-    return "${f.value} ${f.unit}"
-}
-
 internal fun buildHomeUiState(
     today: DayUsage,
     live: LiveSpeed?,
@@ -92,18 +88,13 @@ internal fun buildHomeUiState(
     now: Instant,
     zone: ZoneId,
     locale: Locale,
+    coverage: CoverageStatus = CoverageStatus(emptyList(), null),
+    permissions: PermissionState? = null,
 ): HomeUiState {
     val byteUnits = units.toByteUnits()
     val validSelection = selectedDay?.takeIf { it in week.indices }
 
-    val bars = week.map { point ->
-        val day = point.start.atZone(zone).dayOfWeek
-        BarUi(
-            label = day.getDisplayName(TextStyle.SHORT, locale),
-            bytes = point.totalBytes,
-            description = "${day.getDisplayName(TextStyle.FULL, locale)}, ${spoken(point.totalBytes, byteUnits)}",
-        )
-    }
+    val bars = weekdayBars(week, byteUnits, zone, locale)
 
     val forecastUi = forecastToUi(forecast, now, zone, locale)
     val isToday = validSelection == null
@@ -116,11 +107,11 @@ internal fun buildHomeUiState(
         heroBytes = today.totalBytes
         heroLabel = "Today"
         description = buildString {
-            append("${spoken(heroBytes, byteUnits)} used today")
-            if (planState != null) append(", ${spoken(planState.remainingBytes, byteUnits)} left")
+            append("${spokenBytes(heroBytes, byteUnits)} used today")
+            if (planState != null) append(", ${spokenBytes(planState.remainingBytes, byteUnits)} left")
         }
         subtitle = planState?.let {
-            val left = "${plain(it.remainingBytes, byteUnits)} left"
+            val left = "${plainBytes(it.remainingBytes, byteUnits)} left"
             when {
                 forecastUi == null -> left
                 forecast?.neverRunsOut() == true -> "$left · won't run out this cycle"
@@ -132,7 +123,7 @@ internal fun buildHomeUiState(
         val point = week[validSelection]
         heroBytes = point.totalBytes
         heroLabel = point.start.atZone(zone).dayOfWeek.getDisplayName(TextStyle.FULL, locale)
-        description = "${spoken(heroBytes, byteUnits)} used on $heroLabel"
+        description = "${spokenBytes(heroBytes, byteUnits)} used on $heroLabel"
         subtitle = null
     }
 
@@ -156,8 +147,64 @@ internal fun buildHomeUiState(
         forecast = forecastUi,
         topApps = apps.sortedByDescending { it.totalBytes }.take(3)
             .map { AppRowUi(it.packageName, it.label, it.mobileBytes, it.wifiBytes) },
+        topAppsLocked = permissions?.usageAccess == false,
         week = bars,
         selectedDay = validSelection,
+        prompts = permissionPrompts(permissions),
+        gap = latestGap(coverage, now, zone),
+        hasPlan = planState != null,
         units = byteUnits,
     )
+}
+
+internal fun permissionPrompts(permissions: PermissionState?): List<PermissionPromptUi> {
+    if (permissions == null) return emptyList()
+    return buildList {
+        if (!permissions.usageAccess) {
+            add(
+                PermissionPromptUi(
+                    id = "usage_access",
+                    title = "Allow usage access",
+                    body = "See which apps use your data. Until you allow it, Emberbyte shows totals only.",
+                    actionLabel = "Open settings",
+                ),
+            )
+        }
+        if (!permissions.notifications) {
+            add(
+                PermissionPromptUi(
+                    id = "notifications",
+                    title = "Show live usage",
+                    body = "Get today's usage and your current speed in the notification shade.",
+                    actionLabel = "Allow",
+                ),
+            )
+        }
+    }
+}
+
+private val GAP_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val MIN_GAP_FOR_BANNER: Duration = Duration.ofMinutes(5)
+private val GAP_BANNER_WINDOW: Duration = Duration.ofHours(24)
+
+private fun gapReasonText(reason: GapReason): String = when (reason) {
+    GapReason.SERVICE_KILLED -> "the app was stopped"
+    GapReason.REBOOT -> "the device restarted"
+    GapReason.COUNTER_RESET -> "the counters reset"
+    GapReason.PERMISSION_MISSING -> "usage access was off"
+    GapReason.DEVICE_ASLEEP -> "the device was asleep"
+}
+
+/** The newest gap of at least 5 minutes that ended within the last 24 hours, as a banner message. */
+internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId): GapUi? {
+    val gap: CoverageGap = coverage.gaps
+        .filter {
+            Duration.between(it.from, it.to) >= MIN_GAP_FOR_BANNER &&
+                it.to >= now.minus(GAP_BANNER_WINDOW) &&
+                it.reason != GapReason.DEVICE_ASLEEP
+        }
+        .maxByOrNull { it.to } ?: return null
+    val from = GAP_CLOCK.format(gap.from.atZone(zone))
+    val to = GAP_CLOCK.format(gap.to.atZone(zone))
+    return GapUi("Not measured $from–$to because ${gapReasonText(gap.reason)}")
 }

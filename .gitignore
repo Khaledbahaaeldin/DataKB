@@ -1,5 +1,8 @@
 CLAUDE.md
 .superpowers/
+.agent/
+AGENTS.md
+GEMINI.md
 
 # Android / Gradle
 .gradle/
