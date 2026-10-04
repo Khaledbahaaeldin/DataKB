@@ -10,6 +10,9 @@ import io.github.khaledbahaaeldin.emberbyte.data.OnboardingRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.RoomUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertEvaluator
+import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertRepository
+import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
 import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStores
 import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
@@ -59,6 +62,8 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     val simInfo: SimInfoSource = AndroidSimInfoSource(appContext)
     internal val planStore = PlanStores.create(appContext)
     val plans: PlanRepository = RoomPlanRepository(planStore, store, clock)
+    val alerts: AlertRepository = RoomAlertRepository(planStore)
+    val alertEvaluator = AlertEvaluator(plans, planStore)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
