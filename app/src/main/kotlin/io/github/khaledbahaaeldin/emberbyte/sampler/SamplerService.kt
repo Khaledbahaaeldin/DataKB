@@ -83,6 +83,15 @@ class SamplerService : Service() {
                 }
             }
         }
+        launch {
+            retrying("alerts") {
+                val runner = AlertRunner.create(this@SamplerService, graph)
+                while (true) {
+                    runner.run()
+                    delay(60_000L)
+                }
+            }
+        }
         launch { retrying("notification") { updateNotification(graph, builder) } }
     }
 

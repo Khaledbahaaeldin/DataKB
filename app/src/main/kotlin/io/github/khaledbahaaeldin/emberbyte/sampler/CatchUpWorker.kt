@@ -18,6 +18,7 @@ class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val graph = (applicationContext as EmberbyteApplication).graph
         graph.catchUp.run()
         graph.prune()
+        runCatching { AlertRunner.create(applicationContext, graph).run() }
         CatchUpRecovery.afterCatchUp(applicationContext, graph)
         return Result.success()
     }

@@ -9,4 +9,6 @@
     <string name="channel_status_description">Tells you when measuring has paused</string>
     <string name="notification_paused_title">Measurement paused</string>
     <string name="notification_paused_text">Tap to resume measuring your data usage.</string>
+    <string name="channel_alerts_name">Plan alerts</string>
+    <string name="channel_alerts_description">Tells you when you have used a set share of a data plan</string>
 </resources>
