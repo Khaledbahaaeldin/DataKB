@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -50,5 +51,6 @@ class LiveNotificationTest {
         assertEquals("1.24 GB today", notification.extras.getString(Notification.EXTRA_TITLE))
         assertEquals("↓ 4.20 MB/s", notification.extras.getString(Notification.EXTRA_TEXT))
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        assertEquals("emberbyte://home", shadowOf(notification.contentIntent).savedIntent.data.toString())
     }
 }

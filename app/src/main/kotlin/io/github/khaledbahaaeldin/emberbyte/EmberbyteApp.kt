@@ -22,6 +22,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
+import io.github.khaledbahaaeldin.emberbyte.nav.DeepLinkPatterns
 import io.github.khaledbahaaeldin.emberbyte.apps.AppDetailScreen
 import io.github.khaledbahaaeldin.emberbyte.apps.AppDetailViewModel
 import io.github.khaledbahaaeldin.emberbyte.apps.AppsScreen
@@ -90,7 +92,10 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                     }
                 })
             }
-            composable(Destination.Home.route) {
+            composable(
+                Destination.Home.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.HOME }),
+            ) {
                 HomeScreen(
                     viewModel(factory = graph.homeViewModelFactory()),
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
@@ -99,7 +104,10 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                     onOpenApp = { navController.navigate(Routes.appDetail(it)) },
                 )
             }
-            composable(Destination.Apps.route) {
+            composable(
+                Destination.Apps.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.APPS }),
+            ) {
                 val viewModel: AppsViewModel = viewModel(factory = graph.appsViewModelFactory())
                 AppsScreen(
                     viewModel,
@@ -110,23 +118,38 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
             composable(
                 Routes.APP_DETAIL,
                 arguments = listOf(navArgument("packageName") { type = NavType.StringType }),
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.APP_DETAIL }),
             ) { entry ->
                 val packageName = entry.arguments?.getString("packageName").orEmpty()
                 val viewModel: AppDetailViewModel =
                     viewModel(key = "app-$packageName", factory = graph.appDetailViewModelFactory(packageName))
                 AppDetailScreen(viewModel, onBack = { navController.popBackStack() })
             }
-            composable(Destination.Plans.route) {
+            composable(
+                Destination.Plans.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.PLANS }),
+            ) {
                 PlaceholderScreen("Plans", "The flexible plan editor arrives in milestone 3.")
             }
-            composable(Destination.Lens.route) {
+            composable(
+                Routes.PLAN_EDITOR,
+                arguments = listOf(navArgument("planId") { type = NavType.LongType }),
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.PLAN_EDITOR }),
+            ) { PlaceholderScreen("Plan", "The plan editor arrives in task 16 of milestone 3.") }
+            composable(
+                Destination.Lens.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),
+            ) {
                 PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in milestone 5.")
             }
             composable(Routes.HISTORY) {
                 val viewModel: HistoryViewModel = viewModel(factory = graph.historyViewModelFactory())
                 HistoryScreen(viewModel, onBack = { navController.popBackStack() })
             }
-            composable(Routes.SETTINGS) {
+            composable(
+                Routes.SETTINGS,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
+            ) {
                 val viewModel: SettingsViewModel = viewModel(factory = graph.settingsViewModelFactory())
                 SettingsScreen(viewModel, onBack = { navController.popBackStack() })
             }

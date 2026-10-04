@@ -3,10 +3,9 @@ package io.github.khaledbahaaeldin.emberbyte.sampler
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import androidx.core.app.NotificationCompat
-import io.github.khaledbahaaeldin.emberbyte.MainActivity
 import io.github.khaledbahaaeldin.emberbyte.R
+import io.github.khaledbahaaeldin.emberbyte.nav.DeepLinks
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
 
@@ -30,7 +29,7 @@ class LiveNotificationBuilder(private val context: Context) {
         val open = PendingIntent.getActivity(
             context,
             0,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            DeepLinks.intent(context, DeepLinks.HOME),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return NotificationCompat.Builder(context, NotificationChannels.LIVE)
