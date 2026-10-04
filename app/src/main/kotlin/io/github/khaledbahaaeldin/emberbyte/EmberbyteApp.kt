@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -52,6 +53,7 @@ import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
+import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.FloatingPillNavBar
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.glassSource
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.rememberGlassSource
@@ -100,11 +102,11 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
     val motion = MaterialTheme.motionScheme
     val reduceMotion = LocalReduceMotion.current
 
-    Box(Modifier.fillMaxSize().nestedScroll(visibility.connection)) {
+    Box(Modifier.fillMaxSize().nestedScroll(visibility.connection), contentAlignment = Alignment.TopCenter) {
         NavHost(
             navController = navController,
             startDestination = if (startOnboarding) Routes.ONBOARDING else Destination.Home.route,
-            modifier = Modifier.fillMaxSize().glassSource(glass),
+            modifier = Modifier.contentWidth().fillMaxHeight().glassSource(glass),
             enterTransition = { tabEnterTransition(motion, reduceMotion) },
             exitTransition = { tabExitTransition(motion, reduceMotion) },
             popEnterTransition = { tabEnterTransition(motion, reduceMotion) },
@@ -214,6 +216,7 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 glass = glass,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .contentWidth()
                     .navigationBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             )

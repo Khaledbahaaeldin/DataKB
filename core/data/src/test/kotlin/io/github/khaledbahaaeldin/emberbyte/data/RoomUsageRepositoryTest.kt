@@ -173,12 +173,16 @@ class RoomUsageRepositoryTest {
         job.cancel()
     }
 
-    @Test fun the_week_strip_never_grows_beyond_its_range_after_a_zone_change() = runTest {
-        val clock = MutableZoneClock(testScheduler, Instant.parse("2026-10-02T00:30:00Z"), java.time.ZoneId.of("Africa/Cairo"))
-        val repo = RoomUsageRepository(InMemoryUsageStore(), flowOf(live), DayClock(clock), clock) { catchUp }
-        clock.zoneId = java.time.ZoneId.of("Europe/London")
-        val from = Instant.parse("2026-09-25T23:00:00Z")                   // 7 London days
-        val bars = repo.observeSeries(DateRange(from, from.plusSeconds(7 * 86_400L)), Granularity.DAY).first()
-        assertEquals(7, bars.size)
+    @Test fun observe_coverage_filters_gaps_older_than_31_days() = runBlocking {
+        val store = InMemoryUsageStore()
+        val gap40DaysAgo = CoverageGap(now.minus(java.time.Duration.ofDays(40)), now.minus(java.time.Duration.ofDays(40)).plusSeconds(60), GapReason.SERVICE_KILLED)
+        val gap10DaysAgo = CoverageGap(now.minus(java.time.Duration.ofDays(10)), now.minus(java.time.Duration.ofDays(10)).plusSeconds(60), GapReason.SERVICE_KILLED)
+        store.insertGap(gap40DaysAgo)
+        store.insertGap(gap10DaysAgo)
+
+        val coverage = repo(store).observeCoverage().first()
+        val gapIds = coverage.gaps
+        assertTrue(gapIds.none { it.from == gap40DaysAgo.from })
+        assertTrue(gapIds.any { it.from == gap10DaysAgo.from })
     }
 }

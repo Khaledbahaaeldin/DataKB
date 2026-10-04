@@ -246,5 +246,21 @@ class SamplerEngineTest {
         e.stop()                                                      // the pending minutes are written now
         assertEquals(300L, real.rows().filter { it.network == NetworkKind.MOBILE }.sumOf { it.rxBytes })
     }
+
+    @Test fun two_engine_starts_without_flush_do_not_produce_overlapping_gap_rows() = runTest {
+        val store = InMemoryUsageStore()
+        store.saveCheckpoint(CHECKPOINT_SAMPLER_TOTAL, CounterReading(t0, 100, 100, "b1"))
+        
+        val script1 = listOf(CounterSnapshot(t0.plusSeconds(120), 200, 200, 200, 200, "b2"))
+        val e1 = SamplerEngine(FakeCounterSource(script1), FakeNetworkKindSource(), FakeSubscriptionSource(7), store)
+        e1.start()
+        
+        val script2 = listOf(CounterSnapshot(t0.plusSeconds(150), 300, 300, 300, 300, "b2"))
+        val e2 = SamplerEngine(FakeCounterSource(script2), FakeNetworkKindSource(), FakeSubscriptionSource(7), store)
+        e2.start()
+
+        val gaps = store.gaps(open.first, open.second)
+        assertEquals(1, gaps.size)
+    }
 }
 

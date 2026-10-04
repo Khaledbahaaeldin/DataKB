@@ -75,7 +75,7 @@ class RoomUsageRepository(
     }
 
     override fun observeCoverage(): Flow<CoverageStatus> {
-        val from = clock.instant().minus(UsageRetention.GAPS)
+        val from = clock.instant().minus(java.time.Duration.ofDays(31))
         return combine(store.observeGaps(from, OPEN_END), store.observeLastSample()) { gaps, last ->
             CoverageStatus(gaps, last)
         }
