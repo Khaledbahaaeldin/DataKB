@@ -47,4 +47,9 @@ internal class ScrollVisibilityTracker(private val thresholdPx: Float) {
         }
         return visible
     }
+
+    fun reset() {
+        accumulatedDown = 0f
+        visible = true
+    }
 }

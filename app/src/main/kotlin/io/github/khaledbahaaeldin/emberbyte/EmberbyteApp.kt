@@ -40,6 +40,7 @@ import io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel
 import io.github.khaledbahaaeldin.emberbyte.home.HomeScreen
 import io.github.khaledbahaaeldin.emberbyte.nav.Destination
 import io.github.khaledbahaaeldin.emberbyte.nav.Routes
+import io.github.khaledbahaaeldin.emberbyte.nav.openDeepLink
 import io.github.khaledbahaaeldin.emberbyte.nav.rememberPermissionActions
 import io.github.khaledbahaaeldin.emberbyte.nav.tabEnterTransition
 import io.github.khaledbahaaeldin.emberbyte.nav.tabExitTransition
@@ -81,10 +82,7 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
     DisposableEffect(navController, context) {
         val activity = context.findComponentActivity()
         val listener = Consumer<Intent> { intent ->
-            val inPlaceIntent = Intent(intent).apply {
-                flags = flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv()
-            }
-            navController.handleDeepLink(inPlaceIntent)
+            navController.openDeepLink(intent)
         }
         activity?.addOnNewIntentListener(listener)
         onDispose {
@@ -97,6 +95,9 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
     val actions = rememberPermissionActions(graph)
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
+    androidx.compose.runtime.LaunchedEffect(route) {
+        visibility.show()
+    }
     val selected = Destination.fromRoute(route)
     val items = remember { Destination.entries.map { it.toNavBarItem() } }
     val motion = MaterialTheme.motionScheme
