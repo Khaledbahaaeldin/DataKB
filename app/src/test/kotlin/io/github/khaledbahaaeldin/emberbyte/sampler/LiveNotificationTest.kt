@@ -53,4 +53,27 @@ class LiveNotificationTest {
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
         assertEquals("emberbyte://home", shadowOf(notification.contentIntent).savedIntent.data.toString())
     }
+
+    @Test fun remaining_data_comes_first_and_the_speed_follows() {
+        val t = liveNotificationText(1_240_000_000L, 4_200_000L, ByteUnits.DECIMAL, showSpeed = true, remainingBytes = 3_800_000_000L)
+        assertEquals("1.24 GB today", t.title)
+        assertEquals("3.80 GB left · ↓ 4.20 MB/s", t.text)
+    }
+    @Test fun remaining_data_alone_when_the_speed_is_hidden() {
+        val t = liveNotificationText(1_000_000L, 0, ByteUnits.DECIMAL, showSpeed = false, remainingBytes = 3_800_000_000L)
+        assertEquals("3.80 GB left", t.text)
+    }
+    @Test fun offline_keeps_the_remaining_data() {
+        val t = liveNotificationText(0, 0, ByteUnits.DECIMAL, showSpeed = true, offline = true, remainingBytes = 3_800_000_000L)
+        assertEquals("3.80 GB left · No connection", t.text)
+    }
+    @Test fun no_plan_keeps_the_old_text() {
+        val t = liveNotificationText(1_000_000L, 4_200_000L, ByteUnits.DECIMAL, showSpeed = true)
+        assertEquals("↓ 4.20 MB/s", t.text)
+        assertNull(liveNotificationText(1_000_000L, 0, ByteUnits.DECIMAL, showSpeed = false).text)
+    }
+    @Test fun nothing_left_says_so() {
+        val t = liveNotificationText(1, 0, ByteUnits.DECIMAL, showSpeed = false, remainingBytes = 0L)
+        assertEquals("No data left", t.text)
+    }
 }

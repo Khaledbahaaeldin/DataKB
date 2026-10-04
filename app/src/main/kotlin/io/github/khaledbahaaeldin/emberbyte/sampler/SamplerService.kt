@@ -106,7 +106,8 @@ class SamplerService : Service() {
     private suspend fun updateNotification(graph: AppGraph, builder: LiveNotificationBuilder) {
         val manager = getSystemService(NotificationManager::class.java)
         val speeds = graph.usage.observeLiveSpeed().map<LiveSpeed, LiveSpeed?> { it }.onStart { emit(null) }
-        combine(speeds, graph.usage.observeToday(), graph.settings.observe()) { speed, today, settings ->
+        val remaining = graph.plans.observeActivePlanStates().map { it.firstOrNull()?.remainingBytes }
+        combine(speeds, graph.usage.observeToday(), graph.settings.observe(), remaining) { speed, today, settings, left ->
             if (settings.liveNotificationEnabled) {
                 liveNotificationText(
                     todayBytes = today.totalBytes,
@@ -114,6 +115,7 @@ class SamplerService : Service() {
                     units = settings.unitSystem.toByteUnits(),
                     showSpeed = settings.notificationShowsSpeed,
                     offline = speed != null && speed.network == null,
+                    remainingBytes = left,
                 )
             } else {
                 // A foreground service must show a notification; keep it minimal when the user turned this off.

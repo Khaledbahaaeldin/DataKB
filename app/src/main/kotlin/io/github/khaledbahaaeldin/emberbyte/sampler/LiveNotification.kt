@@ -11,16 +11,28 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
 
 data class LiveNotificationText(val title: String, val text: String?)
 
-fun liveNotificationText(todayBytes: Long, rxBps: Long, units: ByteUnits, showSpeed: Boolean, offline: Boolean = false): LiveNotificationText {
+fun liveNotificationText(
+    todayBytes: Long,
+    rxBps: Long,
+    units: ByteUnits,
+    showSpeed: Boolean,
+    offline: Boolean = false,
+    remainingBytes: Long? = null,
+): LiveNotificationText {
     val today = formatBytes(todayBytes, units)
-    val speed = formatBytes(rxBps, units)
+    val parts = buildList {
+        if (remainingBytes != null) {
+            val left = formatBytes(remainingBytes, units)
+            add(if (remainingBytes <= 0L) "No data left" else "${left.value} ${left.unit} left")
+        }
+        if (showSpeed) {
+            val speed = formatBytes(rxBps, units)
+            add(if (offline) "No connection" else "↓ ${speed.value} ${speed.unit}/s")
+        }
+    }
     return LiveNotificationText(
         title = "${today.value} ${today.unit} today",
-        text = when {
-            !showSpeed -> null
-            offline -> "No connection"
-            else -> "↓ ${speed.value} ${speed.unit}/s"
-        },
+        text = parts.joinToString(" · ").ifEmpty { null },
     )
 }
 
