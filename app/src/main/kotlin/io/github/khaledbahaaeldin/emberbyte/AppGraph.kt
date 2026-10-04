@@ -1,6 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte
 
 import android.content.Context
+import android.text.format.DateFormat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -96,7 +97,7 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     suspend fun prune() = store.prune(clock.instant())
 
     fun homeViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { HomeViewModel(usage, plans, settings, permissions) }
+        initializer { HomeViewModel(usage, plans, settings, permissions, clock = clock, is24Hour = { DateFormat.is24HourFormat(appContext) }) }
     }
 
     fun appsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {

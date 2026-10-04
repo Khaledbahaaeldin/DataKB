@@ -102,10 +102,11 @@ internal fun buildHomeUiState(
     selectedDay: Int?,
     now: Instant,
     zone: ZoneId,
-    locale: Locale,
+    locale: Locale = Locale.getDefault(),
     coverage: CoverageStatus = CoverageStatus(emptyList(), null),
     permissions: PermissionState? = null,
     planChips: List<PlanChipUi> = emptyList(),
+    is24Hour: Boolean = true,
 ): HomeUiState {
     val byteUnits = units.toByteUnits()
     val validSelection = selectedDay?.takeIf { it in week.indices }
@@ -163,7 +164,7 @@ internal fun buildHomeUiState(
         week = bars,
         selectedDay = validSelection,
         prompts = permissionPrompts(permissions),
-        gap = latestGap(coverage, now, zone),
+        gap = latestGap(coverage, now, zone, is24Hour, locale),
         hasPlan = planState != null,
         units = byteUnits,
         planChips = if (planChips.size >= 2) planChips else emptyList(),
@@ -196,7 +197,6 @@ internal fun permissionPrompts(permissions: PermissionState?): List<PermissionPr
     }
 }
 
-private val GAP_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val MIN_GAP_FOR_BANNER: Duration = Duration.ofMinutes(5)
 private val GAP_BANNER_WINDOW: Duration = Duration.ofHours(24)
 
@@ -209,7 +209,7 @@ private fun gapReasonText(reason: GapReason): String = when (reason) {
 }
 
 /** The newest gap of at least 5 minutes that ended within the last 24 hours, as a banner message. */
-internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId): GapUi? {
+internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId, is24Hour: Boolean = true, locale: Locale = Locale.getDefault()): GapUi? {
     val gap: CoverageGap = coverage.gaps
         .filter {
             Duration.between(it.from, it.to) >= MIN_GAP_FOR_BANNER &&
@@ -217,7 +217,9 @@ internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId): Ga
                 it.reason != GapReason.DEVICE_ASLEEP
         }
         .maxByOrNull { it.to } ?: return null
-    val from = GAP_CLOCK.format(gap.from.atZone(zone))
-    val to = GAP_CLOCK.format(gap.to.atZone(zone))
+    val pattern = if (is24Hour) "HH:mm" else "h:mm a"
+    val formatter = DateTimeFormatter.ofPattern(pattern, locale)
+    val from = formatter.format(gap.from.atZone(zone))
+    val to = formatter.format(gap.to.atZone(zone))
     return GapUi("Not measured $from–$to because ${gapReasonText(gap.reason)}")
 }

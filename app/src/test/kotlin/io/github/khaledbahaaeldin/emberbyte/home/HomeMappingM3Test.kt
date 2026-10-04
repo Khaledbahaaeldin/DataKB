@@ -3,10 +3,13 @@ package io.github.khaledbahaaeldin.emberbyte.home
 import io.github.khaledbahaaeldin.emberbyte.common.forecastSentence
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Confidence
+import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageGap
+import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageStatus
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
 import io.github.khaledbahaaeldin.emberbyte.engine.model.CycleWindow
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DayUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Forecast
+import io.github.khaledbahaaeldin.emberbyte.engine.model.GapReason
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover
@@ -49,6 +52,24 @@ class HomeMappingM3Test {
         val u = ui(forecast("2026-10-11T12:00:00Z", "2026-10-12T12:00:00Z", "2026-10-13T12:00:00Z"))
         assertEquals(ForecastKind.RunsOut, u.kind)
         assertEquals("runs out Mon (±1 day)", forecastSentence(u))
+    }
+
+    @Test fun latest_gap_supports_12_and_24_hour_formats() {
+        val coverage = CoverageStatus(
+            listOf(
+                CoverageGap(
+                    Instant.parse("2026-10-10T15:41:00Z"),
+                    Instant.parse("2026-10-10T15:47:00Z"),
+                    GapReason.SERVICE_KILLED,
+                ),
+            ),
+            null,
+        )
+        val gap24 = latestGap(coverage, Instant.parse("2026-10-10T15:57:00Z"), ZoneOffset.UTC, is24Hour = true, locale = Locale.US)
+        assertEquals("Not measured 15:41–15:47 because the app was stopped", gap24?.message)
+
+        val gap12 = latestGap(coverage, Instant.parse("2026-10-10T15:57:00Z"), ZoneOffset.UTC, is24Hour = false, locale = Locale.US)
+        assertEquals("Not measured 3:41 PM–3:47 PM because the app was stopped", gap12?.message)
     }
 
     @Test fun the_home_subtitle_uses_the_same_sentences() {

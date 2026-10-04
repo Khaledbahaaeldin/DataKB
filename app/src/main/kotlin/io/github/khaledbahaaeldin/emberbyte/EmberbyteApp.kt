@@ -48,6 +48,7 @@ import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlansScreen
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
+import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
@@ -62,7 +63,11 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
     val completed by graph.onboardingCompleted.collectAsStateWithLifecycle()
     val value = completed
     // `null` only before the first read. The scaffold is created ONCE with the right start destination and then stays.
-    if (value != null) AppScaffold(graph, startOnboarding = !value, hapticsEnabled = hapticsEnabled)
+    if (value != null) {
+        AppScaffold(graph, startOnboarding = !value, hapticsEnabled = hapticsEnabled)
+    } else {
+        StartupPlaceholder()
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

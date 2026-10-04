@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteSurface
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
@@ -29,8 +30,11 @@ class MainActivity : ComponentActivity() {
                 amoledBlack = current?.amoledBlack ?: false,
             ) {
                 EmberbyteSurface {
-                    // While the stored settings load, only the background is drawn; the app is never torn down afterwards.
-                    if (current != null) EmberbyteApp(graph, hapticsEnabled = current.hapticsEnabled)
+                    if (current != null) {
+                        EmberbyteApp(graph, hapticsEnabled = current.hapticsEnabled)
+                    } else {
+                        StartupPlaceholder()
+                    }
                 }
             }
         }

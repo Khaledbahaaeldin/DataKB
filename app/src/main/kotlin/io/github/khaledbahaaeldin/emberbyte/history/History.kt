@@ -19,6 +19,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
 import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
 import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
+import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
@@ -107,11 +108,13 @@ internal fun buildHistoryUiState(
     needsUsageAccess: Boolean = false,
 ): HistoryUiState {
     val total = points.sumOf { it.totalBytes }
+    val activeBuckets = points.count { it.totalBytes > 0 }
+    val average = if (activeBuckets == 0) 0L else total / activeBuckets
     return HistoryUiState(
         granularity = granularity,
         bars = historyBars(points, granularity, units, zone, locale),
         totalBytes = total,
-        averageBytes = if (points.isEmpty()) 0L else total / points.size,
+        averageBytes = average,
         units = units,
         needsUsageAccess = needsUsageAccess,
         loaded = true,
@@ -190,7 +193,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, modifier: Mod
                         Text(plainBytes(state.totalBytes, state.units), style = MaterialTheme.typography.headlineSmall)
                     }
                 }
-                BentoTile(title = "Average per $unit", modifier = Modifier.weight(1f)) {
+                BentoTile(title = "Average per active $unit", modifier = Modifier.weight(1f)) {
                     ForceLtr {
                         Text(plainBytes(state.averageBytes, state.units), style = MaterialTheme.typography.headlineSmall)
                     }

@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import android.text.format.DateFormat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
@@ -62,6 +63,7 @@ class HomeViewModel(
     private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     dates: Flow<LocalDate> = DayClock(clock).dates(),
+    private val is24Hour: () -> Boolean = { true },
 ) : ViewModel() {
 
     private val selectedDay = MutableStateFlow<Int?>(null)
@@ -115,6 +117,7 @@ class HomeViewModel(
             coverage = b.coverage,
             permissions = b.permissions,
             planChips = b.data.planChips,
+            is24Hour = is24Hour(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 

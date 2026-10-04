@@ -63,11 +63,11 @@ class HistoryTest {
         assertEquals("October 2026, 2.00 gigabytes", month.description)
     }
 
-    @Test fun total_and_average_cover_all_buckets_including_empty_ones() {
+    @Test fun total_and_average_per_active_day_counts_only_days_with_data() {
         val points = listOf(point("2026-10-05T00:00:00Z", 300), point("2026-10-06T00:00:00Z", 0, 100), point("2026-10-07T00:00:00Z", 0))
         val state = buildHistoryUiState(Granularity.DAY, points, ByteUnits.DECIMAL, zone, Locale.ENGLISH)
         assertEquals(400L, state.totalBytes)
-        assertEquals(133L, state.averageBytes)
+        assertEquals(200L, state.averageBytes) // 400 total / 2 active buckets (10-05 and 10-06)
         assertEquals(3, state.bars.size)
     }
 
