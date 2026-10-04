@@ -65,3 +65,5 @@ data class PlanState(
     val fractionUsed: Float,
     val isApproximate: Boolean,
 )
+
+data class AlertRule(val id: Long, val planId: Long, val thresholdPercent: Int, val enabled: Boolean)
