@@ -30,11 +30,19 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.BentoTile
 fun OnboardingScreen(
     viewModel: OnboardingViewModel,
     actions: PermissionActions,
+    onSetUpPlan: () -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    OnboardingContent(state, actions.openUsageAccess, actions.requestNotifications, onFinish, modifier)
+    OnboardingContent(
+        state = state,
+        onOpenUsageAccess = actions.openUsageAccess,
+        onRequestNotifications = actions.requestNotifications,
+        onSetUpPlan = onSetUpPlan,
+        onFinish = onFinish,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -42,6 +50,7 @@ internal fun OnboardingContent(
     state: OnboardingUiState,
     onOpenUsageAccess: () -> Unit,
     onRequestNotifications: () -> Unit,
+    onSetUpPlan: () -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -70,6 +79,14 @@ internal fun OnboardingContent(
             grantedText = "Notifications allowed",
             actionLabel = "Allow notifications",
             onAction = onRequestNotifications,
+        )
+        StepTile(
+            title = "Your data plan",
+            body = "Optional. Add your cap and renewal day to see what is left and when it runs out.",
+            granted = state.hasPlan,
+            grantedText = "Plan added",
+            actionLabel = "Set up a plan",
+            onAction = onSetUpPlan,
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onFinish) { Text("Skip for now") }

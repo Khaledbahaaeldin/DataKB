@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,10 +19,23 @@ import org.robolectric.annotation.Config
 class OnboardingContentTest {
     @get:Rule val rule = createComposeRule()
 
-    private fun show(state: OnboardingUiState, usage: () -> Unit = {}, notifications: () -> Unit = {}, finish: () -> Unit = {}) =
-        rule.setContent {
-            EmberbyteTheme(darkTheme = true, dynamicColor = false) { OnboardingContent(state, usage, notifications, finish) }
+    private fun show(
+        state: OnboardingUiState,
+        usage: () -> Unit = {},
+        notifications: () -> Unit = {},
+        setUpPlan: () -> Unit = {},
+        finish: () -> Unit = {},
+    ) = rule.setContent {
+        EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+            OnboardingContent(
+                state = state,
+                onOpenUsageAccess = usage,
+                onRequestNotifications = notifications,
+                onSetUpPlan = setUpPlan,
+                onFinish = finish,
+            )
         }
+    }
 
     @Test fun explains_that_everything_stays_on_the_device() {
         show(OnboardingUiState())
@@ -48,5 +62,19 @@ class OnboardingContentTest {
         rule.onNodeWithText("Skip for now").performScrollTo().performClick()
         rule.onNodeWithText("Continue").performScrollTo().performClick()
         assertEquals(2, finished)
+    }
+
+    @Test fun the_plan_step_offers_to_set_up_a_plan() {
+        var setUpPlanCalled = false
+        show(OnboardingUiState(), setUpPlan = { setUpPlanCalled = true })
+        rule.onNodeWithText("Your data plan").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Set up a plan").performScrollTo().performClick()
+        assertTrue(setUpPlanCalled)
+    }
+
+    @Test fun a_plan_that_exists_shows_plan_added() {
+        show(OnboardingUiState(hasPlan = true))
+        rule.onNodeWithText("Plan added").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Set up a plan").assertDoesNotExist()
     }
 }

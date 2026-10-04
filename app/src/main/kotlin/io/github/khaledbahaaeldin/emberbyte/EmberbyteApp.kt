@@ -43,6 +43,8 @@ import io.github.khaledbahaaeldin.emberbyte.nav.rememberPermissionActions
 import io.github.khaledbahaaeldin.emberbyte.nav.tabEnterTransition
 import io.github.khaledbahaaeldin.emberbyte.nav.tabExitTransition
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingScreen
+import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorScreen
+import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlansScreen
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
@@ -105,14 +107,19 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
         ) {
             composable(Routes.ONBOARDING) {
                 val viewModel: OnboardingViewModel = viewModel(factory = graph.onboardingViewModelFactory())
-                OnboardingScreen(viewModel, actions, onFinish = {
-                    viewModel.finish {
-                        ServiceStarter.start(context)
-                        navController.navigate(Destination.Home.route) {
-                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                OnboardingScreen(
+                    viewModel,
+                    actions,
+                    onSetUpPlan = { navController.navigate(Routes.planEditor(0)) },
+                    onFinish = {
+                        viewModel.finish {
+                            ServiceStarter.start(context)
+                            navController.navigate(Destination.Home.route) {
+                                popUpTo(Routes.ONBOARDING) { inclusive = true }
+                            }
                         }
-                    }
-                })
+                    },
+                )
             }
             composable(
                 Destination.Home.route,
@@ -162,7 +169,12 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 Routes.PLAN_EDITOR,
                 arguments = listOf(navArgument("planId") { type = NavType.LongType }),
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.PLAN_EDITOR }),
-            ) { PlaceholderScreen("Plan", "The plan editor arrives in task 16 of milestone 3.") }
+            ) { entry ->
+                val planId = entry.arguments?.getLong("planId") ?: 0L
+                val viewModel: PlanEditorViewModel =
+                    viewModel(key = "plan-$planId", factory = graph.planEditorViewModelFactory(planId))
+                PlanEditorScreen(viewModel, onBack = { navController.popBackStack() }, onPrompt = actions::onPrompt)
+            }
             composable(
                 Destination.Lens.route,
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),

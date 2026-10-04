@@ -116,7 +116,7 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     }
 
     fun onboardingViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { OnboardingViewModel(onboarding, permissions) }
+        initializer { OnboardingViewModel(onboarding, permissions, plans) }
     }
 
     fun plansViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
