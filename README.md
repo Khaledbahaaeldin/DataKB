@@ -1,16 +1,32 @@
 # Emberbyte
 
 An open-source Android data monitor with a Material 3 Expressive interface: daily and real-time usage,
-flexible data plans, a forecast of when your cap runs out, and an opt-in live per-app view.
+flexible data plans with per-SIM binding, add-on packs, free windows, rollover, a run-out forecast with a range, threshold alerts, home-screen widgets, and an opt-in live per-app view.
 
-> Status: milestone M2 (real usage): measures mobile and Wi-Fi data, per-app history and a live notification; data plans, widgets and Live Lens are not in yet.
+> Status: milestone M3 (plans, forecast, widgets). Measures mobile and Wi-Fi data, flexible data plans, run-out forecast, threshold alerts, home-screen widgets, and Live Lens.
 > "DataKB" is the project codename; the repository keeps that name.
+
+## Features
+
+- **Flexible Data Plans**: Custom billing cycles, per-SIM binding, add-on packs, free windows (e.g. night data), and usage rollover (capped or uncapped).
+- **Run-Out Forecast**: Predicts when your data cap will run out with a confidence range based on recent usage curves.
+- **Threshold Alerts**: Notifies you when you reach specified usage percentages (e.g. 50%, 80%, 100%).
+- **Home-Screen Widgets**: Glance-based Material 3 widgets showing your remaining data and status at a glance.
+- **Live Lens & Per-App History**: Optional local-only monitoring of per-app data usage.
+
+## Known limitations
+
+- New traffic can take up to about 5 minutes to appear in Today (O-1).
+- "Measurement paused" only appears after the system or a vendor kills the service, and force-stopping Emberbyte stops measuring until it is opened again (N-10).
+- The forecast ignores free-window traffic in its history and uses a built-in hour-of-day curve.
+- Per-SIM history is estimated when more than one SIM was used (backend spec section 5).
+- A VPN running over Wi-Fi is counted twice.
 
 ## Privacy
 
 Everything stays on your device. There are no accounts, no analytics and no cloud. The app
 requests `QUERY_ALL_PACKAGES` only to show app names and `PACKAGE_USAGE_STATS` only for per-app
-history, both optional for totals. The optional **Live Lens** feature (milestone 5) uses a
+history, both optional for totals. The optional **Live Lens** feature uses a
 local-only VPN to show which app is using data right now; it is off unless you turn it on,
 and nothing it sees leaves the phone.
 
@@ -25,8 +41,7 @@ Create `local.properties` with `sdk.dir=<path to your Android SDK>` (it is git-i
 
 ## Dependencies
 
-The app currently uses Material 3 1.5.0-alpha29 (an alpha) because the Material 3 Expressive APIs are not
-public in stable 1.4.0. It will move to stable 1.5.0 when that is released.
+The app uses Material 3 1.5.0-alpha29 and Jetpack Glance for home-screen widgets.
 
 ## Documentation
 
