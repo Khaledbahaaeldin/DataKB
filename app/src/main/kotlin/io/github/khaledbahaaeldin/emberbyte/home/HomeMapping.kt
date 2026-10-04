@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import io.github.khaledbahaaeldin.emberbyte.common.forecastSentence
 import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
 import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
 import io.github.khaledbahaaeldin.emberbyte.common.weekdayBars
@@ -18,10 +19,12 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastKind
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanChipUi
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -53,9 +56,21 @@ internal fun forecastToUi(forecast: Forecast?, now: Instant, zone: ZoneId, local
 
 internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale: Locale): ForecastUi {
     if (forecast.neverRunsOut()) {
-        return ForecastUi("Safe", "Won't run out this cycle", confidenceLabel(forecast.confidence))
+        return ForecastUi("Safe", "Won't run out this cycle", confidenceLabel(forecast.confidence), ForecastKind.Safe)
     }
     val expected = forecast.runOutExpected
+    if (expected != null && expected <= now) {
+        return ForecastUi("Out", "Data used up", confidenceLabel(forecast.confidence), ForecastKind.Out)
+    }
+    if (expected == null && forecast.runOutEarliest != null) {
+        val early = forecast.runOutEarliest!!
+        val day = if (Duration.between(now, early) > Duration.ofDays(6)) {
+            DateTimeFormatter.ofPattern("EEE d MMM", locale).format(early.atZone(zone))
+        } else {
+            early.atZone(zone).dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+        }
+        return ForecastUi("Probably safe", "Could run out as early as $day", confidenceLabel(forecast.confidence), ForecastKind.ProbablySafe)
+    }
     val at = expected ?: forecast.runOutEarliest ?: forecast.runOutLatest!!
     val zoned = at.atZone(zone)
     // Spec section 8: weekday, plus the date once the run-out is more than 6 days away.
@@ -90,6 +105,7 @@ internal fun buildHomeUiState(
     locale: Locale,
     coverage: CoverageStatus = CoverageStatus(emptyList(), null),
     permissions: PermissionState? = null,
+    planChips: List<PlanChipUi> = emptyList(),
 ): HomeUiState {
     val byteUnits = units.toByteUnits()
     val validSelection = selectedDay?.takeIf { it in week.indices }
@@ -112,12 +128,8 @@ internal fun buildHomeUiState(
         }
         subtitle = planState?.let {
             val left = "${plainBytes(it.remainingBytes, byteUnits)} left"
-            when {
-                forecastUi == null -> left
-                forecast?.neverRunsOut() == true -> "$left · won't run out this cycle"
-                // "runs out (±1 day)" + "Thu" -> "runs out Thu (±1 day)"
-                else -> "$left · ${forecastUi.detail.replace("runs out", "runs out ${forecastUi.headline}")}"
-            }
+            if (forecastUi == null) left
+            else "$left · ${forecastSentence(forecastUi).replaceFirstChar { c -> c.lowercase() }}"
         }
     } else {
         val point = week[validSelection]
@@ -154,6 +166,7 @@ internal fun buildHomeUiState(
         gap = latestGap(coverage, now, zone),
         hasPlan = planState != null,
         units = byteUnits,
+        planChips = if (planChips.size >= 2) planChips else emptyList(),
     )
 }
 

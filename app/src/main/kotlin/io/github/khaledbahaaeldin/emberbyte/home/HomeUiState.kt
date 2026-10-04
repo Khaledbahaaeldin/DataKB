@@ -7,6 +7,7 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanChipUi
 
 data class HomeUiState(
     val heroLabel: String = "Today",
@@ -30,9 +31,11 @@ data class HomeUiState(
     val gap: GapUi? = null,
     val hasPlan: Boolean = false,
     val units: ByteUnits = ByteUnits.DECIMAL,
+    val planChips: List<PlanChipUi> = emptyList(),
 )
 
 sealed interface HomeEvent {
     /** Tapping the selected bar again returns to "Today". */
     data class SelectDay(val index: Int) : HomeEvent
+    data class SelectPlan(val planId: Long) : HomeEvent
 }

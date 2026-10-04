@@ -30,6 +30,7 @@ class HomeContentTest {
         onHistory: () -> Unit = {},
         onPrompt: (String) -> Unit = {},
         onOpenApp: (String) -> Unit = {},
+        onSetUpPlan: () -> Unit = {},
     ) = rule.setContent {
         EmberbyteTheme(darkTheme = true, dynamicColor = false) {
             HomeContent(
@@ -39,6 +40,7 @@ class HomeContentTest {
                 onOpenHistory = onHistory,
                 onPromptAction = onPrompt,
                 onOpenApp = onOpenApp,
+                onSetUpPlan = onSetUpPlan,
             )
         }
     }

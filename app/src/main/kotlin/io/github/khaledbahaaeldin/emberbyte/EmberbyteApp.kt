@@ -123,6 +123,7 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                     onOpenHistory = { navController.navigate(Routes.HISTORY) },
                     onPromptAction = actions::onPrompt,
                     onOpenApp = { navController.navigate(Routes.appDetail(it)) },
+                    onSetUpPlan = { navController.navigate(Routes.planEditor(0)) },
                 )
             }
             composable(
