@@ -6,11 +6,12 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.khaledbahaaeldin.emberbyte.data.AndroidPermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.AppPreferences
-import io.github.khaledbahaaeldin.emberbyte.data.NoPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.OnboardingRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.RoomUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStores
+import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
@@ -53,7 +54,8 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     val settings: SettingsRepository = preferences.settings
     val onboarding: OnboardingRepository = preferences.onboarding
     val permissions: PermissionRepository = AndroidPermissionRepository(appContext)
-    val plans: PlanRepository = NoPlanRepository()
+    internal val planStore = PlanStores.create(appContext)
+    val plans: PlanRepository = RoomPlanRepository(planStore, store, clock)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

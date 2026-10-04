@@ -5,6 +5,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.Forecast
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
+import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanPreview
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -25,4 +26,7 @@ interface PlanRepository {
 
     /** Forecast with extra daily usage added from [from] onward. Not persisted. */
     suspend fun whatIf(planId: Long, extraBytesPerDay: Long, from: Instant): Outcome<Forecast>
+
+    /** State and forecast of an unsaved draft, not persisted. */
+    suspend fun previewState(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Outcome<PlanPreview>
 }

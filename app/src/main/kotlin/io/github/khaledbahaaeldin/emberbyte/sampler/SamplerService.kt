@@ -74,7 +74,10 @@ class SamplerService : Service() {
         launch {
             retrying("catch-up") {
                 while (true) {
+                    val t0 = System.nanoTime()
                     graph.catchUp.run()
+                    val ms = (System.nanoTime() - t0) / 1_000_000L
+                    Log.i(TAG, "catch-up finished in ${ms} ms")
                     graph.prune()
                     delay(CATCH_UP_INTERVAL_MS)
                 }

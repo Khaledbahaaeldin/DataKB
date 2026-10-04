@@ -28,6 +28,7 @@ private val WINDOW: Duration = Duration.ofSeconds(SeriesBuilder.WINDOW_SECONDS)
  * Pulls per-app usage from the system's network stats, ONE 2-hour window at a time (the platform's bucket size, so nothing is
  * interpolated; the open window is clamped to now), and atomically replaces each window's rows. `hoursUpdated` counts windows.
  * Runs are serialised: the service loop, the worker and a manual refresh can all call [run].
+ * The platform keeps a few weeks; older windows simply return nothing.
  */
 class HourlyCatchUp(
     private val source: NetworkStatsSource,
@@ -35,7 +36,7 @@ class HourlyCatchUp(
     private val appInfo: AppInfoSource,
     private val access: UsageAccess,
     private val clock: Clock,
-    private val maxBackfill: Duration = Duration.ofDays(7),
+    private val maxBackfill: Duration = Duration.ofDays(28),
 ) {
     private val lock = Mutex()
 
