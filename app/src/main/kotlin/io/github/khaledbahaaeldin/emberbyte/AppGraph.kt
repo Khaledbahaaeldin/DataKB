@@ -53,7 +53,7 @@ import kotlinx.coroutines.flow.stateIn
  * Hand-written dependency graph (no DI framework). One instance per process, owned by [EmberbyteApplication].
  * Production wiring only: the `Fake*` classes in `:core:data` are for tests and previews.
  */
-class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
+class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     private val appContext = context.applicationContext
     private val preferences = AppPreferences.create(appContext)
     private val store: UsageStore = UsageStores.create(appContext)

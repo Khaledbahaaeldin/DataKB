@@ -11,4 +11,8 @@
     <string name="notification_paused_text">Tap to resume measuring your data usage.</string>
     <string name="channel_alerts_name">Plan alerts</string>
     <string name="channel_alerts_description">Tells you when you have used a set share of a data plan</string>
+    <string name="widget_hero_label">Emberbyte: today</string>
+    <string name="widget_hero_description">Today\'s data usage and what is left</string>
+    <string name="widget_bento_label">Emberbyte: overview</string>
+    <string name="widget_bento_description">Today, forecast, speed and top apps</string>
 </resources>

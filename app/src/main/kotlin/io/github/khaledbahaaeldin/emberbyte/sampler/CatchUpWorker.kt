@@ -9,6 +9,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.khaledbahaaeldin.emberbyte.AppGraph
 import io.github.khaledbahaaeldin.emberbyte.EmberbyteApplication
+import io.github.khaledbahaaeldin.emberbyte.widget.WidgetUpdater
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
 
@@ -18,6 +19,7 @@ class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val graph = (applicationContext as EmberbyteApplication).graph
         graph.catchUp.run()
         graph.prune()
+        runCatching { WidgetUpdater.updateAll(applicationContext) }
         runCatching { AlertRunner.create(applicationContext, graph).run() }
         CatchUpRecovery.afterCatchUp(applicationContext, graph)
         return Result.success()
