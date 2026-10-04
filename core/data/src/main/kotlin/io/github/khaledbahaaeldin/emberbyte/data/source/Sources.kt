@@ -35,3 +35,12 @@ interface NetworkStatsSource {
 interface AppInfoSource { fun resolve(uid: Int): AppMeta? }
 
 interface UsageAccess { fun isGranted(): Boolean }
+
+data class SimInfo(val subscriptionId: Int, val slotIndex: Int, val displayName: String)
+
+interface SimInfoSource {
+    /** Active SIMs; empty without READ_PHONE_STATE. */
+    fun activeSims(): List<SimInfo>
+    /** Default data subscription id, -1 when unknown. Needs no permission. */
+    fun defaultDataSubscriptionId(): Int
+}

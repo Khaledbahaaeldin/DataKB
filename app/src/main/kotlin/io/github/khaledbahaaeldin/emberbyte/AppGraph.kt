@@ -15,7 +15,9 @@ import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.android.AndroidSimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.AppOpsUsageAccess
+import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.ConnectivityNetworkKindSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.NetworkStatsManagerSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.PackageManagerAppInfoSource
@@ -54,6 +56,7 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     val settings: SettingsRepository = preferences.settings
     val onboarding: OnboardingRepository = preferences.onboarding
     val permissions: PermissionRepository = AndroidPermissionRepository(appContext)
+    val simInfo: SimInfoSource = AndroidSimInfoSource(appContext)
     internal val planStore = PlanStores.create(appContext)
     val plans: PlanRepository = RoomPlanRepository(planStore, store, clock)
 
