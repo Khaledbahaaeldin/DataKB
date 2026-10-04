@@ -1,5 +1,9 @@
 package io.github.khaledbahaaeldin.emberbyte
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -7,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -14,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.util.Consumer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -61,6 +67,21 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
 private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnabled: Boolean) {
     val context = LocalContext.current
     val navController = rememberNavController()
+
+    DisposableEffect(navController, context) {
+        val activity = context.findComponentActivity()
+        val listener = Consumer<Intent> { intent ->
+            val inPlaceIntent = Intent(intent).apply {
+                flags = flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv()
+            }
+            navController.handleDeepLink(inPlaceIntent)
+        }
+        activity?.addOnNewIntentListener(listener)
+        onDispose {
+            activity?.removeOnNewIntentListener(listener)
+        }
+    }
+
     val visibility = rememberNavBarVisibility()
     val glass = rememberGlassSource()
     val actions = rememberPermissionActions(graph)
@@ -175,4 +196,10 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
             )
         }
     }
+}
+
+private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
 }

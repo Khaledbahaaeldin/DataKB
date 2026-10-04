@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,6 +34,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    public override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 
     override fun onStart() {

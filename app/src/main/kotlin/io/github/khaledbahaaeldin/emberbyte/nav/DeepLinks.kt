@@ -3,6 +3,7 @@ package io.github.khaledbahaaeldin.emberbyte.nav
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import io.github.khaledbahaaeldin.emberbyte.MainActivity
 
 object DeepLinks {
@@ -18,7 +19,7 @@ object DeepLinks {
 
     /** The intent notifications and widgets fire: explicit component, so nothing else can intercept it. */
     fun intent(context: Context, uri: String): Intent =
-        Intent(Intent.ACTION_VIEW, Uri.parse(uri), context, MainActivity::class.java)
+        Intent(Intent.ACTION_VIEW, uri.toUri(), context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
