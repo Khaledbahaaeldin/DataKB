@@ -43,6 +43,7 @@ import io.github.khaledbahaaeldin.emberbyte.nav.rememberPermissionActions
 import io.github.khaledbahaaeldin.emberbyte.nav.tabEnterTransition
 import io.github.khaledbahaaeldin.emberbyte.nav.tabExitTransition
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingScreen
+import io.github.khaledbahaaeldin.emberbyte.plans.PlansScreen
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
@@ -151,7 +152,11 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 Destination.Plans.route,
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.PLANS }),
             ) {
-                PlaceholderScreen("Plans", "The flexible plan editor arrives in milestone 3.")
+                PlansScreen(
+                    viewModel(factory = graph.plansViewModelFactory()),
+                    onOpenPlan = { navController.navigate(Routes.planEditor(it)) },
+                    onNewPlan = { navController.navigate(Routes.planEditor(0)) },
+                )
             }
             composable(
                 Routes.PLAN_EDITOR,

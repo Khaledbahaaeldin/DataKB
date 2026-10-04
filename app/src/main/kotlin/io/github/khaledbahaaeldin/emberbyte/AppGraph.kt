@@ -37,6 +37,7 @@ import io.github.khaledbahaaeldin.emberbyte.apps.AppsViewModel
 import io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel
 import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
+import io.github.khaledbahaaeldin.emberbyte.plans.PlansViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
 import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
@@ -115,5 +116,9 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
 
     fun onboardingViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
         initializer { OnboardingViewModel(onboarding, permissions) }
+    }
+
+    fun plansViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
+        initializer { PlansViewModel(plans, settings, simInfo, clock) }
     }
 }
