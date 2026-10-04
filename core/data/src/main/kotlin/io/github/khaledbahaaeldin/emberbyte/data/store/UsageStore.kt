@@ -1,8 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte.data.store
 
 import android.content.Context
-import androidx.room.Room
-import io.github.khaledbahaaeldin.emberbyte.data.db.EmberbyteDatabase
+import io.github.khaledbahaaeldin.emberbyte.data.db.EmberbyteDatabases
 import io.github.khaledbahaaeldin.emberbyte.engine.counter.CounterReading
 import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageGap
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.AppMeta
@@ -50,7 +49,5 @@ val OPEN_END: Instant = Instant.parse("2100-01-01T00:00:00Z")
 
 object UsageStores {
     /** Room-backed store in `emberbyte.db`. Room types never leave this module. */
-    fun create(context: Context): UsageStore = RoomUsageStore(
-        Room.databaseBuilder(context.applicationContext, EmberbyteDatabase::class.java, "emberbyte.db").build(),
-    )
+    fun create(context: Context): UsageStore = RoomUsageStore(EmberbyteDatabases.get(context))
 }

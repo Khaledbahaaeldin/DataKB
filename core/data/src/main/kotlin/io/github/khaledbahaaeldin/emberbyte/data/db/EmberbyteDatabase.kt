@@ -10,10 +10,17 @@ import androidx.room.RoomDatabase
         AppMetaEntity::class,
         CoverageGapEntity::class,
         CounterCheckpointEntity::class,
+        PlanEntity::class,
+        AddOnEntity::class,
+        FreeRuleEntity::class,
+        AlertRuleEntity::class,
+        AlertFiredEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class EmberbyteDatabase : RoomDatabase() {
     abstract fun usageDao(): UsageDao
+    abstract fun planDao(): PlanDao
 }
+
