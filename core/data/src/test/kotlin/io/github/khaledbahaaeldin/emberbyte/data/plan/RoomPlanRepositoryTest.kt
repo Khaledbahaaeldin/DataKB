@@ -198,4 +198,43 @@ class RoomPlanRepositoryTest {
         val errors = repo.validateDraft(badPlan, emptyList(), emptyList())
         assertEquals(setOf("name", "capBytes", "cycle.dayOfMonth"), errors.keys)
     }
+
+    @Test fun saving_an_invalid_draft_writes_nothing() = runBlocking {
+        val badPlan = draft(name = " ")
+        val from = Instant.parse("2026-10-05T00:00:00Z")
+        val badAddOn = AddOn(0, 0, "Boost", 0L, from, from.plusSeconds(60))
+        val res = repo.savePlan(badPlan, listOf(badAddOn), emptyList(), setOf(80))
+        assertTrue(res is Outcome.Failure)
+        assertTrue(repo.observePlans(includeArchived = true).first().isEmpty())
+    }
+
+    @Test fun saving_a_valid_draft_returns_the_id_and_the_state_reflects_the_children() = runBlocking {
+        val from = Instant.parse("2026-10-05T00:00:00Z")
+        val until = Instant.parse("2026-10-25T00:00:00Z")
+        val addOn = AddOn(0, 0, "Boost", 2_000_000_000L, from, until)
+        val rule = FreeRule(0, 0, "AllWeek", DayOfWeek.entries.toSet(), LocalTime.MIN, LocalTime.MAX, null)
+        val outcome = repo.savePlan(draft(cap = 10_000_000_000L), listOf(addOn), listOf(rule), setOf(80, 100))
+        assertTrue(outcome is Outcome.Success)
+        val id = (outcome as Outcome.Success).value
+        assertTrue(id > 0)
+
+        val state = repo.observePlanState(id).first()!!
+        assertEquals(2_000_000_000L, state.addOnBytes)
+        assertEquals(12_000_000_000L, state.effectiveCapBytes)
+    }
+
+    @Test fun saving_for_a_missing_plan_id_is_not_found() = runBlocking {
+        val outcome = repo.savePlan(draft().copy(id = 999L), emptyList(), emptyList(), setOf(80))
+        assertEquals(Outcome.Failure(EmberbyteError.NotFound), outcome)
+    }
+
+    @Test fun thresholds_outside_1_to_100_are_invalid() = runBlocking {
+        val res0 = repo.savePlan(draft(), emptyList(), emptyList(), setOf(0))
+        assertTrue(res0 is Outcome.Failure)
+        assertEquals("thresholdPercent", ((res0 as Outcome.Failure).error as EmberbyteError.Invalid).field)
+
+        val res101 = repo.savePlan(draft(), emptyList(), emptyList(), setOf(101))
+        assertTrue(res101 is Outcome.Failure)
+        assertEquals("thresholdPercent", ((res101 as Outcome.Failure).error as EmberbyteError.Invalid).field)
+    }
 }

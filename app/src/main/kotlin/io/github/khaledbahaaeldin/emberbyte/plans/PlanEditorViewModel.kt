@@ -62,9 +62,6 @@ class PlanEditorViewModel(
     val uiState: StateFlow<PlanEditorUiState> = _state.asStateFlow()
 
     private var zone: ZoneId = clock.zone
-    private var loadedAddOnIds = emptySet<Long>()
-    private var loadedFreeRuleIds = emptySet<Long>()
-    private var loadedAlertRules = emptyList<AlertRule>()
 
     init {
         viewModelScope.launch { load() }
@@ -120,10 +117,6 @@ class PlanEditorViewModel(
         }
         val alertRules = alerts.observeRules(planId).first()
         val thresholds = alertRules.map { it.thresholdPercent }.toSet()
-
-        loadedAddOnIds = addOns.map { it.id }.toSet()
-        loadedFreeRuleIds = freeRules.map { it.id }.toSet()
-        loadedAlertRules = alertRules
 
         val hasRestored = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) } != null
         if (!hasRestored) {
@@ -307,122 +300,19 @@ class PlanEditorViewModel(
 
         _state.update { it.copy(saving = true) }
 
-        when (val planOutcome = plans.upsertPlan(ok.plan)) {
+        when (val res = plans.savePlan(ok.plan, ok.addOns, ok.freeRules, _state.value.form.alertThresholds)) {
+            is Outcome.Success -> {
+                savedStateHandle.remove<String>(KEY_FORM)
+                _state.update { it.copy(planId = res.value, isNew = false, saved = true, saving = false) }
+            }
             is Outcome.Failure -> {
-                val err = when (val e = planOutcome.error) {
+                val err = when (val e = res.error) {
                     is EmberbyteError.Invalid -> mapOf(e.field to e.reason)
                     else -> mapOf("form" to "Could not save. Try again.")
                 }
                 _state.update { it.copy(errors = err, saving = false) }
-                return
-            }
-            is Outcome.Success -> {
-                val newPlanId = planOutcome.value
-                _state.update { it.copy(planId = newPlanId, isNew = false) }
             }
         }
-        val effectivePlanId = _state.value.planId
-
-        // Delete add-ons whose id was loaded but is no longer in the form
-        val currentFormAddOnIds = _state.value.form.addOns.map { it.id }.filter { it != 0L }.toSet()
-        val toDeleteAddOns = loadedAddOnIds - currentFormAddOnIds
-        for (delId in toDeleteAddOns) {
-            when (plans.deleteAddOn(delId)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {}
-            }
-        }
-
-        // Upsert each add-on draft and store the returned id back into the draft
-        for (i in ok.addOns.indices) {
-            val domainAddOn = ok.addOns[i].copy(planId = effectivePlanId)
-            when (val res = plans.upsertAddOn(domainAddOn)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {
-                    val newAddOnId = res.value
-                    _state.update { s ->
-                        val updatedAddOns = s.form.addOns.toMutableList()
-                        if (i in updatedAddOns.indices) {
-                            updatedAddOns[i] = updatedAddOns[i].copy(id = newAddOnId)
-                        }
-                        s.copy(form = s.form.copy(addOns = updatedAddOns))
-                    }
-                }
-            }
-        }
-
-        // Delete free rules whose id was loaded but is no longer in the form
-        val currentFormFreeRuleIds = _state.value.form.freeRules.map { it.id }.filter { it != 0L }.toSet()
-        val toDeleteFreeRules = loadedFreeRuleIds - currentFormFreeRuleIds
-        for (delId in toDeleteFreeRules) {
-            when (plans.deleteFreeRule(delId)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {}
-            }
-        }
-
-        // Upsert each free rule draft and store the returned id back into the draft
-        for (i in ok.freeRules.indices) {
-            val domainRule = ok.freeRules[i].copy(planId = effectivePlanId)
-            when (val res = plans.upsertFreeRule(domainRule)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {
-                    val newRuleId = res.value
-                    _state.update { s ->
-                        val updatedRules = s.form.freeRules.toMutableList()
-                        if (i in updatedRules.indices) {
-                            updatedRules[i] = updatedRules[i].copy(id = newRuleId)
-                        }
-                        s.copy(form = s.form.copy(freeRules = updatedRules))
-                    }
-                }
-            }
-        }
-
-        // Thresholds: delete loaded rules whose threshold is no longer wanted, upsertRule(AlertRule(existingId or 0, id, threshold, true))
-        val wantedThresholds = _state.value.form.alertThresholds
-        val toDeleteAlerts = loadedAlertRules.filter { it.thresholdPercent !in wantedThresholds }
-        for (rule in toDeleteAlerts) {
-            when (alerts.deleteRule(rule.id)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {}
-            }
-        }
-        val updatedAlertRules = mutableListOf<AlertRule>()
-        for (threshold in wantedThresholds) {
-            val existing = loadedAlertRules.firstOrNull { it.thresholdPercent == threshold }
-            val ruleId = existing?.id ?: 0L
-            when (val res = alerts.upsertRule(AlertRule(ruleId, effectivePlanId, threshold, true))) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {
-                    updatedAlertRules.add(AlertRule(res.value, effectivePlanId, threshold, true))
-                }
-            }
-        }
-
-        loadedAddOnIds = _state.value.form.addOns.map { it.id }.toSet()
-        loadedFreeRuleIds = _state.value.form.freeRules.map { it.id }.toSet()
-        loadedAlertRules = updatedAlertRules
-        savedStateHandle.remove<String>(KEY_FORM)
-        _state.update { it.copy(saving = false, saved = true) }
     }
 
     private suspend fun archive() {

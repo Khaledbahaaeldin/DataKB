@@ -8,6 +8,8 @@ import java.time.LocalTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+import androidx.room.withTransaction
+
 private fun maskOf(days: Set<DayOfWeek>): Int = days.fold(0) { mask, day -> mask or (1 shl (day.value - 1)) }
 private fun daysOf(mask: Int): Set<DayOfWeek> = DayOfWeek.entries.filter { mask and (1 shl (it.value - 1)) != 0 }.toSet()
 private fun Plan.toEntity() = PlanEntity(id, name, subscriptionId, capBytes, PlanJson.cycleToJson(cycle), PlanJson.rolloverToJson(rollover), archived)
@@ -21,7 +23,7 @@ private fun FreeRuleEntity.toDomain() = FreeRule(id, planId, label, daysOf(daysM
 private fun AlertRule.toEntity() = AlertRuleEntity(id, planId, thresholdPercent, enabled)
 private fun AlertRuleEntity.toDomain() = AlertRule(id, planId, thresholdPercent, enabled)
 
-class RoomPlanStore(db: EmberbyteDatabase) : PlanStore {
+class RoomPlanStore(private val db: EmberbyteDatabase) : PlanStore {
     private val dao = db.planDao()
 
     override fun observePlans(): Flow<List<Plan>> = dao.observePlans().map { list -> list.mapNotNull { it.toDomainOrNull() } }
@@ -42,4 +44,22 @@ class RoomPlanStore(db: EmberbyteDatabase) : PlanStore {
     override suspend fun lastFiredPercent(planId: Long, windowStart: Instant): Int? = dao.firedPercent(planId, windowStart.toEpochMilli())
     override suspend fun setFiredPercent(planId: Long, windowStart: Instant, percent: Int) =
         dao.putFired(AlertFiredEntity(planId, windowStart.toEpochMilli(), percent))
+
+    internal var beforeCommit: (suspend () -> Unit)? = null
+
+    override suspend fun savePlanWithChildren(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Long =
+        db.withTransaction {
+            val id = dao.putPlan(plan.toEntity())
+            dao.deleteAddOnsExcept(id, addOns.map { it.id }.filter { it != 0L })
+            addOns.forEach { dao.putAddOn(it.copy(planId = id).toEntity()) }
+            dao.deleteFreeRulesExcept(id, freeRules.map { it.id }.filter { it != 0L })
+            freeRules.forEach { dao.putFreeRule(it.copy(planId = id).toEntity()) }
+            val wanted = alertThresholds.toList()
+            dao.deleteAlertRulesExcept(id, wanted)
+            if (wanted.isNotEmpty()) dao.enableAlertRules(id, wanted)
+            val existing = dao.thresholds(id).toSet()
+            wanted.filter { it !in existing }.forEach { dao.putAlertRule(AlertRuleEntity(planId = id, thresholdPercent = it, enabled = true)) }
+            beforeCommit?.invoke()
+            id
+        }
 }

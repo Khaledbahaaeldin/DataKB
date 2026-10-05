@@ -27,6 +27,7 @@ interface PlanStore {
     suspend fun deleteAlertRule(id: Long)
     suspend fun lastFiredPercent(planId: Long, windowStart: Instant): Int?
     suspend fun setFiredPercent(planId: Long, windowStart: Instant, percent: Int)
+    suspend fun savePlanWithChildren(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Long
 }
 
 object PlanStores {

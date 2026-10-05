@@ -32,4 +32,7 @@ interface PlanRepository {
 
     /** Validates an unsaved draft, returning empty map if valid or map of field errors (Contract 10.2). Pure, not suspend. */
     fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String>
+
+    /** Saves a plan with its add-ons, free rules, and alert thresholds in one transaction (Contract 11.2). */
+    suspend fun savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long>
 }

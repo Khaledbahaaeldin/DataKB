@@ -169,4 +169,22 @@ class RoomPlanRepository(
         }
         return errors
     }
+
+    override suspend fun savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long> {
+        val errors = validateDraft(plan, addOns, freeRules)
+        if (errors.isNotEmpty()) {
+            val (field, reason) = errors.entries.first()
+            return Outcome.Failure(EmberbyteError.Invalid(field, reason))
+        }
+        if (alertThresholds.any { it !in 1..100 }) {
+            return Outcome.Failure(EmberbyteError.Invalid("thresholdPercent", "Must be 1..100"))
+        }
+        if (plan.id != 0L && plans.plan(plan.id) == null) {
+            return Outcome.Failure(EmberbyteError.NotFound)
+        }
+        val trimmedPlan = plan.copy(name = plan.name.trim())
+        val trimmedAddOns = addOns.map { it.copy(label = it.label.trim()) }
+        val trimmedFreeRules = freeRules.map { it.copy(label = it.label.trim()) }
+        return guarded { plans.savePlanWithChildren(trimmedPlan, trimmedAddOns, trimmedFreeRules, alertThresholds) }
+    }
 }

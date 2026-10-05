@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.plans
 
 import androidx.lifecycle.SavedStateHandle
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
+import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
@@ -11,8 +12,11 @@ import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryPlanStore
 import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryUsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfo
+import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AlertRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
+import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
+import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.MinuteTotal
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
@@ -64,8 +68,8 @@ class PlanEditorViewModelTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun vm(planId: Long = 0L, handle: SavedStateHandle = SavedStateHandle()) =
-        PlanEditorViewModel(planId, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
+    private fun vm(planId: Long = 0L, handle: SavedStateHandle = SavedStateHandle(), planRepo: PlanRepository = plans) =
+        PlanEditorViewModel(planId, planRepo, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
 
     private fun TestScope.started(vm: PlanEditorViewModel): Job { val job = launch { vm.uiState.collect {} }; advanceUntilIdle(); return job }
     private fun PlanEditorViewModel.fill(name: String = "Main", cap: String = "10") {
@@ -326,5 +330,87 @@ class PlanEditorViewModelTest {
         vm.onEvent(PlanEditorEvent.ToggleThreshold(80)); assertEquals(setOf(100), vm.uiState.value.form.alertThresholds)
         vm.onEvent(PlanEditorEvent.ToggleThreshold(80)); assertEquals(setOf(80, 100), vm.uiState.value.form.alertThresholds)
         job.cancel()
+    }
+
+    @Test fun saving_stores_the_plan_its_children_and_thresholds_in_one_call() = runTest(dispatcher) {
+        val recording = RecordingPlanRepository(plans)
+        val vm = vm(planRepo = recording); val job = started(vm)
+        vm.fill()
+        vm.onEvent(PlanEditorEvent.AddAddOn)
+        vm.onEvent(PlanEditorEvent.UpdateAddOn(0, vm.uiState.value.form.addOns[0].copy(label = "Boost", amountText = "2")))
+        vm.onEvent(PlanEditorEvent.AddFreeRule)
+        vm.onEvent(PlanEditorEvent.UpdateFreeRule(0, vm.uiState.value.form.freeRules[0].copy(label = "Night")))
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+
+        assertEquals(1, recording.savePlanCalls)
+        assertEquals(0, recording.upsertPlanCalls)
+        assertEquals(0, recording.upsertAddOnCalls)
+        assertEquals(0, recording.upsertFreeRuleCalls)
+        assertTrue(vm.uiState.value.saved)
+        job.cancel()
+    }
+
+    @Test fun a_storage_failure_shows_a_form_error_and_does_not_mark_saved() = runTest(dispatcher) {
+        val recording = RecordingPlanRepository(plans).apply {
+            savePlanFailure = EmberbyteError.Storage("disk error")
+            failCount = 1
+        }
+        val vm = vm(planRepo = recording); val job = started(vm)
+        vm.fill()
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+
+        assertEquals(setOf("form"), vm.uiState.value.errors.keys)
+        assertFalse(vm.uiState.value.saved)
+        job.cancel()
+    }
+
+    @Test fun a_second_save_after_a_failure_does_not_create_a_second_plan() = runTest(dispatcher) {
+        val recording = RecordingPlanRepository(plans).apply {
+            savePlanFailure = EmberbyteError.Storage("disk error")
+            failCount = 1
+        }
+        val vm = vm(planRepo = recording); val job = started(vm)
+        vm.fill()
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertFalse(vm.uiState.value.saved)
+
+        // Second save should succeed and not create a second plan
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertTrue(vm.uiState.value.saved)
+        assertEquals(1, plans.observePlans(true).first().size)
+        job.cancel()
+    }
+
+    private class RecordingPlanRepository(private val delegate: PlanRepository) : PlanRepository by delegate {
+        var savePlanCalls = 0
+        var upsertPlanCalls = 0
+        var upsertAddOnCalls = 0
+        var upsertFreeRuleCalls = 0
+        var savePlanFailure: EmberbyteError? = null
+        var failCount = 0
+
+        override suspend fun savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long> {
+            savePlanCalls++
+            if (failCount > 0) {
+                failCount--
+                return Outcome.Failure(savePlanFailure ?: EmberbyteError.Storage("error"))
+            }
+            return delegate.savePlan(plan, addOns, freeRules, alertThresholds)
+        }
+
+        override suspend fun upsertPlan(plan: Plan): Outcome<Long> {
+            upsertPlanCalls++
+            return delegate.upsertPlan(plan)
+        }
+
+        override suspend fun upsertAddOn(addOn: AddOn): Outcome<Long> {
+            upsertAddOnCalls++
+            return delegate.upsertAddOn(addOn)
+        }
+
+        override suspend fun upsertFreeRule(rule: FreeRule): Outcome<Long> {
+            upsertFreeRuleCalls++
+            return delegate.upsertFreeRule(rule)
+        }
     }
 }

@@ -108,4 +108,56 @@ abstract class PlanStoreContractTest {
         assertNull(store.lastFiredPercent(plan, w2))
         assertNull(store.lastFiredPercent(plan + 1, w1))
     }
+
+    private fun addOn(id: Long = 0L, label: String = "Boost", planId: Long = 0L) =
+        AddOn(id, planId, label, 2_000_000_000L, Instant.parse("2026-10-05T00:00:00Z"), Instant.parse("2026-10-20T00:00:00Z"))
+
+    private fun rule(id: Long = 0L, label: String = "Night", planId: Long = 0L) =
+        FreeRule(id, planId, label, setOf(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY), LocalTime.of(22, 0), LocalTime.of(6, 0), "com.video")
+
+    @Test fun saving_a_new_plan_with_children_creates_everything() = runBlocking {
+        val s = createStore()
+        val id = s.savePlanWithChildren(draft(), listOf(addOn(0)), listOf(rule(0)), setOf(80, 100))
+        assertEquals(1, s.observeAddOns(id).first().size)
+        assertEquals(1, s.observeFreeRules(id).first().size)
+        assertEquals(listOf(80, 100), s.alertRules(id).map { it.thresholdPercent })
+        assertTrue(s.alertRules(id).all { it.enabled })
+        assertEquals(id, s.observeAddOns(id).first().single().planId)
+    }
+
+    @Test fun saving_again_keeps_given_ids_deletes_the_rest_and_syncs_thresholds() = runBlocking {
+        val s = createStore()
+        val id = s.savePlanWithChildren(draft(), listOf(addOn(0, "A"), addOn(0, "B")), listOf(rule(0)), setOf(50, 80))
+        val a = s.observeAddOns(id).first().first { it.label == "A" }
+        s.savePlanWithChildren(draft().copy(id = id, name = "Renamed"), listOf(a.copy(label = "A2")), emptyList(), setOf(80, 90))
+        assertEquals("Renamed", s.plan(id)!!.name)
+        assertEquals(listOf(a.copy(label = "A2")), s.observeAddOns(id).first()) // same id, B gone
+        assertTrue(s.observeFreeRules(id).first().isEmpty())
+        assertEquals(listOf(80, 90), s.alertRules(id).map { it.thresholdPercent })
+    }
+
+    @Test fun a_disabled_rule_with_a_wanted_threshold_is_enabled_again() = runBlocking {
+        val s = createStore()
+        val id = s.savePlanWithChildren(draft(), emptyList(), emptyList(), emptySet())
+        val ruleId = s.upsertAlertRule(AlertRule(0, id, 80, enabled = false))
+        assertEquals(listOf(false), s.alertRules(id).map { it.enabled })
+        s.savePlanWithChildren(draft().copy(id = id), emptyList(), emptyList(), setOf(80))
+        val rules = s.alertRules(id)
+        assertEquals(1, rules.size)
+        assertEquals(ruleId, rules.single().id)
+        assertTrue(rules.single().enabled)
+    }
+
+    @Test fun another_plans_children_are_untouched() = runBlocking {
+        val s = createStore()
+        val p1 = s.savePlanWithChildren(draft("P1"), listOf(addOn(0, "P1-Addon")), listOf(rule(0, "P1-Rule")), setOf(80))
+        val p2 = s.savePlanWithChildren(draft("P2"), listOf(addOn(0, "P2-Addon")), listOf(rule(0, "P2-Rule")), setOf(90))
+        s.savePlanWithChildren(draft("P1-Updated").copy(id = p1), emptyList(), emptyList(), emptySet())
+        assertTrue(s.observeAddOns(p1).first().isEmpty())
+        assertTrue(s.observeFreeRules(p1).first().isEmpty())
+        assertTrue(s.alertRules(p1).isEmpty())
+        assertEquals(1, s.observeAddOns(p2).first().size)
+        assertEquals(1, s.observeFreeRules(p2).first().size)
+        assertEquals(listOf(90), s.alertRules(p2).map { it.thresholdPercent })
+    }
 }
