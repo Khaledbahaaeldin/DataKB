@@ -255,12 +255,15 @@ class SamplerEngineTest {
         val e1 = SamplerEngine(FakeCounterSource(script1), FakeNetworkKindSource(), FakeSubscriptionSource(7), store)
         e1.start()
         
-        val script2 = listOf(CounterSnapshot(t0.plusSeconds(150), 300, 300, 300, 300, "b2"))
+        val script2 = listOf(CounterSnapshot(t0.plusSeconds(300), 300, 300, 300, 300, "b2"))
         val e2 = SamplerEngine(FakeCounterSource(script2), FakeNetworkKindSource(), FakeSubscriptionSource(7), store)
         e2.start()
 
-        val gaps = store.gaps(open.first, open.second)
-        assertEquals(1, gaps.size)
+        val gaps = store.gaps(open.first, open.second).sortedBy { it.from }
+        assertEquals(2, gaps.size)
+        gaps.zipWithNext().forEach { (previous, next) ->
+            assertTrue("Expected next.from (${next.from}) >= previous.to (${previous.to})", next.from >= previous.to)
+        }
     }
 }
 

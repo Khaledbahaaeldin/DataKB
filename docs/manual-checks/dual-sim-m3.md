@@ -12,6 +12,7 @@ This document outlines the manual verification steps for dual-SIM plan binding a
    - Install Emberbyte on the dual-SIM test device.
    - Open the app, navigate to the Plans tab, and create or open a plan editor.
    - When prompted or via the plan editor SIM selector, grant phone state / phone access permission so Emberbyte can read active subscriptions (`SubscriptionManager`).
+   - Expected: Emberbyte opens normally, prompts for phone permission in the plan editor, and displays active SIM names and slots.
 
 2. **Create Per-SIM Plans**
    - Create Plan A bound to SIM 1 (select subscription ID corresponding to SIM 1).
@@ -19,8 +20,8 @@ This document outlines the manual verification steps for dual-SIM plan binding a
    - Verify that in the plans list and editor, the displayed SIM names and slot indices match the system settings (Settings > Network & internet > SIMs).
 
 3. **Verify Fallback Behavior (No Phone Permission)**
-   - Clear app data or revoke phone access permission.
-   - Open the plan editor and verify that it gracefully handles the missing permission by offering "Default data SIM" as a fallback option instead of crashing.
+   - Revoke phone access permission in system settings and force-stop Emberbyte (do NOT clear app data, as that wipes the plans created in step 2).
+   - Open Emberbyte, navigate to the plan editor and verify that it gracefully handles the missing permission by offering "Default data SIM" as a fallback option instead of crashing.
 
 4. **Test SIM Switching and Growth Attribution**
    - In system settings, set the default mobile data SIM to **SIM 1**.
@@ -31,4 +32,5 @@ This document outlines the manual verification steps for dual-SIM plan binding a
    - Return to Emberbyte and verify that **Plan B** grows in usage while Plan A remains unaffected.
 
 5. **Verify Estimated Badge**
-   - If a single plan window or history spans across multiple active SIM cards or when subscription attribution is estimated, verify that the plan card displays the **"Estimated"** label as specified in the backend contract.
+   - Concrete reproduction: Create a plan bound to SIM 1, but with history that includes un-attributed data (e.g. traffic from before Emberbyte was installed or when phone permission was missing).
+   - Expected: The plan card displays the **"Estimated"** badge next to the usage figure as specified in the backend contract.

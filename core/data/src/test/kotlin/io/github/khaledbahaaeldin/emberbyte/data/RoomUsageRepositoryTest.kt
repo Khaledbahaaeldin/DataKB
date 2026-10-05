@@ -185,4 +185,13 @@ class RoomUsageRepositoryTest {
         assertTrue(gapIds.none { it.from == gap40DaysAgo.from })
         assertTrue(gapIds.any { it.from == gap10DaysAgo.from })
     }
+
+    @Test fun the_week_strip_never_grows_beyond_its_range_after_a_zone_change() = runTest {
+        val clock = MutableZoneClock(testScheduler, Instant.parse("2026-10-02T00:30:00Z"), java.time.ZoneId.of("Africa/Cairo"))
+        val repo = RoomUsageRepository(InMemoryUsageStore(), flowOf(live), DayClock(clock), clock) { catchUp }
+        clock.zoneId = java.time.ZoneId.of("Europe/London")
+        val from = Instant.parse("2026-09-25T23:00:00Z")                   // 7 London days
+        val bars = repo.observeSeries(DateRange(from, from.plusSeconds(7 * 86_400L)), Granularity.DAY).first()
+        assertEquals(7, bars.size)
+    }
 }

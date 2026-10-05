@@ -24,6 +24,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -99,5 +101,39 @@ class HistoryTest {
         advanceUntilIdle()
         assertEquals(false, vm.uiState.value.needsUsageAccess)
         job.cancel()
+    }
+
+    @Test fun the_caveat_is_hidden_when_usage_access_is_granted() = runTest(dispatcher) {
+        val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
+        val perms = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), perms, clock, Locale.ENGLISH, flowOf(today))
+        val job = launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.needsUsageAccess)
+        job.cancel()
+    }
+
+    @Test fun the_caveat_is_shown_without_usage_access() = runTest(dispatcher) {
+        val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
+        val perms = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), perms, clock, Locale.ENGLISH, flowOf(today))
+        val job = launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.needsUsageAccess)
+        job.cancel()
+    }
+
+    @Test fun the_average_counts_only_days_with_data() {
+        val base = Instant.parse("2026-09-24T00:00:00Z")
+        val points = (0 until 12).map { day ->
+            UsagePoint(base.plus(day.toLong(), java.time.temporal.ChronoUnit.DAYS), 0L, 0L)
+        } + listOf(
+            UsagePoint(base.plus(12, java.time.temporal.ChronoUnit.DAYS), 300L, 0L),
+            UsagePoint(base.plus(13, java.time.temporal.ChronoUnit.DAYS), 100L, 0L),
+        )
+        assertEquals(14, points.size)
+        val state = buildHistoryUiState(Granularity.DAY, points, ByteUnits.DECIMAL, zone, Locale.ENGLISH)
+        assertEquals(400L, state.totalBytes)
+        assertEquals(200L, state.averageBytes)
     }
 }
