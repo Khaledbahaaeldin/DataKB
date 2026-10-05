@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte
 
 import android.content.Context
 import android.text.format.DateFormat
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -125,6 +126,17 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     }
 
     fun planEditorViewModelFactory(planId: Long): ViewModelProvider.Factory = viewModelFactory {
-        initializer { PlanEditorViewModel(planId, plans, alerts, settings, permissions, simInfo, clock) }
+        initializer {
+            PlanEditorViewModel(
+                planId = planId,
+                plans = plans,
+                alerts = alerts,
+                settings = settings,
+                permissions = permissions,
+                sims = simInfo,
+                clock = clock,
+                savedStateHandle = createSavedStateHandle(),
+            )
+        }
     }
 }

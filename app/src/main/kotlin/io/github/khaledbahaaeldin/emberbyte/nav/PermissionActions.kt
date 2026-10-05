@@ -40,24 +40,26 @@ fun rememberPermissionActions(graph: AppGraph): PermissionActions {
     val scope = rememberCoroutineScope()
     val activity = remember(context) { context.findComponentActivity() }
     val prefs = remember(context) { context.getSharedPreferences("permission_prefs", Context.MODE_PRIVATE) }
+    val askedTracker = remember(prefs) { AskedTracker(prefs) }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        askedTracker.markResult(Manifest.permission.POST_NOTIFICATIONS)
         scope.launch { graph.permissions.recheck() }
     }
     val phoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        askedTracker.markResult(Manifest.permission.READ_PHONE_STATE)
         scope.launch { graph.permissions.recheck() }
     }
 
-    return remember(context, launcher, phoneLauncher, activity) {
+    return remember(context, launcher, phoneLauncher, activity, askedTracker) {
         PermissionActions(
             openUsageAccess = { context.startActivityOrIgnore(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS)) },
             requestNotifications = {
                 if (Build.VERSION.SDK_INT >= 33) {
-                    val asked = prefs.getBoolean("notif_asked", false)
+                    val asked = askedTracker.asked(Manifest.permission.POST_NOTIFICATIONS)
                     val showRationale = activity != null && ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
                     when (PermissionRequestPolicy.decide(asked, showRationale)) {
                         PermissionDecision.Launch -> {
-                            prefs.edit().putBoolean("notif_asked", true).apply()
                             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                         PermissionDecision.OpenSettings -> {
@@ -75,11 +77,10 @@ fun rememberPermissionActions(graph: AppGraph): PermissionActions {
                 }
             },
             requestPhoneState = {
-                val asked = prefs.getBoolean("phone_asked", false)
+                val asked = askedTracker.asked(Manifest.permission.READ_PHONE_STATE)
                 val showRationale = activity != null && ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.READ_PHONE_STATE)
                 when (PermissionRequestPolicy.decide(asked, showRationale)) {
                     PermissionDecision.Launch -> {
-                        prefs.edit().putBoolean("phone_asked", true).apply()
                         phoneLauncher.launch(Manifest.permission.READ_PHONE_STATE)
                     }
                     PermissionDecision.OpenSettings -> {

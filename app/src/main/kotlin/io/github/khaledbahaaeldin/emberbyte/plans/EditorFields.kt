@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.plans
 
+import android.annotation.SuppressLint
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
@@ -22,10 +23,15 @@ import androidx.compose.ui.platform.LocalContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("NonObservableLocale")
 @Composable
 fun DateField(
     label: String,
@@ -34,12 +40,13 @@ fun DateField(
     modifier: Modifier = Modifier,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
+    val dateFormatted = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()).format(date)
 
     OutlinedButton(
         onClick = { open = true },
         modifier = modifier.fillMaxWidth(),
     ) {
-        Text("$label: $date")
+        Text("$label: $dateFormatted")
     }
 
     if (open) {
@@ -81,7 +88,9 @@ fun TimeField(
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    val timeFormatted = String.format(Locale.ROOT, "%02d:%02d", time.hour, time.minute)
+    val timeFormatted = DateFormat.getTimeFormat(context).format(
+        Date.from(time.atDate(LocalDate.now()).atZone(ZoneId.systemDefault()).toInstant()),
+    )
 
     OutlinedButton(
         onClick = { open = true },

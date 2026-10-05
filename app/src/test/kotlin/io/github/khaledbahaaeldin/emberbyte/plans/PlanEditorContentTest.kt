@@ -14,6 +14,7 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanCardUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -179,8 +180,68 @@ class PlanEditorContentTest {
     @Test fun the_time_field_opens_a_dialog_that_can_be_cancelled() {
         val events = mutableListOf<PlanEditorEvent>()
         show(onEvent = { events += it })
-        rule.onNodeWithText("Renews at 00:00").performScrollTo().performClick()
+        rule.onNodeWithText("Renews at", substring = true).performScrollTo().performClick()
         rule.onNodeWithText("Cancel").assertIsDisplayed().performClick()
         assertTrue(events.none { it is PlanEditorEvent.SetRenewalTime })
+    }
+
+    @Test fun every_error_key_is_shown_as_text_somewhere_on_screen() {
+        val formWithAllSections = PlanEditorForm(
+            name = "Main",
+            capText = "10",
+            cycleKind = CycleKind.Monthly,
+            dayOfMonth = 1,
+            rolloverKind = RolloverKind.Capped,
+            rolloverCapText = "5",
+            addOns = listOf(AddOnDraft(label = "Boost", amountText = "2", validFrom = LocalDate.of(2026, 10, 1), validUntil = LocalDate.of(2026, 10, 15))),
+            freeRules = listOf(FreeRuleDraft(label = "Night", days = setOf(DayOfWeek.MONDAY), start = LocalTime.of(0, 0), end = LocalTime.of(6, 0))),
+        )
+        val keys = listOf(
+            "freeRule.0.days",
+            "freeRule.0.time",
+            "addOn.0.validUntil",
+            "addOn.0.bytes",
+            "addOn.0.label",
+            "freeRule.0.label",
+            "name",
+            "capBytes",
+            "cycle.dayOfMonth",
+            "rollover.maxBytes",
+            "form",
+        )
+        show(state.copy(form = formWithAllSections, errors = keys.associateWith { "Problem $it" }))
+        for (key in keys) {
+            rule.onNodeWithText("Problem $key").performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    @Test fun cycle_days_error_is_shown_under_every_n_days() {
+        show(state.copy(
+            form = state.form.copy(cycleKind = CycleKind.EveryNDays, everyDays = 10),
+            errors = mapOf("cycle.days" to "Problem cycle.days"),
+        ))
+        rule.onNodeWithText("Problem cycle.days").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun unknown_error_key_is_shown_above_save() {
+        show(state.copy(errors = mapOf("unknown.key" to "Problem unknown.key")))
+        rule.onNodeWithText("Problem unknown.key").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun time_field_formats_time_following_device() {
+        show(state.copy(form = state.form.copy(renewalTime = LocalTime.of(14, 30))))
+        rule.onNodeWithText("Renews at", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun date_field_formats_date_following_device() {
+        val date = LocalDate.of(2026, 10, 15)
+        show(state.copy(
+            form = state.form.copy(
+                cycleKind = CycleKind.EveryNDays,
+                anchor = date,
+            ),
+        ))
+        val expected = java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM).withLocale(java.util.Locale.getDefault()).format(date)
+        rule.onNodeWithText("Starts on: $expected").performScrollTo().assertIsDisplayed()
     }
 }

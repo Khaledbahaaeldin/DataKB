@@ -29,4 +29,7 @@ interface PlanRepository {
 
     /** State and forecast of an unsaved draft, not persisted. */
     suspend fun previewState(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Outcome<PlanPreview>
+
+    /** Validates an unsaved draft, returning empty map if valid or map of field errors (Contract 10.2). Pure, not suspend. */
+    fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String>
 }

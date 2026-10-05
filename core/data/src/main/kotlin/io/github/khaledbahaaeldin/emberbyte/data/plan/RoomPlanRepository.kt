@@ -143,4 +143,16 @@ class RoomPlanRepository(
             PlanPreview(snapshot.state, forecastOf(snapshot))
         }
     }
+
+    override fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String> {
+        val errors = LinkedHashMap<String, String>()
+        PlanValidation.plan(plan)?.let { errors[it.field] = it.reason }
+        addOns.forEachIndexed { i, a ->
+            PlanValidation.addOn(a)?.let { errors["addOn.$i.${it.field}"] = it.reason }
+        }
+        freeRules.forEachIndexed { i, r ->
+            PlanValidation.freeRule(r)?.let { errors["freeRule.$i.${it.field}"] = it.reason }
+        }
+        return errors
+    }
 }

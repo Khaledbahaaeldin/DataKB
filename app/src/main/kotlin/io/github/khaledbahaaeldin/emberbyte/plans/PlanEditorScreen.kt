@@ -302,6 +302,13 @@ internal fun PlanEditorContent(
                         date = addOn.validUntil,
                         onChange = { onEvent(PlanEditorEvent.UpdateAddOn(index, addOn.copy(validUntil = it))) },
                     )
+                    state.errors["addOn.$index.validUntil"]?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         IconButton(onClick = { onEvent(PlanEditorEvent.RemoveAddOn(index)) }) {
                             Icon(Icons.Rounded.Delete, contentDescription = "Remove add-on pack")
@@ -355,6 +362,13 @@ internal fun PlanEditorContent(
                             )
                         }
                     }
+                    state.errors["freeRule.$index.days"]?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     TimeField(
                         label = "From",
                         time = rule.start,
@@ -365,6 +379,13 @@ internal fun PlanEditorContent(
                         time = rule.end,
                         onChange = { onEvent(PlanEditorEvent.UpdateFreeRule(index, rule.copy(end = it))) },
                     )
+                    state.errors["freeRule.$index.time"]?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     OutlinedTextField(
                         value = rule.packageName.orEmpty(),
                         onValueChange = {
@@ -401,9 +422,28 @@ internal fun PlanEditorContent(
                     }
                 }
 
-                state.errors["form"]?.let { formError ->
+                val consumedKeys = buildSet {
+                    add("name")
+                    add("capBytes")
+                    if (state.form.cycleKind == CycleKind.Monthly) add("cycle.dayOfMonth")
+                    if (state.form.cycleKind == CycleKind.EveryNDays) add("cycle.days")
+                    if (state.form.rolloverKind == RolloverKind.Capped) add("rollover.maxBytes")
+                    state.form.addOns.indices.forEach { index ->
+                        add("addOn.$index.label")
+                        add("addOn.$index.bytes")
+                        add("addOn.$index.validUntil")
+                    }
+                    state.form.freeRules.indices.forEach { index ->
+                        add("freeRule.$index.label")
+                        add("freeRule.$index.days")
+                        add("freeRule.$index.time")
+                        add("freeRule.$index.packageName")
+                    }
+                }
+                val unconsumedErrors = state.errors.filterKeys { it !in consumedKeys }.toSortedMap()
+                for ((_, unconsumedMessage) in unconsumedErrors) {
                     Text(
-                        text = formError,
+                        text = unconsumedMessage,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )

@@ -100,6 +100,9 @@ class FakePlanRepository(private val clock: Clock = Clock.systemUTC()) : PlanRep
     override suspend fun previewState(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Outcome<PlanPreview> =
         Outcome.Success(PlanPreview(stateFor(plan), forecastFor(plan.id)))
 
+    override fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String> =
+        emptyMap()
+
     private fun stateFor(plan: Plan): PlanState {
         val now = clock.instant()
         val used = 6_200_000_000L

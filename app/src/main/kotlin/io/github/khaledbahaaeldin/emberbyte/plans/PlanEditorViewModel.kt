@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.plans
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
@@ -45,12 +46,14 @@ class PlanEditorViewModel(
     private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     private val previewDebounceMillis: Long = 300L,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(
         PlanEditorUiState(
             planId = planId,
             isNew = planId == 0L,
-            form = PlanEditorForm(anchor = LocalDate.now(clock)),
+            form = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) }
+                ?: PlanEditorForm(anchor = LocalDate.now(clock)),
         ),
     )
     val uiState: StateFlow<PlanEditorUiState> = _state.asStateFlow()
@@ -119,24 +122,29 @@ class PlanEditorViewModel(
         loadedFreeRuleIds = freeRules.map { it.id }.toSet()
         loadedAlertRules = alertRules
 
-        val form = PlanEditorForm(
-            name = plan.name,
-            subscriptionId = plan.subscriptionId,
-            capText = capText,
-            capUnit = capUnit,
-            cycleKind = cycleFields.kind,
-            dayOfMonth = cycleFields.dayOfMonth,
-            everyDays = cycleFields.everyDays,
-            anchor = cycleFields.anchor,
-            renewalTime = cycleFields.renewalTime,
-            rolloverKind = rolloverKind,
-            rolloverCapText = rCapText,
-            rolloverCapUnit = rCapUnit,
-            addOns = addOnDrafts,
-            freeRules = freeRuleDrafts,
-            alertThresholds = thresholds,
-        )
-        _state.update { it.copy(form = form, loading = false) }
+        val hasRestored = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) } != null
+        if (!hasRestored) {
+            val form = PlanEditorForm(
+                name = plan.name,
+                subscriptionId = plan.subscriptionId,
+                capText = capText,
+                capUnit = capUnit,
+                cycleKind = cycleFields.kind,
+                dayOfMonth = cycleFields.dayOfMonth,
+                everyDays = cycleFields.everyDays,
+                anchor = cycleFields.anchor,
+                renewalTime = cycleFields.renewalTime,
+                rolloverKind = rolloverKind,
+                rolloverCapText = rCapText,
+                rolloverCapUnit = rCapUnit,
+                addOns = addOnDrafts,
+                freeRules = freeRuleDrafts,
+                alertThresholds = thresholds,
+            )
+            _state.update { it.copy(form = form, loading = false) }
+        } else {
+            _state.update { it.copy(loading = false) }
+        }
     }
 
     private fun refreshSims(phoneState: Boolean) {
@@ -172,78 +180,76 @@ class PlanEditorViewModel(
         )
     }
 
+    private fun updateForm(transform: (PlanEditorForm) -> PlanEditorForm) {
+        _state.update { current ->
+            val nextForm = transform(current.form)
+            savedStateHandle[KEY_FORM] = PlanEditorFormJson.encode(nextForm)
+            current.copy(form = nextForm, errors = emptyMap())
+        }
+    }
+
     fun onEvent(event: PlanEditorEvent) {
         when (event) {
-            is PlanEditorEvent.SetName -> _state.update { it.copy(form = it.form.copy(name = event.value), errors = emptyMap()) }
-            is PlanEditorEvent.SetSim -> _state.update { it.copy(form = it.form.copy(subscriptionId = event.subscriptionId), errors = emptyMap()) }
-            is PlanEditorEvent.SetCap -> _state.update { it.copy(form = it.form.copy(capText = event.text), errors = emptyMap()) }
-            is PlanEditorEvent.SetCapUnit -> _state.update { it.copy(form = it.form.copy(capUnit = event.unit), errors = emptyMap()) }
-            is PlanEditorEvent.SetCycleKind -> _state.update { it.copy(form = it.form.copy(cycleKind = event.kind), errors = emptyMap()) }
-            is PlanEditorEvent.SetDayOfMonth -> _state.update { it.copy(form = it.form.copy(dayOfMonth = event.day), errors = emptyMap()) }
-            is PlanEditorEvent.SetEveryDays -> _state.update { it.copy(form = it.form.copy(everyDays = event.days), errors = emptyMap()) }
-            is PlanEditorEvent.SetAnchor -> _state.update { it.copy(form = it.form.copy(anchor = event.date), errors = emptyMap()) }
-            is PlanEditorEvent.SetRenewalTime -> _state.update { it.copy(form = it.form.copy(renewalTime = event.time), errors = emptyMap()) }
-            is PlanEditorEvent.SetRolloverKind -> _state.update { it.copy(form = it.form.copy(rolloverKind = event.kind), errors = emptyMap()) }
-            is PlanEditorEvent.SetRolloverCap -> _state.update { it.copy(form = it.form.copy(rolloverCapText = event.text), errors = emptyMap()) }
-            is PlanEditorEvent.SetRolloverUnit -> _state.update { it.copy(form = it.form.copy(rolloverCapUnit = event.unit), errors = emptyMap()) }
+            is PlanEditorEvent.SetName -> updateForm { it.copy(name = event.value) }
+            is PlanEditorEvent.SetSim -> updateForm { it.copy(subscriptionId = event.subscriptionId) }
+            is PlanEditorEvent.SetCap -> updateForm { it.copy(capText = event.text) }
+            is PlanEditorEvent.SetCapUnit -> updateForm { it.copy(capUnit = event.unit) }
+            is PlanEditorEvent.SetCycleKind -> updateForm { it.copy(cycleKind = event.kind) }
+            is PlanEditorEvent.SetDayOfMonth -> updateForm { it.copy(dayOfMonth = event.day) }
+            is PlanEditorEvent.SetEveryDays -> updateForm { it.copy(everyDays = event.days) }
+            is PlanEditorEvent.SetAnchor -> updateForm { it.copy(anchor = event.date) }
+            is PlanEditorEvent.SetRenewalTime -> updateForm { it.copy(renewalTime = event.time) }
+            is PlanEditorEvent.SetRolloverKind -> updateForm { it.copy(rolloverKind = event.kind) }
+            is PlanEditorEvent.SetRolloverCap -> updateForm { it.copy(rolloverCapText = event.text) }
+            is PlanEditorEvent.SetRolloverUnit -> updateForm { it.copy(rolloverCapUnit = event.unit) }
             PlanEditorEvent.AddAddOn -> {
                 val today = LocalDate.now(clock)
-                _state.update {
-                    it.copy(
-                        form = it.form.copy(addOns = it.form.addOns + AddOnDraft(validFrom = today, validUntil = today.plusDays(30))),
-                        errors = emptyMap(),
-                    )
-                }
+                updateForm { it.copy(addOns = it.addOns + AddOnDraft(validFrom = today, validUntil = today.plusDays(30))) }
             }
             is PlanEditorEvent.UpdateAddOn -> {
-                _state.update {
-                    val list = it.form.addOns.toMutableList()
+                updateForm {
+                    val list = it.addOns.toMutableList()
                     if (event.index in list.indices) {
                         list[event.index] = event.draft
                     }
-                    it.copy(form = it.form.copy(addOns = list), errors = emptyMap())
+                    it.copy(addOns = list)
                 }
             }
             is PlanEditorEvent.RemoveAddOn -> {
-                _state.update {
-                    val list = it.form.addOns.toMutableList()
+                updateForm {
+                    val list = it.addOns.toMutableList()
                     if (event.index in list.indices) {
                         list.removeAt(event.index)
                     }
-                    it.copy(form = it.form.copy(addOns = list), errors = emptyMap())
+                    it.copy(addOns = list)
                 }
             }
             PlanEditorEvent.AddFreeRule -> {
-                _state.update {
-                    it.copy(
-                        form = it.form.copy(freeRules = it.form.freeRules + FreeRuleDraft()),
-                        errors = emptyMap(),
-                    )
-                }
+                updateForm { it.copy(freeRules = it.freeRules + FreeRuleDraft()) }
             }
             is PlanEditorEvent.UpdateFreeRule -> {
-                _state.update {
-                    val list = it.form.freeRules.toMutableList()
+                updateForm {
+                    val list = it.freeRules.toMutableList()
                     if (event.index in list.indices) {
                         list[event.index] = event.draft
                     }
-                    it.copy(form = it.form.copy(freeRules = list), errors = emptyMap())
+                    it.copy(freeRules = list)
                 }
             }
             is PlanEditorEvent.RemoveFreeRule -> {
-                _state.update {
-                    val list = it.form.freeRules.toMutableList()
+                updateForm {
+                    val list = it.freeRules.toMutableList()
                     if (event.index in list.indices) {
                         list.removeAt(event.index)
                     }
-                    it.copy(form = it.form.copy(freeRules = list), errors = emptyMap())
+                    it.copy(freeRules = list)
                 }
             }
             is PlanEditorEvent.ToggleThreshold -> {
-                _state.update {
-                    val current = it.form.alertThresholds
+                updateForm {
+                    val current = it.alertThresholds
                     val next = if (event.percent in current) current - event.percent else current + event.percent
-                    it.copy(form = it.form.copy(alertThresholds = next), errors = emptyMap())
+                    it.copy(alertThresholds = next)
                 }
             }
             PlanEditorEvent.Save -> {
@@ -264,6 +270,15 @@ class PlanEditorViewModel(
             return
         }
         val ok = domainResult as FormResult.Ok
+
+        // Validate the entire draft first before writing anything. Saving is validated first
+        // and then written step by step; it is NOT a database transaction.
+        val draftErrors = plans.validateDraft(ok.plan, ok.addOns, ok.freeRules)
+        if (draftErrors.isNotEmpty()) {
+            _state.update { it.copy(errors = draftErrors) }
+            return
+        }
+
         _state.update { it.copy(saving = true) }
 
         when (val planOutcome = plans.upsertPlan(ok.plan)) {
@@ -300,11 +315,7 @@ class PlanEditorViewModel(
             val domainAddOn = ok.addOns[i].copy(planId = effectivePlanId)
             when (val res = plans.upsertAddOn(domainAddOn)) {
                 is Outcome.Failure -> {
-                    val err = when (val e = res.error) {
-                        is EmberbyteError.Invalid -> mapOf("addOn.$i.${e.field}" to e.reason)
-                        else -> mapOf("form" to "Could not save. Try again.")
-                    }
-                    _state.update { it.copy(errors = err, saving = false) }
+                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
                     return
                 }
                 is Outcome.Success -> {
@@ -338,11 +349,7 @@ class PlanEditorViewModel(
             val domainRule = ok.freeRules[i].copy(planId = effectivePlanId)
             when (val res = plans.upsertFreeRule(domainRule)) {
                 is Outcome.Failure -> {
-                    val err = when (val e = res.error) {
-                        is EmberbyteError.Invalid -> mapOf("freeRule.$i.${e.field}" to e.reason)
-                        else -> mapOf("form" to "Could not save. Try again.")
-                    }
-                    _state.update { it.copy(errors = err, saving = false) }
+                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
                     return
                 }
                 is Outcome.Success -> {
@@ -376,11 +383,7 @@ class PlanEditorViewModel(
             val ruleId = existing?.id ?: 0L
             when (val res = alerts.upsertRule(AlertRule(ruleId, effectivePlanId, threshold, true))) {
                 is Outcome.Failure -> {
-                    val err = when (val e = res.error) {
-                        is EmberbyteError.Invalid -> mapOf(e.field to e.reason)
-                        else -> mapOf("form" to "Could not save. Try again.")
-                    }
-                    _state.update { it.copy(errors = err, saving = false) }
+                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
                     return
                 }
                 is Outcome.Success -> {
@@ -392,6 +395,7 @@ class PlanEditorViewModel(
         loadedAddOnIds = _state.value.form.addOns.map { it.id }.toSet()
         loadedFreeRuleIds = _state.value.form.freeRules.map { it.id }.toSet()
         loadedAlertRules = updatedAlertRules
+        savedStateHandle.remove<String>(KEY_FORM)
         _state.update { it.copy(saving = false, saved = true) }
     }
 
@@ -399,7 +403,10 @@ class PlanEditorViewModel(
         val currentPlanId = _state.value.planId
         if (currentPlanId == 0L) return
         when (plans.archivePlan(currentPlanId)) {
-            is Outcome.Success -> _state.update { it.copy(saved = true) }
+            is Outcome.Success -> {
+                savedStateHandle.remove<String>(KEY_FORM)
+                _state.update { it.copy(saved = true) }
+            }
             is Outcome.Failure -> _state.update { it.copy(errors = mapOf("form" to "Could not archive. Try again.")) }
         }
     }
@@ -411,4 +418,8 @@ class PlanEditorViewModel(
         val anchor: LocalDate,
         val renewalTime: LocalTime,
     )
+
+    private companion object {
+        const val KEY_FORM = "form"
+    }
 }

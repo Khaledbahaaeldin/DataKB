@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.plans
 
+import androidx.lifecycle.SavedStateHandle
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
@@ -42,7 +43,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlanEditorViewModelTest {
     private val now = Instant.parse("2026-10-15T12:00:00Z")
@@ -58,8 +64,8 @@ class PlanEditorViewModelTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun vm(planId: Long = 0L) =
-        PlanEditorViewModel(planId, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L)
+    private fun vm(planId: Long = 0L, handle: SavedStateHandle = SavedStateHandle()) =
+        PlanEditorViewModel(planId, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
 
     private fun TestScope.started(vm: PlanEditorViewModel): Job { val job = launch { vm.uiState.collect {} }; advanceUntilIdle(); return job }
     private fun PlanEditorViewModel.fill(name: String = "Main", cap: String = "10") {
@@ -169,12 +175,101 @@ class PlanEditorViewModelTest {
         vm.onEvent(PlanEditorEvent.UpdateAddOn(0, vm.uiState.value.form.addOns[0].copy(label = " ", amountText = "2")))
         vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
         assertEquals("addOn.0.label", vm.uiState.value.errors.keys.single())
-        assertEquals(1, plans.observePlans().first().size)            // the plan itself was saved; a retry updates it instead of duplicating
+        assertEquals(0, plans.observePlans().first().size)            // draft has an invalid child: nothing was saved
         vm.onEvent(PlanEditorEvent.UpdateAddOn(0, vm.uiState.value.form.addOns[0].copy(label = "Boost")))
         vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
         assertEquals(1, plans.observePlans().first().size)
         assertEquals(1, plans.observeAddOns(plans.observePlans().first().single().id).first().size)
         job.cancel()
+    }
+
+    @Test fun nothing_is_written_when_a_child_is_invalid() = runTest(dispatcher) {
+        val vm = vm(); val job = started(vm)
+        vm.fill() // valid name "Main", cap "10"
+        vm.onEvent(PlanEditorEvent.AddFreeRule)
+        vm.onEvent(PlanEditorEvent.UpdateFreeRule(0, vm.uiState.value.form.freeRules[0].copy(label = "Night", days = emptySet())))
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertTrue(plans.observePlans(true).first().isEmpty())
+        assertEquals(setOf("freeRule.0.days"), vm.uiState.value.errors.keys)
+        // A second save does not duplicate or save
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertTrue(plans.observePlans(true).first().isEmpty())
+        job.cancel()
+    }
+
+    @Test fun all_keys_at_once_are_reported() = runTest(dispatcher) {
+        val vm = vm(); val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetName("")) // blank name
+        vm.onEvent(PlanEditorEvent.SetCap("10")) // valid cap
+        vm.onEvent(PlanEditorEvent.AddAddOn)
+        // add-on validUntil before validFrom
+        val today = LocalDate.now(clock)
+        vm.onEvent(PlanEditorEvent.UpdateAddOn(0, vm.uiState.value.form.addOns[0].copy(
+            label = "Boost",
+            amountText = "2",
+            validFrom = today,
+            validUntil = today.minusDays(5),
+        )))
+        vm.onEvent(PlanEditorEvent.AddFreeRule)
+        // free window start == end
+        vm.onEvent(PlanEditorEvent.UpdateFreeRule(0, vm.uiState.value.form.freeRules[0].copy(
+            label = "Free",
+            start = LocalTime.of(1, 0),
+            end = LocalTime.of(1, 0),
+        )))
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertEquals(setOf("name", "addOn.0.validUntil", "freeRule.0.time"), vm.uiState.value.errors.keys)
+        job.cancel()
+    }
+
+    @Test fun editing_an_existing_plan_with_invalid_addon_leaves_stored_plan_unchanged() = runTest(dispatcher) {
+        val id = (plans.upsertPlan(Plan(0, "Existing", null, 5_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.Full)) as Outcome.Success).value
+        val vm = vm(id); val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetRolloverKind(RolloverKind.None)) // try to change rollover
+        vm.onEvent(PlanEditorEvent.AddAddOn)
+        val today = LocalDate.now(clock)
+        vm.onEvent(PlanEditorEvent.UpdateAddOn(0, vm.uiState.value.form.addOns[0].copy(
+            label = "Boost",
+            amountText = "2",
+            validFrom = today,
+            validUntil = today.minusDays(5), // invalid
+        )))
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        val stored = plans.observePlans(true).first().single { it.id == id }
+        assertEquals(Rollover.Full, stored.rollover) // remains unchanged
+        job.cancel()
+    }
+
+    @Test fun restoring_unsaved_input_across_saved_state_handle_instances() = runTest(dispatcher) {
+        val handle = SavedStateHandle()
+        val vm1 = PlanEditorViewModel(0L, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
+        val job1 = started(vm1)
+        vm1.onEvent(PlanEditorEvent.SetName("Draft"))
+        vm1.onEvent(PlanEditorEvent.SetCap("7"))
+        vm1.onEvent(PlanEditorEvent.AddAddOn)
+        vm1.onEvent(PlanEditorEvent.UpdateAddOn(0, vm1.uiState.value.form.addOns[0].copy(label = "Pack", amountText = "3")))
+        job1.cancel()
+
+        // Build a SECOND view model with the SAME handle
+        val vm2 = PlanEditorViewModel(0L, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
+        val job2 = started(vm2)
+        assertEquals("Draft", vm2.uiState.value.form.name)
+        assertEquals("7", vm2.uiState.value.form.capText)
+        assertEquals(1, vm2.uiState.value.form.addOns.size)
+        assertEquals("Pack", vm2.uiState.value.form.addOns[0].label)
+
+        // Save successfully clears the stored form
+        vm2.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertTrue(vm2.uiState.value.saved)
+        job2.cancel()
+
+        // A third view model with the same handle starts fresh
+        val vm3 = PlanEditorViewModel(0L, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
+        val job3 = started(vm3)
+        assertEquals("", vm3.uiState.value.form.name)
+        assertEquals("", vm3.uiState.value.form.capText)
+        assertTrue(vm3.uiState.value.form.addOns.isEmpty())
+        job3.cancel()
     }
 
     @Test fun a_preview_appears_for_a_valid_form_and_not_for_an_invalid_one() = runTest(dispatcher) {

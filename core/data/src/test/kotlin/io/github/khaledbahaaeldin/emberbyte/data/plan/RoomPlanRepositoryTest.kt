@@ -166,4 +166,18 @@ class RoomPlanRepositoryTest {
         assertNotNull(extra.runOutExpected)
         assertEquals(EmberbyteError.NotFound, (repo.whatIf(99L, 1L, now) as Outcome.Failure).error)
     }
+
+    @Test fun validate_draft_returns_all_errors_and_never_persists_anything() = runBlocking {
+        val goodPlan = draft()
+        val goodAddOn = AddOn(0, 0, "Boost", 1_000_000_000L, now, now.plusSeconds(86400))
+        val goodRule = FreeRule(0, 0, "Night", setOf(DayOfWeek.MONDAY), LocalTime.of(0, 0), LocalTime.of(6, 0), null)
+        assertTrue(repo.validateDraft(goodPlan, listOf(goodAddOn), listOf(goodRule)).isEmpty())
+
+        val badPlan = draft(name = " ")
+        val badAddOn = AddOn(0, 0, "Boost", 0L, now, now.plusSeconds(86400))
+        val badRule = FreeRule(0, 0, "Night", emptySet(), LocalTime.of(0, 0), LocalTime.of(6, 0), null)
+        val errors = repo.validateDraft(badPlan, listOf(badAddOn), listOf(badRule))
+        assertEquals(setOf("name", "addOn.0.bytes", "freeRule.0.days"), errors.keys)
+        assertTrue(repo.observePlans(includeArchived = true).first().isEmpty())
+    }
 }
