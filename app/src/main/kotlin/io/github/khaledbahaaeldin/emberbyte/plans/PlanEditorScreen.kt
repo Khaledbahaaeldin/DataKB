@@ -416,12 +416,12 @@ internal fun PlanEditorContent(
                 }
 
                 Text("Alert me at", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (percent in listOf(50, 80, 90, 100)) {
                         FilterChip(
                             selected = percent in state.form.alertThresholds,
                             onClick = { onEvent(PlanEditorEvent.ToggleThreshold(percent)) },
-                            label = { Text("$percent%") },
+                            label = { Text("$percent%", softWrap = false, maxLines = 1) },
                         )
                     }
                 }

@@ -2,7 +2,10 @@ package io.github.khaledbahaaeldin.emberbyte.plans
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -271,5 +274,23 @@ class PlanEditorContentTest {
             val widthDp = with(rule.density) { width.toDp() }
             assertTrue("Expected $day chip width ($widthDp) >= 48dp", widthDp >= 48.dp)
         }
+    }
+
+    @Test fun threshold_chips_at_font_scale_2_do_not_wrap() {
+        rule.setContent {
+            CompositionLocalProvider(
+                LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)
+            ) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    PlanEditorContent(state = state, onEvent = {}, onBack = {}, onPrompt = {})
+                }
+            }
+        }
+        val chip50 = rule.onNodeWithText("50%").performScrollTo().fetchSemanticsNode()
+        val chip100 = rule.onNodeWithText("100%").performScrollTo().fetchSemanticsNode()
+        assertTrue(
+            "100% chip height (${chip100.size.height}) must be <= 50% chip height (${chip50.size.height})",
+            chip100.size.height <= chip50.size.height,
+        )
     }
 }

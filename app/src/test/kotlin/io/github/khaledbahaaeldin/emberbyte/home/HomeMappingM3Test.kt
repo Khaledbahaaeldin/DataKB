@@ -20,6 +20,7 @@ import java.time.LocalTime
 import java.time.ZoneOffset
 import java.util.Locale
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeMappingM3Test {
@@ -144,5 +145,58 @@ class HomeMappingM3Test {
         val nullRemaining = forecastToUi(f, now, ZoneOffset.UTC, Locale.ENGLISH, remainingBytes = null)
         assertEquals(ForecastKind.Out, nullRemaining.kind)
         assertEquals("Data used up", forecastSentence(nullRemaining))
+    }
+
+    @Test fun hero_description_says_no_data_left_when_zero_remaining() {
+        val plan = Plan(1, "Main SIM", null, 10_000_000_000L, Cycle.MonthlyOnDay(12, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None)
+        val today = DayUsage(LocalDate.of(2026, 10, 10), mobileBytes = 940_000_000L, wifiBytes = 300_000_000L)
+
+        val safePlanState = PlanState(
+            plan = plan,
+            window = CycleWindow(now, now),
+            effectiveCapBytes = 10_000_000_000L,
+            usedBytes = 6_200_000_000L,
+            remainingBytes = 3_800_000_000L,
+            rolledOverBytes = 0,
+            addOnBytes = 0,
+            freeBytes = 0,
+            daysLeft = 9,
+            fractionUsed = 0.62f,
+            isApproximate = false,
+        )
+        val safeUi = buildHomeUiState(
+            today = today,
+            live = null,
+            planState = safePlanState,
+            forecast = forecast(),
+            apps = emptyList(),
+            week = emptyList(),
+            units = UnitSystem.DECIMAL,
+            selectedDay = null,
+            now = now,
+            zone = ZoneOffset.UTC,
+            locale = Locale.ENGLISH,
+        )
+        assertTrue(safeUi.heroDescription.endsWith(", 3.80 gigabytes left"))
+
+        val outPlanState = safePlanState.copy(
+            usedBytes = 10_000_000_000L,
+            remainingBytes = 0L,
+            fractionUsed = 1.0f,
+        )
+        val outUi = buildHomeUiState(
+            today = today,
+            live = null,
+            planState = outPlanState,
+            forecast = forecast("2026-10-10T12:00:00Z", "2026-10-10T12:00:00Z", "2026-10-10T12:00:00Z"),
+            apps = emptyList(),
+            week = emptyList(),
+            units = UnitSystem.DECIMAL,
+            selectedDay = null,
+            now = now,
+            zone = ZoneOffset.UTC,
+            locale = Locale.ENGLISH,
+        )
+        assertEquals("1.24 gigabytes used today, no data left", outUi.heroDescription)
     }
 }

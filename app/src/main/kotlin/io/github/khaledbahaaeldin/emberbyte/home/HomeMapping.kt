@@ -131,7 +131,10 @@ internal fun buildHomeUiState(
         heroLabel = "Today"
         description = buildString {
             append("${spokenBytes(heroBytes, byteUnits)} used today")
-            if (planState != null) append(", ${spokenBytes(planState.remainingBytes, byteUnits)} left")
+            if (planState != null) {
+                if (planState.remainingBytes <= 0L) append(", no data left")
+                else append(", ${spokenBytes(planState.remainingBytes, byteUnits)} left")
+            }
         }
         subtitle = planState?.let {
             val left = remainingText(it.remainingBytes, byteUnits)

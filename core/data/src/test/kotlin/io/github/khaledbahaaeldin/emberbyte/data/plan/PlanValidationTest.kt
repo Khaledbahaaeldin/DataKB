@@ -53,4 +53,22 @@ class PlanValidationTest {
         assertEquals("time", PlanValidation.freeRule(rule.copy(end = LocalTime.of(0, 0)))?.field)
         assertEquals("label", PlanValidation.freeRule(rule.copy(label = ""))?.field)
     }
+
+    @Test fun plan_all_returns_every_plan_level_problem_while_plan_returns_first() {
+        val badPlan = Plan(
+            id = 0,
+            name = "",
+            subscriptionId = -1,
+            capBytes = 0L,
+            cycle = Cycle.MonthlyOnDay(0, LocalTime.MIDNIGHT, ZoneOffset.UTC),
+            rollover = Rollover.Capped(0L),
+        )
+        val all = PlanValidation.planAll(badPlan)
+        assertEquals(
+            setOf("name", "capBytes", "cycle.dayOfMonth", "rollover.maxBytes", "subscriptionId"),
+            all.keys,
+        )
+        val first = PlanValidation.plan(badPlan)
+        assertEquals("name", first?.field)
+    }
 }

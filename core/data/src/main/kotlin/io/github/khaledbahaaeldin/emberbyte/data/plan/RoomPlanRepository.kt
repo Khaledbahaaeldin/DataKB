@@ -146,7 +146,7 @@ class RoomPlanRepository(
 
     override fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String> {
         val errors = LinkedHashMap<String, String>()
-        PlanValidation.plan(plan)?.let { errors[it.field] = it.reason }
+        errors.putAll(PlanValidation.planAll(plan))
         addOns.forEachIndexed { i, a ->
             PlanValidation.addOn(a)?.let { errors["addOn.$i.${it.field}"] = it.reason }
         }

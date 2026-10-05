@@ -180,4 +180,13 @@ class RoomPlanRepositoryTest {
         assertEquals(setOf("name", "addOn.0.bytes", "freeRule.0.days"), errors.keys)
         assertTrue(repo.observePlans(includeArchived = true).first().isEmpty())
     }
+
+    @Test fun validate_draft_returns_all_plan_level_errors_at_once() {
+        val badPlan = draft(
+            name = " ",
+            cap = 0L,
+        ).copy(cycle = Cycle.MonthlyOnDay(0, LocalTime.MIDNIGHT, ZoneOffset.UTC))
+        val errors = repo.validateDraft(badPlan, emptyList(), emptyList())
+        assertEquals(setOf("name", "capBytes", "cycle.dayOfMonth"), errors.keys)
+    }
 }

@@ -43,7 +43,6 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.kotlinx.coroutines.android)
 
-    testImplementation(libs.androidx.navigation.testing)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

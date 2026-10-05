@@ -146,6 +146,32 @@ class PlansViewModelTest {
         job.cancel()
     }
 
+    @Test fun sim_label_falls_back_to_default_data_sim_when_sims_not_listed() = runTest(dispatcher) {
+        val planStore = InMemoryPlanStore()
+        val usageStore = InMemoryUsageStore()
+        val repo = RoomPlanRepository(planStore, usageStore, clock, ticks = flowOf(now))
+        val settings = FakeSettingsRepository()
+        val sims = FakeSimInfoSource(
+            sims = emptyList(),
+            defaultId = 5,
+        )
+        val vm = PlansViewModel(repo, settings, sims, clock, Locale.ENGLISH)
+
+        val job = launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        val p1 = Plan(0L, "Plan Default", 5, 10_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None)
+        val p2 = Plan(0L, "Plan Other", 99, 10_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None)
+        repo.upsertPlan(p1)
+        repo.upsertPlan(p2)
+        advanceUntilIdle()
+
+        val cards = vm.uiState.value.cards.associateBy { it.name }
+        assertEquals("Default data SIM", cards["Plan Default"]?.simLabel)
+        assertEquals("SIM (not found)", cards["Plan Other"]?.simLabel)
+        job.cancel()
+    }
+
     @Test fun settings_binary_unit_system_formats_cap_in_gib() = runTest(dispatcher) {
         val planStore = InMemoryPlanStore()
         val usageStore = InMemoryUsageStore()

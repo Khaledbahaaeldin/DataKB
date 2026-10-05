@@ -115,12 +115,14 @@ internal fun HomeContent(
                 animate = state.isToday,
             )
             state.subtitle?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+                ForceLtr {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             if (state.isEstimated) EstimatedBadge(Modifier.padding(top = 8.dp))
         }

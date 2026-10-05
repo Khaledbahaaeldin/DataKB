@@ -60,6 +60,7 @@ class PlansViewModel(
     private fun simLabel(subscriptionId: Int?, installed: List<SimInfo>): String? = when {
         subscriptionId == null -> null
         else -> installed.firstOrNull { it.subscriptionId == subscriptionId }
-            ?.let { "SIM ${it.slotIndex + 1} · ${it.displayName}" } ?: "SIM (not found)"
+            ?.let { "SIM ${it.slotIndex + 1} · ${it.displayName}" }
+            ?: if (subscriptionId == sims.defaultDataSubscriptionId()) "Default data SIM" else "SIM (not found)"
     }
 }

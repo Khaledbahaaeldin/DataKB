@@ -85,9 +85,24 @@ class PlanEditorViewModelTest {
     @Test fun saving_an_invalid_form_shows_errors_and_saves_nothing() = runTest(dispatcher) {
         val vm = vm(); val job = started(vm)
         vm.onEvent(PlanEditorEvent.SetCap("abc")); vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
-        assertEquals(setOf("capBytes"), vm.uiState.value.errors.keys)
+        assertEquals(setOf("name", "capBytes"), vm.uiState.value.errors.keys)
         vm.onEvent(PlanEditorEvent.SetCap("10")); vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()   // the name is still blank: the repository says so
         assertEquals("name", vm.uiState.value.errors.keys.single())
+        assertTrue(plans.observePlans(true).first().isEmpty())
+        assertFalse(vm.uiState.value.saved)
+        job.cancel()
+    }
+
+    @Test fun one_save_with_multiple_errors_shows_all_errors_at_once_and_saves_nothing() = runTest(dispatcher) {
+        val vm = vm()
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetName(""))
+        vm.onEvent(PlanEditorEvent.SetCap("abc"))
+        vm.onEvent(PlanEditorEvent.SetDayOfMonth(0))
+        vm.onEvent(PlanEditorEvent.Save)
+        advanceUntilIdle()
+
+        assertEquals(setOf("name", "capBytes", "cycle.dayOfMonth"), vm.uiState.value.errors.keys)
         assertTrue(plans.observePlans(true).first().isEmpty())
         assertFalse(vm.uiState.value.saved)
         job.cancel()

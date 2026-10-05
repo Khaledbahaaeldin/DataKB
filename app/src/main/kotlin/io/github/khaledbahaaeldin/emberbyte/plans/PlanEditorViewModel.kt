@@ -10,10 +10,13 @@ import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertRepository
 import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
+import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AlertRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
+import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
+import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover
 import io.github.khaledbahaaeldin.emberbyte.home.toByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanCardUi
@@ -46,7 +49,7 @@ class PlanEditorViewModel(
     private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     private val previewDebounceMillis: Long = 300L,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val _state = MutableStateFlow(
         PlanEditorUiState(
@@ -266,7 +269,30 @@ class PlanEditorViewModel(
         val currentPlanId = _state.value.planId
         val domainResult = _state.value.form.toDomain(currentPlanId, zone, _state.value.unitSystem, archived = false)
         if (domainResult is FormResult.Errors) {
-            _state.update { it.copy(errors = domainResult.errors) }
+            val form = _state.value.form
+            val system = _state.value.unitSystem
+            val lenientCap = bytesOf(form.capText, form.capUnit, system) ?: 1L
+            val lenientCycle = when (form.cycleKind) {
+                CycleKind.Monthly -> Cycle.MonthlyOnDay(form.dayOfMonth, form.renewalTime, zone)
+                CycleKind.EveryNDays -> Cycle.EveryNDays(form.everyDays, form.anchor, form.renewalTime, zone)
+            }
+            val lenientRollover: Rollover = when (form.rolloverKind) {
+                RolloverKind.None -> Rollover.None
+                RolloverKind.Full -> Rollover.Full
+                RolloverKind.Capped -> bytesOf(form.rolloverCapText, form.rolloverCapUnit, system)?.let { Rollover.Capped(it) } ?: Rollover.None
+            }
+            val lenientPlan = Plan(currentPlanId, form.name, form.subscriptionId, lenientCap, lenientCycle, lenientRollover, archived = false)
+            val lenientAddOns = form.addOns.map { d ->
+                val bytes = bytesOf(d.amountText, d.unit, system) ?: 1L
+                AddOn(d.id, currentPlanId, d.label, bytes, d.validFrom.atStartOfDay(zone).toInstant(), d.validUntil.plusDays(1).atStartOfDay(zone).toInstant())
+            }
+            val lenientFreeRules = form.freeRules.map {
+                FreeRule(it.id, currentPlanId, it.label, it.days, it.start, it.end, it.packageName?.trim()?.ifEmpty { null })
+            }
+            val draftErrors = plans.validateDraft(lenientPlan, lenientAddOns, lenientFreeRules)
+            val mergedErrors = LinkedHashMap(draftErrors)
+            mergedErrors.putAll(domainResult.errors)
+            _state.update { it.copy(errors = mergedErrors) }
             return
         }
         val ok = domainResult as FormResult.Ok
