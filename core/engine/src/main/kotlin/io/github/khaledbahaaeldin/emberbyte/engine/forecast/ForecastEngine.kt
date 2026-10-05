@@ -81,11 +81,18 @@ object ForecastEngine {
             val nextDayStart = date.plusDays(1).atStartOfDay(zone).toInstant()
             val segmentEnd = minOf(nextDayStart, end)
             val stat = profile.getValue(date.dayOfWeek)
-            var dayBytes = max(0.0, stat.mean + k * stat.std)
-            if (extraBytesPerDay > 0L && !date.isBefore(extraDate)) dayBytes += extraBytesPerDay
-            val ahead = if (first) 1.0 - cumulativeShare(curve, now.atZone(zone).toLocalTime()) else 1.0
+            val nowTime = now.atZone(zone).toLocalTime()
+            val extraTime = extraFrom.atZone(zone).toLocalTime()
+            val ahead = if (first) 1.0 - cumulativeShare(curve, nowTime) else 1.0
+            val extraShare = when {
+                date.isBefore(extraDate) -> 0.0
+                date.isAfter(extraDate) -> ahead // a later day: the whole day (on today's segment: what is still ahead)
+                else -> 1.0 - cumulativeShare(curve, if (first && nowTime.isAfter(extraTime)) nowTime else extraTime)
+            }
+            val baseBytes = max(0.0, stat.mean + k * stat.std) * ahead
+            val extraBytes = if (extraBytesPerDay > 0L) extraBytesPerDay * extraShare else 0.0
             val inWindow = millis(segmentStart, segmentEnd).toDouble() / millis(segmentStart, nextDayStart)
-            val segmentBytes = dayBytes * ahead * inWindow
+            val segmentBytes = (baseBytes + extraBytes) * inWindow
             if (runOut == null && segmentBytes > 0.0 && cumulative + segmentBytes >= remaining) {
                 val fraction = (remaining - cumulative) / segmentBytes
                 runOut = segmentStart.plusMillis((millis(segmentStart, segmentEnd) * fraction).roundToLong())

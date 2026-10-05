@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.engine.plan
 
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
+import io.github.khaledbahaaeldin.emberbyte.engine.model.CycleWindow
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
@@ -188,5 +189,18 @@ class PlanCalculatorTest {
         assertEquals(0, state(plan = plan(cap = 0L)).percentUsed())
         val over = state(plan = plan(cap = 1_000_000_000L), usage = listOf(slice("2026-10-10T10:00:00Z", 1, 100_000_000_000L)))
         assertEquals(9_999, over.percentUsed())
+    }
+
+    @Test fun free_bytes_calculates_free_traffic_inside_window() {
+        val night = rule(1, allDays, LocalTime.of(0, 0), LocalTime.of(6, 0))
+        val slices = listOf(
+            slice("2026-10-10T02:00:00Z", 1, 1_000_000_000L),
+            slice("2026-10-10T07:00:00Z", 1, 500L),
+        )
+        val p = plan()
+        val octoberWindow = CycleWindow(Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-11-01T00:00:00Z"))
+        val laterWindow = CycleWindow(Instant.parse("2026-10-11T00:00:00Z"), Instant.parse("2026-10-12T00:00:00Z"))
+        assertEquals(1_000_000_000L, PlanCalculator.freeBytes(p, slices, listOf(night), octoberWindow))
+        assertEquals(0L, PlanCalculator.freeBytes(p, slices, listOf(night), laterWindow))
     }
 }
