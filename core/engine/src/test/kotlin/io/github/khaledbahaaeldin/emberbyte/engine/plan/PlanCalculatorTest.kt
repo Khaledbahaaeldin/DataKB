@@ -180,4 +180,13 @@ class PlanCalculatorTest {
         assertTrue(state(approximate = true).isApproximate)
         assertFalse(state(approximate = false).isApproximate)
     }
+
+    @Test fun percent_used_is_rounded_down_and_capped() {
+        val p = plan(cap = 10_000_000_000L)
+        val s = state(plan = p, usage = listOf(slice("2026-10-10T10:00:00Z", 1, 4_900_000_000L)))
+        assertEquals(49, s.percentUsed())
+        assertEquals(0, state(plan = plan(cap = 0L)).percentUsed())
+        val over = state(plan = plan(cap = 1_000_000_000L), usage = listOf(slice("2026-10-10T10:00:00Z", 1, 100_000_000_000L)))
+        assertEquals(9_999, over.percentUsed())
+    }
 }

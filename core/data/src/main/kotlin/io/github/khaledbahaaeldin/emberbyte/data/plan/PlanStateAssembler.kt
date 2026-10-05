@@ -52,7 +52,7 @@ internal object PlanStateAssembler {
             // No chained rollover: the previous cycle is evaluated as if it had none (contract 10.1).
             PlanCalculator.state(
                 plan.copy(rollover = Rollover.None), previous.end.minusMillis(1),
-                slices(plan, rules, previous, rows), addOns, rules, 0L, false,
+                slices(plan, rules, previous, rows), emptyList(), rules, 0L, false,
             ).remainingBytes
         }
         return PlanCalculator.state(plan, now, slices, addOns, rules, previousUnused, approximate(plan, window, now, rows))
@@ -95,6 +95,17 @@ internal object PlanStateAssembler {
             it.network == NetworkKind.MOBILE && it.totalBytes > 0L && it.minuteStart >= window.start && it.minuteStart < to && it.subscriptionId != bound
         }
         val gap = rows.gaps.any { it.reason in APPROXIMATE_GAPS && it.to > window.start && it.from < to }
-        return otherSim || gap
+        val unknownSimForBoundPlan = bound != null && (
+            rows.minutes.any {
+                it.network == NetworkKind.MOBILE && it.totalBytes > 0L && it.minuteStart >= window.start && it.minuteStart < to && it.subscriptionId == -1
+            } || rows.hourly.any {
+                it.network == NetworkKind.MOBILE && it.totalBytes > 0L && it.hourStart >= SeriesBuilder.windowStart(window.start) && it.hourStart < to && it.subscriptionId == -1
+            }
+        )
+        val startsBeforeFirstMeasurement = run {
+            val earliest = listOfNotNull(rows.minutes.minOfOrNull { it.minuteStart }, rows.hourly.minOfOrNull { it.hourStart }).minOrNull()
+            earliest != null && earliest > window.start.plusSeconds(SeriesBuilder.WINDOW_SECONDS)
+        }
+        return otherSim || gap || unknownSimForBoundPlan || startsBeforeFirstMeasurement
     }
 }

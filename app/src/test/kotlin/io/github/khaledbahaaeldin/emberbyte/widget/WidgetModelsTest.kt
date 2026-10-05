@@ -24,6 +24,10 @@ class WidgetModelsTest {
     @Test fun hero_shows_today_and_the_remaining_data() {
         assertEquals(HeroWidgetModel("1.24", "GB", "3.80 GB left"), heroWidgetModel(snapshot()))
     }
+    @Test fun hero_with_zero_remaining_says_no_data_left() {
+        val zeroPlan = planState(remaining = 0L)
+        assertEquals("No data left", heroWidgetModel(snapshot(plan = zeroPlan)).caption)
+    }
     @Test fun hero_without_a_plan_asks_for_one() {
         assertEquals("Set up a plan", heroWidgetModel(snapshot(plan = null)).caption)
     }

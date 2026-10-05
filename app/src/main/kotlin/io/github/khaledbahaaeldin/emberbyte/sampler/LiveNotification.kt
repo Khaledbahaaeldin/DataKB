@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import io.github.khaledbahaaeldin.emberbyte.R
+import io.github.khaledbahaaeldin.emberbyte.common.remainingText
 import io.github.khaledbahaaeldin.emberbyte.nav.DeepLinks
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
@@ -22,8 +23,7 @@ fun liveNotificationText(
     val today = formatBytes(todayBytes, units)
     val parts = buildList {
         if (remainingBytes != null) {
-            val left = formatBytes(remainingBytes, units)
-            add(if (remainingBytes <= 0L) "No data left" else "${left.value} ${left.unit} left")
+            add(remainingText(remainingBytes, units))
         }
         if (showSpeed) {
             val speed = formatBytes(rxBps, units)

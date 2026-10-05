@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.data.plan
 
+import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageGap
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
@@ -45,7 +46,11 @@ class PlanStateAssemblerTest {
     }
 
     @Test fun a_bound_plan_counts_only_its_sim_and_is_marked_approximate_when_another_sim_was_used() {
-        val r = rows(listOf(minute("2026-10-10T10:00:00Z", 1_000_000_000L, sub = 1), minute("2026-10-11T10:00:00Z", 400_000_000L, sub = 2)))
+        val r = rows(listOf(
+            minute("2026-10-01T00:00:00Z", 0L, sub = 2),
+            minute("2026-10-10T10:00:00Z", 1_000_000_000L, sub = 1),
+            minute("2026-10-11T10:00:00Z", 400_000_000L, sub = 2),
+        ))
         val bound = state(plan(sub = 2), r)
         assertEquals(400_000_000L, bound.usedBytes)
         assertTrue(bound.isApproximate)
@@ -55,7 +60,10 @@ class PlanStateAssemblerTest {
     }
 
     @Test fun a_bound_plan_whose_only_traffic_is_its_own_sim_is_exact() {
-        val s = state(plan(sub = 2), rows(listOf(minute("2026-10-11T10:00:00Z", 400_000_000L, sub = 2))))
+        val s = state(plan(sub = 2), rows(listOf(
+            minute("2026-10-01T00:00:00Z", 0L, sub = 2),
+            minute("2026-10-11T10:00:00Z", 400_000_000L, sub = 2),
+        )))
         assertFalse(s.isApproximate)
     }
 
@@ -113,5 +121,59 @@ class PlanStateAssemblerTest {
         val from = PlanStateAssembler.rowsFrom(plan(), now)
         assertTrue(from <= Instant.parse("2026-09-17T00:00:00Z").minusSeconds(7200))   // 28 days before 15 Oct
         assertTrue(from <= Instant.parse("2026-09-01T00:00:00Z").minusSeconds(7200))   // start of the previous window
+    }
+
+    @Test fun rollover_excludes_add_ons_from_the_previous_cycle() {
+        val plan = Plan(1, "Main", null, 10_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.Full)
+        // Add-on of 2 GB spanning renewal (2026-09-20 to 2026-10-10)
+        val spanningAddOn = AddOn(1, 1, "Boost", 2_000_000_000L, Instant.parse("2026-09-20T00:00:00Z"), Instant.parse("2026-10-10T00:00:00Z"))
+        // Usage in previous window (Sept) is 3 GB
+        val r = rows(listOf(minute("2026-09-10T10:00:00Z", 3_000_000_000L)))
+        val s = PlanStateAssembler.state(plan, listOf(spanningAddOn), emptyList(), now, r)
+        assertEquals(7_000_000_000L, s.rolledOverBytes)
+        assertEquals(2_000_000_000L, s.addOnBytes)
+        assertEquals(19_000_000_000L, s.effectiveCapBytes)
+
+        // Add-on valid ONLY in Sept (2026-09-01 to 2026-09-30)
+        val septAddOn = AddOn(2, 1, "Sept Boost", 2_000_000_000L, Instant.parse("2026-09-01T00:00:00Z"), Instant.parse("2026-09-30T00:00:00Z"))
+        val s2 = PlanStateAssembler.state(plan, listOf(septAddOn), emptyList(), now, r)
+        assertEquals(7_000_000_000L, s2.rolledOverBytes)
+        assertEquals(0L, s2.addOnBytes)
+    }
+
+    @Test fun a_bound_plan_with_unknown_subscription_is_marked_approximate() {
+        val rMinute = rows(listOf(
+            minute("2026-10-01T00:00:00Z", 0L, sub = 2),
+            minute("2026-10-10T10:00:00Z", 100_000_000L, sub = -1),
+        ))
+        assertTrue(state(plan(sub = 2), rMinute).isApproximate)
+        assertFalse(state(plan(sub = null), rMinute).isApproximate)
+
+        val rHourly = rows(
+            minutes = listOf(minute("2026-10-01T00:00:00Z", 0L, sub = 2)),
+            hourly = listOf(HourlyUsage(Instant.parse("2026-10-10T10:00:00Z"), 10001, NetworkKind.MOBILE, -1, 100_000_000L, 0)),
+        )
+        assertTrue(state(plan(sub = 2), rHourly).isApproximate)
+        assertFalse(state(plan(sub = null), rHourly).isApproximate)
+
+        val rSub2Only = rows(listOf(
+            minute("2026-10-01T00:00:00Z", 0L, sub = 2),
+            minute("2026-10-10T10:00:00Z", 100_000_000L, sub = 2),
+        ))
+        assertFalse(state(plan(sub = 2), rSub2Only).isApproximate)
+    }
+
+    @Test fun history_older_than_first_measurement_is_approximate() {
+        // window starts 2026-10-01T00:00:00Z
+        // rows start 10 days after window start (> 2h after window start)
+        val lateRows = rows(listOf(minute("2026-10-11T10:00:00Z", 100_000_000L)))
+        assertTrue(state(plan(), lateRows).isApproximate)
+
+        // rows cover window start (earliest <= window.start + 2h)
+        val coveringRows = rows(listOf(minute("2026-10-01T01:00:00Z", 100_000_000L)))
+        assertFalse(state(plan(), coveringRows).isApproximate)
+
+        // no rows at all -> false
+        assertFalse(state(plan(), rows()).isApproximate)
     }
 }

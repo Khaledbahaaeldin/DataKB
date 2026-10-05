@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.data.alert
 
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStore
+import io.github.khaledbahaaeldin.emberbyte.engine.plan.percentUsed
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 
@@ -17,7 +18,7 @@ class AlertEvaluator(private val plans: PlanRepository, private val store: PlanS
         for (state in plans.observeActivePlanStates().first()) {
             val cap = state.effectiveCapBytes
             if (cap <= 0L) continue
-            val percent = (state.usedBytes * 100 / cap).coerceAtMost(1_000L).toInt()
+            val percent = state.percentUsed()
             val last = store.lastFiredPercent(state.plan.id, state.window.start) ?: 0
             val top = store.alertRules(state.plan.id)
                 .filter { it.enabled && it.thresholdPercent <= percent && it.thresholdPercent > last }

@@ -32,7 +32,7 @@ fun PlanCard(model: PlanCardUi, onClick: () -> Unit, modifier: Modifier = Modifi
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            BudgetRing(model.fraction, model.ringState)
+            BudgetRing(model.fraction, model.ringState, percentText = model.percentText)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(model.name, style = MaterialTheme.typography.titleMedium)
                 model.simLabel?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }

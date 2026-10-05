@@ -41,4 +41,14 @@ class BudgetRingTest {
         show(Float.NaN, BudgetStateUi.Ok)
         rule.onNodeWithText("0%").assertIsDisplayed()
     }
+
+    @Test fun custom_percent_text_overrides_float_derived_text_and_description() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                BudgetRing(0.49f, BudgetStateUi.Ok, percentText = "49%")
+            }
+        }
+        rule.onNodeWithContentDescription("49 percent of the plan used").assertIsDisplayed()
+        rule.onNodeWithText("49%").assertIsDisplayed()
+    }
 }

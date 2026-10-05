@@ -122,6 +122,27 @@ class HomeMappingM3Test {
             zone = ZoneOffset.UTC,
             locale = Locale.ENGLISH,
         )
-        assertEquals("0 B left · data used up", outUi.subtitle)
+        assertEquals("No data left", outUi.subtitle)
+    }
+
+    @Test fun run_out_latest_null_says_could_be_later() {
+        val f = forecast("2026-10-11T12:00:00Z", "2026-10-12T12:00:00Z", null)
+        val u = ui(f)
+        assertEquals("runs out Mon (could be later)", forecastSentence(u))
+    }
+
+    @Test fun expected_in_past_with_remaining_data_says_runs_out_today() {
+        val f = forecast("2026-10-10T12:00:00Z", "2026-10-10T12:00:00Z", "2026-10-10T12:00:00Z")
+        val withRemaining = forecastToUi(f, now, ZoneOffset.UTC, Locale.ENGLISH, remainingBytes = 500L)
+        assertEquals(ForecastKind.RunsOut, withRemaining.kind)
+        assertEquals("runs out today", forecastSentence(withRemaining))
+
+        val zeroRemaining = forecastToUi(f, now, ZoneOffset.UTC, Locale.ENGLISH, remainingBytes = 0L)
+        assertEquals(ForecastKind.Out, zeroRemaining.kind)
+        assertEquals("Data used up", forecastSentence(zeroRemaining))
+
+        val nullRemaining = forecastToUi(f, now, ZoneOffset.UTC, Locale.ENGLISH, remainingBytes = null)
+        assertEquals(ForecastKind.Out, nullRemaining.kind)
+        assertEquals("Data used up", forecastSentence(nullRemaining))
     }
 }

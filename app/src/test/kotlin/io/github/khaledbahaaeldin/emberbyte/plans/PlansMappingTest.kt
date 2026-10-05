@@ -69,4 +69,10 @@ class PlansMappingTest {
         assertTrue(c.isEstimated)
         assertFalse(c.archived)
     }
+
+    @Test fun percentage_uses_percent_used_calculation() {
+        val c = card(state(4_900_000_000L))
+        assertEquals("49%", c.percentText)
+        assertEquals("5.10 GB left", c.remainingText)
+    }
 }

@@ -30,9 +30,17 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.LocalReduceMotion
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun BudgetRing(fraction: Float, state: BudgetStateUi, modifier: Modifier = Modifier, size: Dp = 72.dp) {
+fun BudgetRing(
+    fraction: Float,
+    state: BudgetStateUi,
+    modifier: Modifier = Modifier,
+    size: Dp = 72.dp,
+    percentText: String? = null,
+) {
     val safe = if (fraction.isNaN() || fraction < 0f) 0f else fraction
     val percent = (safe * 100f).toInt()
+    val displayText = percentText ?: "$percent%"
+    val descNumber = percentText?.removeSuffix("%") ?: percent.toString()
     val reduceMotion = LocalReduceMotion.current
     val sweep by animateFloatAsState(
         targetValue = minOf(safe, 1f),
@@ -47,7 +55,7 @@ fun BudgetRing(fraction: Float, state: BudgetStateUi, modifier: Modifier = Modif
     }
     val track = scheme.surfaceContainerHighest
     val description = buildString {
-        append("$percent percent of the plan used")
+        append("$descNumber percent of the plan used")
         when (state) {
             BudgetStateUi.Warning -> append(", nearly used up")
             BudgetStateUi.Exceeded -> append(", over the cap")
@@ -65,7 +73,7 @@ fun BudgetRing(fraction: Float, state: BudgetStateUi, modifier: Modifier = Modif
             drawArc(track, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
             if (sweep > 0f) drawArc(color, -90f, 360f * sweep, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
         }
-        Text("$percent%", style = MaterialTheme.typography.labelLarge, color = scheme.onSurface)
+        Text(displayText, style = MaterialTheme.typography.labelLarge, color = scheme.onSurface)
         // A state is never colour only: warning and exceeded also show an icon in the corner.
         if (state != BudgetStateUi.Ok) {
             Icon(

@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.home
 
 import io.github.khaledbahaaeldin.emberbyte.common.forecastSentence
 import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
+import io.github.khaledbahaaeldin.emberbyte.common.remainingText
 import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
 import io.github.khaledbahaaeldin.emberbyte.common.weekdayBars
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
@@ -51,16 +52,20 @@ private fun Forecast.neverRunsOut(): Boolean =
     runOutEarliest == null && runOutExpected == null && runOutLatest == null
 
 @JvmName("forecastToUiOrNull")
-internal fun forecastToUi(forecast: Forecast?, now: Instant, zone: ZoneId, locale: Locale): ForecastUi? =
-    forecast?.let { forecastToUi(it, now, zone, locale) }
+internal fun forecastToUi(forecast: Forecast?, now: Instant, zone: ZoneId, locale: Locale, remainingBytes: Long? = null): ForecastUi? =
+    forecast?.let { forecastToUi(it, now, zone, locale, remainingBytes) }
 
-internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale: Locale): ForecastUi {
+internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale: Locale, remainingBytes: Long? = null): ForecastUi {
     if (forecast.neverRunsOut()) {
         return ForecastUi("Safe", "Won't run out this cycle", confidenceLabel(forecast.confidence), ForecastKind.Safe)
     }
     val expected = forecast.runOutExpected
     if (expected != null && expected <= now) {
-        return ForecastUi("Out", "Data used up", confidenceLabel(forecast.confidence), ForecastKind.Out)
+        return if (remainingBytes == null || remainingBytes <= 0L) {
+            ForecastUi("Out", "Data used up", confidenceLabel(forecast.confidence), ForecastKind.Out)
+        } else {
+            ForecastUi("today", "runs out", confidenceLabel(forecast.confidence), ForecastKind.RunsOut)
+        }
     }
     if (expected == null && forecast.runOutEarliest != null) {
         val early = forecast.runOutEarliest!!
@@ -83,9 +88,10 @@ internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale
         forecast.runOutEarliest?.let { daysBetween(at, it) } ?: 0L,
         forecast.runOutLatest?.let { daysBetween(at, it) } ?: 0L,
     )
-    val detail = when (spread) {
-        0L -> "runs out"
-        1L -> "runs out (±1 day)"
+    val detail = when {
+        forecast.runOutLatest == null && forecast.runOutEarliest != null -> "runs out (could be later)"
+        spread == 0L -> "runs out"
+        spread == 1L -> "runs out (±1 day)"
         else -> "runs out (±$spread days)"
     }
     return ForecastUi(headline, detail, confidenceLabel(forecast.confidence))
@@ -113,7 +119,7 @@ internal fun buildHomeUiState(
 
     val bars = weekdayBars(week, byteUnits, zone, locale)
 
-    val forecastUi = forecastToUi(forecast, now, zone, locale)
+    val forecastUi = forecastToUi(forecast, now, zone, locale, planState?.remainingBytes)
     val isToday = validSelection == null
 
     val heroBytes: Long
@@ -128,8 +134,8 @@ internal fun buildHomeUiState(
             if (planState != null) append(", ${spokenBytes(planState.remainingBytes, byteUnits)} left")
         }
         subtitle = planState?.let {
-            val left = "${plainBytes(it.remainingBytes, byteUnits)} left"
-            if (forecastUi == null) left
+            val left = remainingText(it.remainingBytes, byteUnits)
+            if (it.remainingBytes <= 0L || forecastUi == null) left
             else "$left · ${forecastSentence(forecastUi).replaceFirstChar { c -> c.lowercase() }}"
         }
     } else {

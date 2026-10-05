@@ -78,4 +78,10 @@ class AlertEvaluatorTest {
         assertEquals(4_800_000_000L, n.remainingBytes)
         assertEquals(repo(october).observeForecast(id).first()!!.runOutExpected, n.runOutExpected)   // the same forecast the Plans screen shows
     }
+
+    @Test fun evaluator_uses_integer_percent_used() = runBlocking {
+        plan(rules = listOf(49, 50)); use(4_900_000_000L) // 49% of 10 GB
+        val n = evaluator().evaluate().single()
+        assertEquals(49, n.thresholdPercent)
+    }
 }

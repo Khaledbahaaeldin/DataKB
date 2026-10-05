@@ -54,3 +54,7 @@ object PlanCalculator {
         is Cycle.EveryNDays -> cycle.zone
     }
 }
+
+fun PlanState.percentUsed(): Int =
+    if (effectiveCapBytes <= 0L) 0 else (usedBytes * 100 / effectiveCapBytes).coerceAtMost(9_999L).toInt()
+
