@@ -19,6 +19,7 @@ flexible data plans with per-SIM binding, add-on packs, free windows, rollover, 
 - New traffic can take up to about 5 minutes to appear in Today (O-1).
 - "Measurement paused" only appears after the system or a vendor kills the service, and force-stopping Emberbyte stops measuring until it is opened again (N-10).
 - The forecast's history includes free-window traffic, so plans with free windows may be projected to run out too early.
+- The forecast uses a built-in hour-of-day curve, not yours.
 - Per-SIM history is estimated when more than one SIM was used (backend spec section 5).
 - A plan bound to a SIM is marked "Estimated" when part of its history has no SIM information (pre-install or backfilled traffic) or the window starts before Emberbyte's first measurement (for example without usage access).
 - Plan alerts need the app notification setting AND the 'Plan alerts' channel enabled.
