@@ -88,6 +88,13 @@ class SamplerService : Service() {
                     } catch (e: Exception) {
                         Log.w(TAG, "widget update failed", e)
                     }
+                    try {
+                        SpikeRunner.create(this@SamplerService, graph).run()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "spike check failed", e)
+                    }
                     delay(CATCH_UP_INTERVAL_MS)
                 }
             }
@@ -95,6 +102,15 @@ class SamplerService : Service() {
         launch {
             retrying("alerts") {
                 val runner = AlertRunner.create(this@SamplerService, graph)
+                while (true) {
+                    runner.run()
+                    delay(60_000L)
+                }
+            }
+        }
+        launch {
+            retrying("budgets") {
+                val runner = BudgetRunner.create(this@SamplerService, graph)
                 while (true) {
                     runner.run()
                     delay(60_000L)

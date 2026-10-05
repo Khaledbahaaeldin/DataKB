@@ -8,18 +8,26 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.khaledbahaaeldin.emberbyte.data.AndroidPermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.AppPreferences
+import io.github.khaledbahaaeldin.emberbyte.data.BudgetRepository
 import io.github.khaledbahaaeldin.emberbyte.data.OnboardingRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.RoomUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.Settings
+import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
+import io.github.khaledbahaaeldin.emberbyte.data.SpikeRepository
+import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
 import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertEvaluator
 import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertRepository
 import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
+import io.github.khaledbahaaeldin.emberbyte.data.budget.BudgetEvaluator
+import io.github.khaledbahaaeldin.emberbyte.data.budget.BudgetStores
+import io.github.khaledbahaaeldin.emberbyte.data.budget.RoomBudgetRepository
 import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStores
 import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
-import io.github.khaledbahaaeldin.emberbyte.data.Settings
-import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
-import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
+import io.github.khaledbahaaeldin.emberbyte.data.spike.SpikeEvaluator
+import io.github.khaledbahaaeldin.emberbyte.data.spike.SpikeStores
 import io.github.khaledbahaaeldin.emberbyte.data.android.AndroidSimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.AppOpsUsageAccess
 import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfoSource
@@ -68,6 +76,14 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     val plans: PlanRepository = RoomPlanRepository(planStore, store, clock)
     val alerts: AlertRepository = RoomAlertRepository(planStore)
     val alertEvaluator = AlertEvaluator(plans, planStore)
+
+    val budgetStore = BudgetStores.create(appContext)
+    val spikeStore = SpikeStores.create(appContext)
+    private val budgetsImpl = RoomBudgetRepository(budgetStore, planStore, store, clock)
+    val budgets: BudgetRepository = budgetsImpl
+    val spikes: SpikeRepository = RoomSpikeRepository(spikeStore)
+    val budgetEvaluator = BudgetEvaluator({ budgetsImpl.currentPeriodStatuses() }, budgetStore)
+    val spikeEvaluator = SpikeEvaluator(store, spikeStore, clock)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

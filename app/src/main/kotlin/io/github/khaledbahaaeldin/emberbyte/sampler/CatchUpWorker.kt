@@ -29,11 +29,25 @@ class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             Log.w(TAG, "widget update failed", e)
         }
         try {
+            SpikeRunner.create(applicationContext, graph).run()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "spike runner failed", e)
+        }
+        try {
             AlertRunner.create(applicationContext, graph).run()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "alert runner failed", e)
+        }
+        try {
+            BudgetRunner.create(applicationContext, graph).run()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "budget runner failed", e)
         }
         CatchUpRecovery.afterCatchUp(applicationContext, graph)
         return Result.success()

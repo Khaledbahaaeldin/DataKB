@@ -38,4 +38,15 @@ class AlertGateTest {
         shadowOf(manager).setNotificationsEnabled(false)
         assertFalse(AlertGate.isEnabled(app))
     }
+
+    @Test fun alert_gate_is_disabled_when_specified_channel_importance_is_none() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val manager = app.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(NotificationChannels.SPIKES, "Spike alerts", NotificationManager.IMPORTANCE_NONE)
+        )
+        NotificationChannels.ensure(app)
+        assertFalse(AlertGate.isEnabled(app, NotificationChannels.SPIKES))
+    }
 }
+

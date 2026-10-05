@@ -9,8 +9,9 @@ object NotificationChannels {
     const val LIVE = "live"
     const val STATUS = "status"
     const val ALERTS = "alerts"
+    const val SPIKES = "spikes"
 
-    /** Creates the channels (idempotent). `live`, `status` and `alerts` exist; `lens` and `spikes` come with their features. */
+    /** Creates the channels (idempotent). `live`, `status`, `alerts` and `spikes` exist; `lens` comes with its feature. */
     fun ensure(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
@@ -31,6 +32,11 @@ object NotificationChannels {
         manager.createNotificationChannel(
             NotificationChannel(ALERTS, context.getString(R.string.channel_alerts_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = context.getString(R.string.channel_alerts_description)
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(SPIKES, context.getString(R.string.channel_spikes_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.channel_spikes_description)
             },
         )
     }
