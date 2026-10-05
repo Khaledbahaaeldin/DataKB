@@ -67,6 +67,7 @@ class SamplerEngine(
         if (checkpoint != null && Duration.between(checkpoint.at, snapshot.at).toMillis() > GAP_THRESHOLD_MS) {
             val reason = if (checkpoint.bootId != snapshot.bootId) GapReason.REBOOT else GapReason.SERVICE_KILLED
             store.insertGap(CoverageGap(checkpoint.at, snapshot.at, reason))
+            store.saveCheckpoint(CHECKPOINT_SAMPLER_TOTAL, CounterReading(snapshot.at, snapshot.totalRxBytes, snapshot.totalTxBytes, snapshot.bootId))
         }
         previousMobile = CounterReading(snapshot.at, snapshot.mobileRxBytes, snapshot.mobileTxBytes, snapshot.bootId)
         previousTotal = CounterReading(snapshot.at, snapshot.totalRxBytes, snapshot.totalTxBytes, snapshot.bootId)

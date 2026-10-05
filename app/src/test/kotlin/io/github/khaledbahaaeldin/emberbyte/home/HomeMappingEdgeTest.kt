@@ -27,11 +27,11 @@ class HomeMappingEdgeTest {
         assertEquals("runs out", ui.detail)
     }
 
-    @Test fun forecast_without_expected_falls_back_to_earliest_and_uses_the_latest_spread() {
-        // at = earliest (day 2, Wed); latest is 3 days later
+    @Test fun forecast_without_expected_says_probably_safe_and_names_the_earliest_day() {
+        // Under M3 contract 10.4, expected == null with earliest != null is ProbablySafe
         val ui = forecastToUi(forecast(2, null, 5), now, ZoneOffset.UTC, Locale.ENGLISH)
-        assertEquals("Wed", ui.headline)
-        assertEquals("runs out (±3 days)", ui.detail)
+        assertEquals("Probably safe", ui.headline)
+        assertEquals("Could run out as early as Wed", ui.detail)
     }
 
     @Test fun forecast_weekday_follows_the_zone_and_the_locale() {

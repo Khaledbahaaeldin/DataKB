@@ -20,4 +20,12 @@ class NavBarVisibilityTest {
         assertEquals(Offset.Zero, up)
         assertTrue(nav.visible)
     }
+
+    @Test fun show_restores_visibility_after_being_hidden() {
+        val nav = NavBarVisibility(thresholdPx = 40f)
+        nav.connection.onPreScroll(Offset(0f, -50f), NestedScrollSource.UserInput)
+        assertFalse(nav.visible)
+        nav.show()
+        assertTrue(nav.visible)
+    }
 }

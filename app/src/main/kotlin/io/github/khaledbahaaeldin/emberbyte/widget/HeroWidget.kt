@@ -1,0 +1,60 @@
+package io.github.khaledbahaaeldin.emberbyte.widget
+
+import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.GlanceId
+import androidx.glance.GlanceModifier
+import androidx.glance.GlanceTheme
+import androidx.glance.LocalSize
+import androidx.glance.action.Action
+import androidx.glance.action.clickable
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.appwidget.provideContent
+import androidx.glance.background
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Column
+import androidx.glance.layout.Row
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.padding
+import androidx.glance.text.FontWeight
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import io.github.khaledbahaaeldin.emberbyte.EmberbyteApplication
+import io.github.khaledbahaaeldin.emberbyte.nav.DeepLinks
+
+class HeroWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(110.dp, 110.dp), DpSize(250.dp, 110.dp)))
+
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val graph = (context.applicationContext as EmberbyteApplication).graph
+        val model = heroWidgetModel(WidgetData.load(graph.usage, graph.plans, graph.settings, graph.clock))
+        val open = actionStartActivity(DeepLinks.intent(context, DeepLinks.HOME))
+        provideContent { GlanceTheme { HeroContent(model, open) } }
+    }
+}
+
+class HeroWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = HeroWidget()
+}
+
+@Composable
+private fun HeroContent(model: HeroWidgetModel, open: Action) {
+    val wide = LocalSize.current.width >= 250.dp
+    Column(
+        GlanceModifier.fillMaxSize().background(GlanceTheme.colors.widgetBackground).padding(12.dp).clickable(open),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Today", style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(model.number, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = if (wide) 44.sp else 36.sp, fontWeight = FontWeight.Bold))
+            Text(" ${model.unit}", style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp))
+        }
+        Text(model.caption, style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 14.sp))
+    }
+}

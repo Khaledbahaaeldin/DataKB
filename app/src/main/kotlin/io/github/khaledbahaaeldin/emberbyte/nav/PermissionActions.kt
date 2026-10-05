@@ -3,19 +3,19 @@ package io.github.khaledbahaaeldin.emberbyte.nav
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityCompat
 import io.github.khaledbahaaeldin.emberbyte.AppGraph
 import kotlinx.coroutines.launch
 
@@ -23,11 +23,13 @@ import kotlinx.coroutines.launch
 class PermissionActions(
     val openUsageAccess: () -> Unit,
     val requestNotifications: () -> Unit,
+    val requestPhoneState: () -> Unit = {},
 ) {
     fun onPrompt(id: String) {
         when (id) {
             "usage_access" -> openUsageAccess()
             "notifications" -> requestNotifications()
+            "phone_state" -> requestPhoneState()
         }
     }
 }
@@ -36,27 +38,67 @@ class PermissionActions(
 fun rememberPermissionActions(graph: AppGraph): PermissionActions {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var asked by rememberSaveable { mutableStateOf(false) }
+    val activity = remember(context) { context.findComponentActivity() }
+    val prefs = remember(context) { context.getSharedPreferences("permission_prefs", Context.MODE_PRIVATE) }
+    val askedTracker = remember(prefs) { AskedTracker(prefs) }
+
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        askedTracker.markResult(Manifest.permission.POST_NOTIFICATIONS)
         scope.launch { graph.permissions.recheck() }
     }
-    return remember(context, launcher) {
+    val phoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        askedTracker.markResult(Manifest.permission.READ_PHONE_STATE)
+        scope.launch { graph.permissions.recheck() }
+    }
+
+    return remember(context, launcher, phoneLauncher, activity, askedTracker) {
         PermissionActions(
             openUsageAccess = { context.startActivityOrIgnore(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS)) },
             requestNotifications = {
-                if (Build.VERSION.SDK_INT >= 33 && !asked) {
-                    asked = true
-                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (Build.VERSION.SDK_INT >= 33) {
+                    val asked = askedTracker.asked(Manifest.permission.POST_NOTIFICATIONS)
+                    val showRationale = activity != null && ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
+                    when (PermissionRequestPolicy.decide(asked, showRationale)) {
+                        PermissionDecision.Launch -> {
+                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        PermissionDecision.OpenSettings -> {
+                            context.startActivityOrIgnore(
+                                Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName),
+                            )
+                        }
+                    }
                 } else {
-                    // Already asked (the system will not show the dialog again) or below Android 13: open the settings.
                     context.startActivityOrIgnore(
                         Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
                             .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName),
                     )
                 }
             },
+            requestPhoneState = {
+                val asked = askedTracker.asked(Manifest.permission.READ_PHONE_STATE)
+                val showRationale = activity != null && ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.READ_PHONE_STATE)
+                when (PermissionRequestPolicy.decide(asked, showRationale)) {
+                    PermissionDecision.Launch -> {
+                        phoneLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                    }
+                    PermissionDecision.OpenSettings -> {
+                        context.startActivityOrIgnore(
+                            Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                .setData(Uri.fromParts("package", context.packageName, null)),
+                        )
+                    }
+                }
+            },
         )
     }
+}
+
+private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
 }
 
 private fun Context.startActivityOrIgnore(intent: Intent) {

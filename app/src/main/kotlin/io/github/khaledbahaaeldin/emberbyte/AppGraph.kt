@@ -1,20 +1,28 @@
 package io.github.khaledbahaaeldin.emberbyte
 
 import android.content.Context
+import android.text.format.DateFormat
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.khaledbahaaeldin.emberbyte.data.AndroidPermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.AppPreferences
-import io.github.khaledbahaaeldin.emberbyte.data.NoPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.OnboardingRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.RoomUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertEvaluator
+import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertRepository
+import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
+import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStores
+import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.android.AndroidSimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.AppOpsUsageAccess
+import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.ConnectivityNetworkKindSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.NetworkStatsManagerSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.PackageManagerAppInfoSource
@@ -31,6 +39,8 @@ import io.github.khaledbahaaeldin.emberbyte.apps.AppsViewModel
 import io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel
 import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
+import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
+import io.github.khaledbahaaeldin.emberbyte.plans.PlansViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
 import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +55,7 @@ import kotlinx.coroutines.flow.stateIn
  * Hand-written dependency graph (no DI framework). One instance per process, owned by [EmberbyteApplication].
  * Production wiring only: the `Fake*` classes in `:core:data` are for tests and previews.
  */
-class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
+class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     private val appContext = context.applicationContext
     private val preferences = AppPreferences.create(appContext)
     private val store: UsageStore = UsageStores.create(appContext)
@@ -53,7 +63,11 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     val settings: SettingsRepository = preferences.settings
     val onboarding: OnboardingRepository = preferences.onboarding
     val permissions: PermissionRepository = AndroidPermissionRepository(appContext)
-    val plans: PlanRepository = NoPlanRepository()
+    val simInfo: SimInfoSource = AndroidSimInfoSource(appContext)
+    internal val planStore = PlanStores.create(appContext)
+    val plans: PlanRepository = RoomPlanRepository(planStore, store, clock)
+    val alerts: AlertRepository = RoomAlertRepository(planStore)
+    val alertEvaluator = AlertEvaluator(plans, planStore)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -84,7 +98,7 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     suspend fun prune() = store.prune(clock.instant())
 
     fun homeViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { HomeViewModel(usage, plans, settings, permissions) }
+        initializer { HomeViewModel(usage, plans, settings, permissions, clock = clock, is24Hour = { DateFormat.is24HourFormat(appContext) }) }
     }
 
     fun appsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
@@ -104,6 +118,25 @@ class AppGraph(context: Context, private val clock: Clock = SystemZoneClock()) {
     }
 
     fun onboardingViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { OnboardingViewModel(onboarding, permissions) }
+        initializer { OnboardingViewModel(onboarding, permissions, plans) }
+    }
+
+    fun plansViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
+        initializer { PlansViewModel(plans, settings, simInfo, clock) }
+    }
+
+    fun planEditorViewModelFactory(planId: Long): ViewModelProvider.Factory = viewModelFactory {
+        initializer {
+            PlanEditorViewModel(
+                planId = planId,
+                plans = plans,
+                alerts = alerts,
+                settings = settings,
+                permissions = permissions,
+                sims = simInfo,
+                clock = clock,
+                savedStateHandle = createSavedStateHandle(),
+            )
+        }
     }
 }

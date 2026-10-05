@@ -1,6 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte.sampler
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Configuration
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -9,7 +10,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.khaledbahaaeldin.emberbyte.AppGraph
 import io.github.khaledbahaaeldin.emberbyte.EmberbyteApplication
+import io.github.khaledbahaaeldin.emberbyte.widget.WidgetUpdater
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
 /** Pulls per-app hourly usage even when the sampler service is not running, and tries to restart the service. */
@@ -18,8 +21,26 @@ class CatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val graph = (applicationContext as EmberbyteApplication).graph
         graph.catchUp.run()
         graph.prune()
+        try {
+            WidgetUpdater.updateAll(applicationContext)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "widget update failed", e)
+        }
+        try {
+            AlertRunner.create(applicationContext, graph).run()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "alert runner failed", e)
+        }
         CatchUpRecovery.afterCatchUp(applicationContext, graph)
         return Result.success()
+    }
+
+    companion object {
+        private const val TAG = "CatchUpWorker"
     }
 }
 

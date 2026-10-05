@@ -14,6 +14,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastKind
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
 import java.time.Instant
@@ -106,7 +107,7 @@ class HomeMappingTest {
 
     @Test fun forecast_that_never_runs_out_says_so() {
         val ui = forecastToUi(forecast(null, null, null, Confidence.HIGH), now, zone, locale)
-        assertEquals(ForecastUi("Safe", "Won't run out this cycle", "High confidence"), ui)
+        assertEquals(ForecastUi("Safe", "Won't run out this cycle", "High confidence", ForecastKind.Safe), ui)
     }
 
     @Test fun missing_forecast_is_null() = assertNull(forecastToUi(null, now, zone, locale))

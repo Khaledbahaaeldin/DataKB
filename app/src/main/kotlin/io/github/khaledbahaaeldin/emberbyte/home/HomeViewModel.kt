@@ -18,6 +18,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.Granularity
 import io.github.khaledbahaaeldin.emberbyte.engine.model.LiveSpeed
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanChipUi
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -43,6 +44,7 @@ private data class HomeData(
     val apps: List<AppUsage>,
     val week: List<UsagePoint>,
     val zone: ZoneId,
+    val planChips: List<PlanChipUi>,
 )
 
 private data class HomeBundle(val data: HomeData, val coverage: CoverageStatus, val permissions: PermissionState)
@@ -60,17 +62,23 @@ class HomeViewModel(
     private val clock: Clock = SystemZoneClock(),
     private val locale: Locale = Locale.getDefault(),
     dates: Flow<LocalDate> = DayClock(clock).dates(),
+    private val is24Hour: () -> Boolean = { true },
 ) : ViewModel() {
 
     private val selectedDay = MutableStateFlow<Int?>(null)
+    private val selectedPlanId = MutableStateFlow<Long?>(null)
 
     private val live: Flow<LiveSpeed?> = usage.observeLiveSpeed().map<LiveSpeed, LiveSpeed?> { it }.onStart { emit(null) }
 
-    private val planAndForecast: Flow<Pair<PlanState?, Forecast?>> =
-        plans.observeActivePlanStates().flatMapLatest { states ->
-            val state = states.firstOrNull()
-            if (state == null) flowOf<Pair<PlanState?, Forecast?>>(null to null)
-            else plans.observeForecast(state.plan.id).map { state to it }
+    private data class PlanBundle(val state: PlanState?, val forecast: Forecast?, val chips: List<PlanChipUi>)
+
+    private val planBundle: Flow<PlanBundle> =
+        combine(plans.observeActivePlanStates(), selectedPlanId) { states, selected ->
+            val chosen = states.firstOrNull { it.plan.id == selected } ?: states.firstOrNull()
+            chosen to states.map { PlanChipUi(it.plan.id, it.plan.name, it.plan.id == chosen?.plan?.id) }
+        }.flatMapLatest { (chosen, chips) ->
+            if (chosen == null) flowOf(PlanBundle(null, null, chips))
+            else plans.observeForecast(chosen.plan.id).map { PlanBundle(chosen, it, chips) }
         }
 
     private val data: Flow<HomeData> = dates.flatMapLatest { todayDate ->
@@ -81,11 +89,11 @@ class HomeViewModel(
         combine(
             usage.observeToday(),
             live,
-            planAndForecast,
+            planBundle,
             usage.observeApps(todayRange),
             usage.observeSeries(weekRange, Granularity.DAY),
-        ) { today, liveSpeed, pf, apps, week ->
-            HomeData(today, liveSpeed, pf.first, pf.second, apps, week, zone)
+        ) { today, liveSpeed, pb, apps, week ->
+            HomeData(today, liveSpeed, pb.state, pb.forecast, apps, week, zone, pb.chips)
         }
     }
 
@@ -107,12 +115,15 @@ class HomeViewModel(
             locale = locale,
             coverage = b.coverage,
             permissions = b.permissions,
+            planChips = b.data.planChips,
+            is24Hour = is24Hour(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
     fun onEvent(event: HomeEvent) {
         when (event) {
             is HomeEvent.SelectDay -> selectedDay.update { current -> if (current == event.index) null else event.index }
+            is HomeEvent.SelectPlan -> selectedPlanId.value = event.planId
         }
     }
 }

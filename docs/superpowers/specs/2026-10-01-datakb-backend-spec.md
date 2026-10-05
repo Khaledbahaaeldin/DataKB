@@ -155,8 +155,8 @@ App traffic ─► TUN interface ─► packet loop ─► per-flow table ─►
 - **Live notification** (`live` channel): ongoing; title is today's usage, text is remaining data and speed
   when `notificationShowsSpeed`. On Android 16+ it uses the progress-style (live update) template;
   earlier versions use a standard ongoing notification. Updated at most once per second.
-- **Widgets** read repositories through `HeroWidget` and `BentoWidget` (contract §6). They are never the
-  only holder of state: killing the app does not blank them.
+- **Widgets** read repositories through `HeroWidget` and `BentoWidget` (contract §6, §10.3). They are never the
+  only holder of state: killing the app does not blank them. They refresh after each catch-up cycle (5 min with the service, 15 min without).
 
 ## 10. Permissions and manifest
 

@@ -27,6 +27,11 @@ class NavBarVisibility internal constructor(thresholdPx: Float) {
             return Offset.Zero
         }
     }
+
+    fun show() {
+        tracker.reset()
+        visible = true
+    }
 }
 
 @Composable

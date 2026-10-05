@@ -42,11 +42,11 @@ class HourlyCatchUpTest {
         assertTrue(source.queries.isEmpty())
     }
 
-    @Test fun the_first_run_backfills_seven_days_one_two_hour_window_at_a_time() = runBlocking {
+    @Test fun the_first_run_backfills_twenty_eight_days_one_two_hour_window_at_a_time() = runBlocking {
         val source = FakeNetworkStatsSource()
-        assertEquals(CatchUpResult.Done(7 * 12 + 1), catchUp(source).run())
-        assertEquals((7 * 12 + 1) * 2, source.queries.size)
-        assertEquals(Instant.parse("2026-09-30T10:00:00Z"), source.queries.minOf { it.second })
+        assertEquals(CatchUpResult.Done(28 * 12 + 1), catchUp(source).run())
+        assertEquals((28 * 12 + 1) * 2, source.queries.size)
+        assertEquals(Instant.parse("2026-09-09T10:00:00Z"), source.queries.minOf { it.second })
         // every closed window is queried over its full two hours
         assertTrue(source.queries.contains(Triple(NetworkKind.MOBILE, window08, window10)))
     }

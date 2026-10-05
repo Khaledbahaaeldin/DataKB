@@ -1,6 +1,8 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import io.github.khaledbahaaeldin.emberbyte.common.forecastSentence
 import io.github.khaledbahaaeldin.emberbyte.common.plainBytes
+import io.github.khaledbahaaeldin.emberbyte.common.remainingText
 import io.github.khaledbahaaeldin.emberbyte.common.spokenBytes
 import io.github.khaledbahaaeldin.emberbyte.common.weekdayBars
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
@@ -18,10 +20,12 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastKind
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanChipUi
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -48,14 +52,30 @@ private fun Forecast.neverRunsOut(): Boolean =
     runOutEarliest == null && runOutExpected == null && runOutLatest == null
 
 @JvmName("forecastToUiOrNull")
-internal fun forecastToUi(forecast: Forecast?, now: Instant, zone: ZoneId, locale: Locale): ForecastUi? =
-    forecast?.let { forecastToUi(it, now, zone, locale) }
+internal fun forecastToUi(forecast: Forecast?, now: Instant, zone: ZoneId, locale: Locale, remainingBytes: Long? = null): ForecastUi? =
+    forecast?.let { forecastToUi(it, now, zone, locale, remainingBytes) }
 
-internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale: Locale): ForecastUi {
+internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale: Locale, remainingBytes: Long? = null): ForecastUi {
     if (forecast.neverRunsOut()) {
-        return ForecastUi("Safe", "Won't run out this cycle", confidenceLabel(forecast.confidence))
+        return ForecastUi("Safe", "Won't run out this cycle", confidenceLabel(forecast.confidence), ForecastKind.Safe)
     }
     val expected = forecast.runOutExpected
+    if (expected != null && expected <= now) {
+        return if (remainingBytes == null || remainingBytes <= 0L) {
+            ForecastUi("Out", "Data used up", confidenceLabel(forecast.confidence), ForecastKind.Out)
+        } else {
+            ForecastUi("today", "runs out", confidenceLabel(forecast.confidence), ForecastKind.RunsOut)
+        }
+    }
+    if (expected == null && forecast.runOutEarliest != null) {
+        val early = forecast.runOutEarliest!!
+        val day = if (Duration.between(now, early) > Duration.ofDays(6)) {
+            DateTimeFormatter.ofPattern("EEE d MMM", locale).format(early.atZone(zone))
+        } else {
+            early.atZone(zone).dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+        }
+        return ForecastUi("Probably safe", "Could run out as early as $day", confidenceLabel(forecast.confidence), ForecastKind.ProbablySafe)
+    }
     val at = expected ?: forecast.runOutEarliest ?: forecast.runOutLatest!!
     val zoned = at.atZone(zone)
     // Spec section 8: weekday, plus the date once the run-out is more than 6 days away.
@@ -68,9 +88,10 @@ internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale
         forecast.runOutEarliest?.let { daysBetween(at, it) } ?: 0L,
         forecast.runOutLatest?.let { daysBetween(at, it) } ?: 0L,
     )
-    val detail = when (spread) {
-        0L -> "runs out"
-        1L -> "runs out (±1 day)"
+    val detail = when {
+        forecast.runOutLatest == null && forecast.runOutEarliest != null -> "runs out (could be later)"
+        spread == 0L -> "runs out"
+        spread == 1L -> "runs out (±1 day)"
         else -> "runs out (±$spread days)"
     }
     return ForecastUi(headline, detail, confidenceLabel(forecast.confidence))
@@ -87,16 +108,18 @@ internal fun buildHomeUiState(
     selectedDay: Int?,
     now: Instant,
     zone: ZoneId,
-    locale: Locale,
+    locale: Locale = Locale.getDefault(),
     coverage: CoverageStatus = CoverageStatus(emptyList(), null),
     permissions: PermissionState? = null,
+    planChips: List<PlanChipUi> = emptyList(),
+    is24Hour: Boolean = true,
 ): HomeUiState {
     val byteUnits = units.toByteUnits()
     val validSelection = selectedDay?.takeIf { it in week.indices }
 
     val bars = weekdayBars(week, byteUnits, zone, locale)
 
-    val forecastUi = forecastToUi(forecast, now, zone, locale)
+    val forecastUi = forecastToUi(forecast, now, zone, locale, planState?.remainingBytes)
     val isToday = validSelection == null
 
     val heroBytes: Long
@@ -108,16 +131,15 @@ internal fun buildHomeUiState(
         heroLabel = "Today"
         description = buildString {
             append("${spokenBytes(heroBytes, byteUnits)} used today")
-            if (planState != null) append(", ${spokenBytes(planState.remainingBytes, byteUnits)} left")
+            if (planState != null) {
+                if (planState.remainingBytes <= 0L) append(", no data left")
+                else append(", ${spokenBytes(planState.remainingBytes, byteUnits)} left")
+            }
         }
         subtitle = planState?.let {
-            val left = "${plainBytes(it.remainingBytes, byteUnits)} left"
-            when {
-                forecastUi == null -> left
-                forecast?.neverRunsOut() == true -> "$left · won't run out this cycle"
-                // "runs out (±1 day)" + "Thu" -> "runs out Thu (±1 day)"
-                else -> "$left · ${forecastUi.detail.replace("runs out", "runs out ${forecastUi.headline}")}"
-            }
+            val left = remainingText(it.remainingBytes, byteUnits)
+            if (it.remainingBytes <= 0L || forecastUi == null) left
+            else "$left · ${forecastSentence(forecastUi).replaceFirstChar { c -> c.lowercase() }}"
         }
     } else {
         val point = week[validSelection]
@@ -151,9 +173,10 @@ internal fun buildHomeUiState(
         week = bars,
         selectedDay = validSelection,
         prompts = permissionPrompts(permissions),
-        gap = latestGap(coverage, now, zone),
+        gap = latestGap(coverage, now, zone, is24Hour, locale),
         hasPlan = planState != null,
         units = byteUnits,
+        planChips = if (planChips.size >= 2) planChips else emptyList(),
     )
 }
 
@@ -183,7 +206,6 @@ internal fun permissionPrompts(permissions: PermissionState?): List<PermissionPr
     }
 }
 
-private val GAP_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val MIN_GAP_FOR_BANNER: Duration = Duration.ofMinutes(5)
 private val GAP_BANNER_WINDOW: Duration = Duration.ofHours(24)
 
@@ -196,7 +218,7 @@ private fun gapReasonText(reason: GapReason): String = when (reason) {
 }
 
 /** The newest gap of at least 5 minutes that ended within the last 24 hours, as a banner message. */
-internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId): GapUi? {
+internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId, is24Hour: Boolean = true, locale: Locale = Locale.getDefault()): GapUi? {
     val gap: CoverageGap = coverage.gaps
         .filter {
             Duration.between(it.from, it.to) >= MIN_GAP_FOR_BANNER &&
@@ -204,7 +226,9 @@ internal fun latestGap(coverage: CoverageStatus, now: Instant, zone: ZoneId): Ga
                 it.reason != GapReason.DEVICE_ASLEEP
         }
         .maxByOrNull { it.to } ?: return null
-    val from = GAP_CLOCK.format(gap.from.atZone(zone))
-    val to = GAP_CLOCK.format(gap.to.atZone(zone))
+    val pattern = if (is24Hour) "HH:mm" else "h:mm a"
+    val formatter = DateTimeFormatter.ofPattern(pattern, locale)
+    val from = formatter.format(gap.from.atZone(zone))
+    val to = formatter.format(gap.to.atZone(zone))
     return GapUi("Not measured $from–$to because ${gapReasonText(gap.reason)}")
 }

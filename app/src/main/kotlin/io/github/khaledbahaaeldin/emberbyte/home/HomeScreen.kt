@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,12 +12,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,6 +47,7 @@ fun HomeScreen(
     onOpenHistory: () -> Unit,
     onPromptAction: (String) -> Unit,
     onOpenApp: (String) -> Unit,
+    onSetUpPlan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -53,6 +58,7 @@ fun HomeScreen(
         onOpenHistory = onOpenHistory,
         onPromptAction = onPromptAction,
         onOpenApp = onOpenApp,
+        onSetUpPlan = onSetUpPlan,
         modifier = modifier,
     )
 }
@@ -65,6 +71,7 @@ internal fun HomeContent(
     onOpenHistory: () -> Unit,
     onPromptAction: (String) -> Unit,
     onOpenApp: (String) -> Unit,
+    onSetUpPlan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -72,6 +79,22 @@ internal fun HomeContent(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 180.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (state.planChips.size >= 2) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    state.planChips.forEach { chip ->
+                        FilterChip(
+                            selected = chip.selected,
+                            onClick = { onEvent(HomeEvent.SelectPlan(chip.id)) },
+                            label = { Text(chip.name) },
+                        )
+                    }
+                }
+            }
+        }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -92,12 +115,14 @@ internal fun HomeContent(
                 animate = state.isToday,
             )
             state.subtitle?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+                ForceLtr {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             if (state.isEstimated) EstimatedBadge(Modifier.padding(top = 8.dp))
         }
@@ -138,11 +163,9 @@ internal fun HomeContent(
         }
         if (!state.hasPlan) {
             item {
-                BentoTile(title = "Data plan", modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Plans, caps and run-out forecasts arrive in an upcoming update. Until then Emberbyte tracks your usage.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                BentoTile(title = "Data plan", modifier = Modifier.fillMaxWidth(), onClick = onSetUpPlan) {
+                    Text("Set up your data plan to see what is left and when it runs out.", style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = onSetUpPlan) { Text("Set up your data plan") }
                 }
             }
         }

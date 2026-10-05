@@ -14,3 +14,6 @@ data class Forecast(
     val confidence: Confidence,
     val historyDays: Int,
 )
+
+/** State and forecast of an unsaved plan draft (the plan editor's live preview). */
+data class PlanPreview(val state: PlanState, val forecast: Forecast)

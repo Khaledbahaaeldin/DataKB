@@ -1,12 +1,18 @@
 package io.github.khaledbahaaeldin.emberbyte
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -14,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.util.Consumer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -22,6 +29,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
+import io.github.khaledbahaaeldin.emberbyte.nav.DeepLinkPatterns
 import io.github.khaledbahaaeldin.emberbyte.apps.AppDetailScreen
 import io.github.khaledbahaaeldin.emberbyte.apps.AppDetailViewModel
 import io.github.khaledbahaaeldin.emberbyte.apps.AppsScreen
@@ -31,15 +40,21 @@ import io.github.khaledbahaaeldin.emberbyte.history.HistoryViewModel
 import io.github.khaledbahaaeldin.emberbyte.home.HomeScreen
 import io.github.khaledbahaaeldin.emberbyte.nav.Destination
 import io.github.khaledbahaaeldin.emberbyte.nav.Routes
+import io.github.khaledbahaaeldin.emberbyte.nav.openDeepLink
 import io.github.khaledbahaaeldin.emberbyte.nav.rememberPermissionActions
 import io.github.khaledbahaaeldin.emberbyte.nav.tabEnterTransition
 import io.github.khaledbahaaeldin.emberbyte.nav.tabExitTransition
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingScreen
+import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorScreen
+import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
+import io.github.khaledbahaaeldin.emberbyte.plans.PlansScreen
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
+import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
+import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.FloatingPillNavBar
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.glassSource
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.rememberGlassSource
@@ -51,7 +66,11 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
     val completed by graph.onboardingCompleted.collectAsStateWithLifecycle()
     val value = completed
     // `null` only before the first read. The scaffold is created ONCE with the right start destination and then stays.
-    if (value != null) AppScaffold(graph, startOnboarding = !value, hapticsEnabled = hapticsEnabled)
+    if (value != null) {
+        AppScaffold(graph, startOnboarding = !value, hapticsEnabled = hapticsEnabled)
+    } else {
+        StartupPlaceholder()
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -59,21 +78,36 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
 private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnabled: Boolean) {
     val context = LocalContext.current
     val navController = rememberNavController()
+
+    DisposableEffect(navController, context) {
+        val activity = context.findComponentActivity()
+        val listener = Consumer<Intent> { intent ->
+            navController.openDeepLink(intent)
+        }
+        activity?.addOnNewIntentListener(listener)
+        onDispose {
+            activity?.removeOnNewIntentListener(listener)
+        }
+    }
+
     val visibility = rememberNavBarVisibility()
     val glass = rememberGlassSource()
     val actions = rememberPermissionActions(graph)
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
+    androidx.compose.runtime.LaunchedEffect(route) {
+        visibility.show()
+    }
     val selected = Destination.fromRoute(route)
     val items = remember { Destination.entries.map { it.toNavBarItem() } }
     val motion = MaterialTheme.motionScheme
     val reduceMotion = LocalReduceMotion.current
 
-    Box(Modifier.fillMaxSize().nestedScroll(visibility.connection)) {
+    Box(Modifier.fillMaxSize().nestedScroll(visibility.connection), contentAlignment = Alignment.TopCenter) {
         NavHost(
             navController = navController,
             startDestination = if (startOnboarding) Routes.ONBOARDING else Destination.Home.route,
-            modifier = Modifier.fillMaxSize().glassSource(glass),
+            modifier = Modifier.contentWidth().fillMaxHeight().glassSource(glass),
             enterTransition = { tabEnterTransition(motion, reduceMotion) },
             exitTransition = { tabExitTransition(motion, reduceMotion) },
             popEnterTransition = { tabEnterTransition(motion, reduceMotion) },
@@ -81,25 +115,37 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
         ) {
             composable(Routes.ONBOARDING) {
                 val viewModel: OnboardingViewModel = viewModel(factory = graph.onboardingViewModelFactory())
-                OnboardingScreen(viewModel, actions, onFinish = {
-                    viewModel.finish {
-                        ServiceStarter.start(context)
-                        navController.navigate(Destination.Home.route) {
-                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                OnboardingScreen(
+                    viewModel,
+                    actions,
+                    onSetUpPlan = { navController.navigate(Routes.planEditor(0)) },
+                    onFinish = {
+                        viewModel.finish {
+                            ServiceStarter.start(context)
+                            navController.navigate(Destination.Home.route) {
+                                popUpTo(Routes.ONBOARDING) { inclusive = true }
+                            }
                         }
-                    }
-                })
+                    },
+                )
             }
-            composable(Destination.Home.route) {
+            composable(
+                Destination.Home.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.HOME }),
+            ) {
                 HomeScreen(
                     viewModel(factory = graph.homeViewModelFactory()),
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenHistory = { navController.navigate(Routes.HISTORY) },
                     onPromptAction = actions::onPrompt,
                     onOpenApp = { navController.navigate(Routes.appDetail(it)) },
+                    onSetUpPlan = { navController.navigate(Routes.planEditor(0)) },
                 )
             }
-            composable(Destination.Apps.route) {
+            composable(
+                Destination.Apps.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.APPS }),
+            ) {
                 val viewModel: AppsViewModel = viewModel(factory = graph.appsViewModelFactory())
                 AppsScreen(
                     viewModel,
@@ -110,23 +156,47 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
             composable(
                 Routes.APP_DETAIL,
                 arguments = listOf(navArgument("packageName") { type = NavType.StringType }),
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.APP_DETAIL }),
             ) { entry ->
                 val packageName = entry.arguments?.getString("packageName").orEmpty()
                 val viewModel: AppDetailViewModel =
                     viewModel(key = "app-$packageName", factory = graph.appDetailViewModelFactory(packageName))
                 AppDetailScreen(viewModel, onBack = { navController.popBackStack() })
             }
-            composable(Destination.Plans.route) {
-                PlaceholderScreen("Plans", "The flexible plan editor arrives in milestone 3.")
+            composable(
+                Destination.Plans.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.PLANS }),
+            ) {
+                PlansScreen(
+                    viewModel(factory = graph.plansViewModelFactory()),
+                    onOpenPlan = { navController.navigate(Routes.planEditor(it)) },
+                    onNewPlan = { navController.navigate(Routes.planEditor(0)) },
+                )
             }
-            composable(Destination.Lens.route) {
+            composable(
+                Routes.PLAN_EDITOR,
+                arguments = listOf(navArgument("planId") { type = NavType.LongType }),
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.PLAN_EDITOR }),
+            ) { entry ->
+                val planId = entry.arguments?.getLong("planId") ?: 0L
+                val viewModel: PlanEditorViewModel =
+                    viewModel(key = "plan-$planId", factory = graph.planEditorViewModelFactory(planId))
+                PlanEditorScreen(viewModel, onBack = { navController.popBackStack() }, onPrompt = actions::onPrompt)
+            }
+            composable(
+                Destination.Lens.route,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),
+            ) {
                 PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in milestone 5.")
             }
             composable(Routes.HISTORY) {
                 val viewModel: HistoryViewModel = viewModel(factory = graph.historyViewModelFactory())
                 HistoryScreen(viewModel, onBack = { navController.popBackStack() })
             }
-            composable(Routes.SETTINGS) {
+            composable(
+                Routes.SETTINGS,
+                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
+            ) {
                 val viewModel: SettingsViewModel = viewModel(factory = graph.settingsViewModelFactory())
                 SettingsScreen(viewModel, onBack = { navController.popBackStack() })
             }
@@ -147,9 +217,16 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 glass = glass,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .contentWidth()
                     .navigationBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             )
         }
     }
+}
+
+private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
 }

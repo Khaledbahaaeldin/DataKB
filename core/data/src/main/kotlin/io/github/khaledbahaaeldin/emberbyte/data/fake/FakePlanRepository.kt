@@ -10,6 +10,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.Forecast
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
+import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanPreview
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover
 import java.time.Clock
@@ -95,6 +96,12 @@ class FakePlanRepository(private val clock: Clock = Clock.systemUTC()) : PlanRep
     override suspend fun whatIf(planId: Long, extraBytesPerDay: Long, from: Instant): Outcome<Forecast> =
         if (plans.value.any { it.id == planId }) Outcome.Success(forecastFor(planId))
         else Outcome.Failure(EmberbyteError.NotFound)
+
+    override suspend fun previewState(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Outcome<PlanPreview> =
+        Outcome.Success(PlanPreview(stateFor(plan), forecastFor(plan.id)))
+
+    override fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String> =
+        emptyMap()
 
     private fun stateFor(plan: Plan): PlanState {
         val now = clock.instant()

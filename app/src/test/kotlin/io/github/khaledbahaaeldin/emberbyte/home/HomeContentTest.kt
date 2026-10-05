@@ -1,5 +1,8 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -30,6 +33,7 @@ class HomeContentTest {
         onHistory: () -> Unit = {},
         onPrompt: (String) -> Unit = {},
         onOpenApp: (String) -> Unit = {},
+        onSetUpPlan: () -> Unit = {},
     ) = rule.setContent {
         EmberbyteTheme(darkTheme = true, dynamicColor = false) {
             HomeContent(
@@ -39,6 +43,7 @@ class HomeContentTest {
                 onOpenHistory = onHistory,
                 onPromptAction = onPrompt,
                 onOpenApp = onOpenApp,
+                onSetUpPlan = onSetUpPlan,
             )
         }
     }
@@ -99,5 +104,49 @@ class HomeContentTest {
         show(HomeUiState(topAppsLocked = true))
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("Allow usage access to see which apps use your data."))
         rule.onNodeWithText("Allow usage access to see which apps use your data.").assertIsDisplayed()
+    }
+
+    @Test fun rtl_layout_direction_isolates_home_subtitle_with_force_ltr() {
+        val subtitle1 = "3.80 GB left · won't run out this cycle"
+        rule.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    HomeContent(
+                        state = HomeUiState(subtitle = subtitle1),
+                        onEvent = {},
+                        onOpenSettings = {},
+                        onOpenHistory = {},
+                        onPromptAction = {},
+                        onOpenApp = {},
+                        onSetUpPlan = {},
+                    )
+                }
+            }
+        }
+        val node1 = rule.onNodeWithText(subtitle1)
+        node1.assertIsDisplayed()
+        assertEquals(LayoutDirection.Ltr, node1.fetchSemanticsNode().layoutInfo.layoutDirection)
+    }
+
+    @Test fun rtl_layout_direction_isolates_no_data_left_with_force_ltr() {
+        val subtitle2 = "No data left"
+        rule.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    HomeContent(
+                        state = HomeUiState(subtitle = subtitle2),
+                        onEvent = {},
+                        onOpenSettings = {},
+                        onOpenHistory = {},
+                        onPromptAction = {},
+                        onOpenApp = {},
+                        onSetUpPlan = {},
+                    )
+                }
+            }
+        }
+        val node2 = rule.onNodeWithText(subtitle2)
+        node2.assertIsDisplayed()
+        assertEquals(LayoutDirection.Ltr, node2.fetchSemanticsNode().layoutInfo.layoutDirection)
     }
 }
