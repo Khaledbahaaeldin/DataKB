@@ -228,6 +228,8 @@ interface PlanRepository {
     suspend fun deleteFreeRule(id: Long): Outcome<Unit>
     /** Cap-what-if: forecast with extra daily usage added from `from` onward. Not persisted. */
     suspend fun whatIf(planId: Long, extraBytesPerDay: Long, from: Instant): Outcome<Forecast>
+    /** M3: state and forecast of an UNSAVED plan draft (the plan editor's live preview). Pure, not persisted. */
+    suspend fun previewState(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Outcome<PlanPreview>
 }
 
 interface AlertRepository {
@@ -353,9 +355,9 @@ and an exported schema JSON.
 | Foreground service | `SamplerService` | Type `specialUse`. Owns the 1 Hz live sampler, flushes deltas to Room every 60 s. Started on boot and app launch. |
 | Foreground service | `LensVpnService` | Extends `VpnService`. Only started by `LensController.start()`. |
 | Worker | `CatchUpWorker` | Unique periodic work, 15 min. Runs the catch-up. Android 12+ forbids starting a foreground service from the background, so when `SamplerService` is not running it first TRIES to start it and, when Android refuses, posts the `status` notification "Measurement paused - tap to resume". A force-stop also cancels WorkManager jobs until the next launch, so this notification only appears after OS or OEM kills. |
-| Worker | `AlertWorker` | Triggered after each flush. Evaluates `AlertRule`, `AppBudget`, `SpikeDetector`; posts notifications. |
+| Alert evaluation | `AlertRunner` (M3: plan alerts; M4 adds budgets and spikes) | See section 10.3: called every 60 s by `SamplerService` and after every `CatchUpWorker` run. There is no separate `AlertWorker`. |
 | Receiver | `BootReceiver` | `BOOT_COMPLETED` / `MY_PACKAGE_REPLACED` → start the sampler **only if onboarding is complete** (the sampler records the `REBOOT` gap itself). |
-| Widgets | `HeroWidget`, `BentoWidget` | Glance. Read `PlanRepository.observeActivePlanStates()` and `UsageRepository.observeToday()`; refresh at most every 15 min plus on sampler flush. |
+| Widgets | `HeroWidget`, `BentoWidget` | Glance. Read `PlanRepository.observeActivePlanStates()` and `UsageRepository.observeToday()`; refresh cadence in section 10.3. |
 
 Notification channels: `live` (low importance, ongoing), `status` (low importance, "Measurement paused"), `alerts` (default importance),
 `lens` (low importance, ongoing), `spikes` (default importance).
@@ -522,7 +524,7 @@ Constants: gap threshold 90 000 ms; live-speed EMA alpha 0.5; `NO_SUBSCRIPTION =
 | `UsageRepository` | `RoomUsageRepository` | live speed from `SamplerEngine.liveSpeed`; `refreshNow()` runs `HourlyCatchUp`, `MissingUsageAccess` -> `Outcome.Failure(EmberbyteError.MissingUsageAccess)` |
 | `SettingsRepository` | `DataStoreSettingsRepository` | Jetpack DataStore (Preferences) |
 | `PermissionRepository` | `AndroidPermissionRepository` | `recheck()` re-reads usage access, notifications, `READ_PHONE_STATE`; `vpnConsentGranted` is always false until M5 |
-| `PlanRepository` | `NoPlanRepository` | no plans until M3: empty flows, mutations return `Outcome.Failure(EmberbyteError.Unexpected(…))` |
+| `PlanRepository` | `NoPlanRepository` (M2 only) | replaced by `RoomPlanRepository` in M3 (section 10); `NoPlanRepository` is deleted |
 | `OnboardingRepository` | `DataStoreOnboardingRepository` | |
 
 ### 9.4 Data semantics (corrected in the M2 fix wave)
@@ -550,3 +552,123 @@ Constants: gap threshold 90 000 ms; live-speed EMA alpha 0.5; `NO_SUBSCRIPTION =
   rows get the dominant subscription of that window. No `READ_PHONE_STATE` is needed in M2.
 - **Day boundary:** `DayClock` polls the wall-clock date (every 30 s) and the clock follows the system time zone, so the notification,
   Home and History roll over correctly after sleep, a clock change or a time-zone change.
+
+## 10. Milestone 3 additions (plans, alerts, forecast, widgets)
+
+These extend sections 1-9 and never contradict them. Package roots: `…engine.*` in `:core:engine`, `…data.*` in `:core:data`.
+
+### 10.1 Engine (`:core:engine`, pure Kotlin)
+
+```kotlin
+// …engine.model (Plan.kt)
+data class AlertRule(val id: Long, val planId: Long, val thresholdPercent: Int /*1..100*/, val enabled: Boolean)
+data class PlanPreview(val state: PlanState, val forecast: Forecast)
+
+// …engine.plan
+/** packageName == null: TOTAL mobile traffic of the plan's SIM. packageName != null: a per-app breakdown of that same traffic,
+ *  used ONLY to evaluate package-scoped FreeRules; it is never added to the total. A slice may overlap the cycle window
+ *  partially; its bytes are then clipped proportionally to the overlap. */
+data class UsageSlice(val start: Instant, val end: Instant, val packageName: String?, val bytes: Long)
+
+object CycleCalculator {
+    fun windowAt(cycle: Cycle, at: Instant): CycleWindow           // start inclusive, end exclusive, start <= at < end
+    fun previousWindow(cycle: Cycle, window: CycleWindow): CycleWindow   // == windowAt(cycle, window.start - 1 ms)
+}
+
+object PlanCalculator {
+    fun state(plan: Plan, at: Instant, usage: List<UsageSlice>, addOns: List<AddOn>, freeRules: List<FreeRule>,
+              previousCycleUnusedBytes: Long, isApproximate: Boolean): PlanState
+}
+
+// …engine.forecast
+object ForecastEngine {
+    val DEFAULT_HOUR_CURVE: DoubleArray     // 24 weights, share of a day's usage per LOCAL hour (normalised internally)
+    fun forecast(state: PlanState, dailyHistory: List<DayUsage>, now: Instant, zone: ZoneId,
+                 extraBytesPerDay: Long = 0L, extraFrom: Instant = now,
+                 hourCurve: DoubleArray = DEFAULT_HOUR_CURVE): Forecast
+}
+```
+
+Rules (these are the contract; the section 2 / backend section 4 / section 6 prose is the summary):
+
+- **`CycleCalculator`.** `MonthlyOnDay`: the renewal of a month is `min(dayOfMonth, lengthOfMonth)` at `time` in `zone`; the window containing `at` runs from the latest renewal `<= at` to the next one. `EveryNDays`: renewals are `anchor + k*days` at `time` in `zone` for every integer k (also negative); same containment rule. Local times that do not exist (DST gap) move forward as `ZonedDateTime` does.
+- **`PlanCalculator.state`.** The window is `CycleCalculator.windowAt(plan.cycle, at)`; all calendar logic uses the zone of `plan.cycle`.
+  `totalBytes` = sum of the clipped bytes of slices with `packageName == null`.
+  `freeBytes` = bytes of total slices inside the union of the plan's all-apps `FreeRule` intervals, PLUS bytes of per-app slices of package `p` inside the intervals of `p`'s rules **minus** the all-apps intervals (so nothing is excluded twice). A slice's free share is proportional to the time overlap. A `FreeRule` interval starts on a local date whose `DayOfWeek` is in `days`, runs from `start` to `end` on that date, or to `end` on the NEXT date when `end <= start` (crosses midnight; `22:00-00:00` is valid); `start == end` is an empty interval.
+  `usedBytes = max(0, totalBytes - freeBytes)`. `rolledOverBytes`: `None` = 0, `Full` = `previousCycleUnusedBytes`, `Capped(max)` = `min(previousCycleUnusedBytes, max)`.
+  `addOnBytes` = sum of `bytes` of add-ons whose `[validFrom, validUntil)` overlaps the window. `effectiveCapBytes = capBytes + rolledOverBytes + addOnBytes`. `remainingBytes = max(0, effectiveCap - used)`. `fractionUsed = used / effectiveCap` (0 when the cap is 0). `daysLeft = ceil((window.end - at) / 24 h)`, never negative.
+- **Rollover input (data layer).** `previousCycleUnusedBytes` = `remainingBytes` of the PREVIOUS window evaluated with `Rollover.None` (no chained rollover) and WITHOUT add-on packs (add-ons are never part of rollover, backend spec section 4: an add-on that spans a renewal must not raise the cap of both cycles), at `previousWindow.end - 1 ms`; 0 when the plan has no rollover.
+- **`ForecastEngine.forecast`.** History = `dailyHistory` entries dated before today in `zone`, newest 28. Per weekday the mean and population standard deviation of `mobileBytes`; a weekday with n < 3 samples is blended `n/3 * weekday + (1 - n/3) * overall`; with no history at all every day is 0.
+  Projection for multiplier k in {+1, 0, -1}: day bytes = `max(0, mean + k * std) (+ extraBytesPerDay on days on or after extraFrom's date)`. Today contributes only the share of the day still ahead: `1 - cumulativeShare(hourCurve, local time of now)`; every later local day contributes fully; the last day is cut at `state.window.end` proportionally to time. Bytes inside a day are spread linearly over the segment. `runOut` = instant at which the cumulative projected bytes reach `state.remainingBytes`; **k=+1 gives `runOutEarliest`, k=0 `runOutExpected`, k=-1 `runOutLatest`**; null when not reached before the window ends. `remainingBytes == 0` gives `now` for all three. `projectedCycleEndBytes = state.usedBytes + expected projection until window end`. `historyDays` = number of history entries used. `Confidence`: `LOW` under 7 days, `HIGH` with 21+ days and coefficient of variation (overall std / overall mean, 0 when the mean is 0) below 0.6, else `MEDIUM`.
+  Known v1 limits (documented, accepted): free-window traffic is not subtracted from the history; the hour curve is the built-in default (a personal curve is M4).
+
+### 10.2 Data layer (`:core:data`)
+
+```kotlin
+// …data.plan
+interface PlanStore {                                               // Room-backed in production, in-memory in tests
+    fun observePlans(): Flow<List<Plan>>                            // ALL plans including archived, ordered by id
+    fun observePlan(id: Long): Flow<Plan?>
+    suspend fun plan(id: Long): Plan?
+    suspend fun upsertPlan(plan: Plan): Long                        // id == 0 inserts; returns the id
+    suspend fun setArchived(id: Long, archived: Boolean): Boolean   // false when the plan does not exist
+    fun observeAddOns(planId: Long): Flow<List<AddOn>>
+    suspend fun upsertAddOn(addOn: AddOn): Long
+    suspend fun deleteAddOn(id: Long)
+    fun observeFreeRules(planId: Long): Flow<List<FreeRule>>
+    suspend fun upsertFreeRule(rule: FreeRule): Long
+    suspend fun deleteFreeRule(id: Long)
+    fun observeAlertRules(planId: Long): Flow<List<AlertRule>>
+    suspend fun alertRules(planId: Long): List<AlertRule>
+    suspend fun upsertAlertRule(rule: AlertRule): Long
+    suspend fun deleteAlertRule(id: Long)
+    suspend fun lastFiredPercent(planId: Long, windowStart: Instant): Int?
+    suspend fun setFiredPercent(planId: Long, windowStart: Instant, percent: Int)
+}
+object PlanStores { fun create(context: Context): PlanStore }       // shares ONE Room database instance with UsageStores
+
+// PlanRepository (section 3) gains one method; NoPlanRepository is deleted and RoomPlanRepository replaces it
+suspend fun previewState(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Outcome<PlanPreview>   // pure, not persisted
+
+interface SimInfoSource {
+    fun activeSims(): List<SimInfo>                                 // empty without READ_PHONE_STATE
+    fun defaultDataSubscriptionId(): Int                            // -1 when unknown; needs no permission
+}
+data class SimInfo(val subscriptionId: Int, val slotIndex: Int, val displayName: String)
+
+// …data.alert
+data class AlertNotice(val planId: Long, val planName: String, val thresholdPercent: Int, val usedBytes: Long,
+                       val effectiveCapBytes: Long, val remainingBytes: Long, val runOutExpected: Instant?)
+class AlertEvaluator(plans: PlanRepository, store: PlanStore) { suspend fun evaluate(): List<AlertNotice> }
+```
+
+- **Validation** (`upsertPlan`, `upsertAddOn`, `upsertFreeRule`, `upsertRule`) returns `Outcome.Failure(EmberbyteError.Invalid(field, reason))` and saves nothing. Fields: `name` (blank or over 40 chars), `capBytes` (not in 1..10^15), `cycle.dayOfMonth` (not 1..31), `cycle.days` (not 1..366), `rollover.maxBytes` (not positive), `subscriptionId` (negative); add-on: `bytes` (not positive), `validUntil` (not after `validFrom`), `label` (blank); free rule: `days` (empty), `time` (start == end), `label` (blank); alert rule: `thresholdPercent` (not 1..100) and `threshold` ("Already set" for a duplicate on the same plan). A missing plan on a child upsert gives `NotFound`.
+- **Storage.** Database version 2 adds `plan`, `add_on`, `free_rule`, `alert_rule` (contract section 5 columns) and `alert_fired(planId, windowStart, percent)` with primary key (`planId`, `windowStart`) through `Migration(1, 2)`; the exported schema `2.json` is committed. `cycleJson`/`rolloverJson` use the shapes of section 7 (`"type": "monthlyOnDay" | "everyNDays"`, `"none" | "full" | "capped"`, `time` as `HH:mm`).
+- **Plan pipeline (`RoomPlanRepository`).** Only mobile traffic counts: `UsageFilter(MOBILE, plan.subscriptionId)`; a plan with `subscriptionId == null` counts all mobile traffic. Total slices come from `SeriesBuilder.build(..., Granularity.HOUR, ...)` (so the first-hour surplus rule of 9.1 applies; hours that start before the window are ignored); per-app slices are the 2-hour window rows mapped through `app_meta` and exist only when a package-scoped rule exists. `isApproximate` is true when, inside the current window, mobile minute rows carry bytes for a subscription other than the plan's bound one (or for `-1` while the plan is bound), or a `coverage_gap` of reason `SERVICE_KILLED`, `REBOOT` or `PERMISSION_MISSING` overlaps the window. State and forecast are recomputed whenever the store changes and once a minute (windows roll over at the renewal instant). Daily history for the forecast is the mobile `Granularity.DAY` series of the last 28 days in the plan's zone with leading zero days trimmed. The catch-up backfill (`HourlyCatchUp.maxBackfill`) is 28 days so a first forecast has history.
+- **Alerts.** `AlertEvaluator.evaluate()` looks at every active plan: `percent = usedBytes * 100 / effectiveCapBytes` (integer division); among enabled rules with `threshold <= percent` and `threshold > lastFiredPercent(plan, window.start) (default 0)` it emits ONE notice for the highest, and records it with `setFiredPercent`. Each threshold therefore fires at most once per cycle window; raising the cap later never re-fires.
+
+### 10.3 Android components (replaces the `AlertWorker` row of section 6)
+
+| Component | Contract |
+|---|---|
+| Alert evaluation | `AlertRunner.run()` in `:app`: skips when notifications are disabled (so nothing is consumed unseen), otherwise calls `AlertEvaluator.evaluate()` and posts one `alerts` notification per notice (id = plan id, tag `plan-alert`, tap opens `emberbyte://plans/{planId}`). Called every 60 s by `SamplerService` and after every `CatchUpWorker` run (covers the service-down case). There is no separate `AlertWorker`. |
+| Widgets | `HeroWidget` and `BentoWidget` (Glance). `WidgetUpdater.request(context)` is called after each catch-up cycle: every 5 minutes while the service runs, every 15 minutes through `CatchUpWorker` otherwise. Content: Hero = today's number + remaining data (or "Set up a plan"); Bento = today, forecast, live speed, top two apps. Deep link `emberbyte://home`. |
+| Channels | `alerts` (default importance, "Plan alerts") is created together with `live` and `status`. |
+| Deep links | `MainActivity` declares an `<intent-filter>` for scheme `emberbyte` with hosts `home`, `apps`, `plans`, `lens`, `settings`; navigation destinations declare the matching `navDeepLink`s of section 6. |
+| Permission | `READ_PHONE_STATE` is declared (optional, requested from the plan editor only). |
+
+### 10.4 UI-facing additions
+
+- `:ui:design` gains `BudgetRing(fraction, state: BudgetStateUi)`, `PlanCard(model: PlanCardUi, onClick)`, `BudgetStateUi { Ok, Warning, Exceeded }` and `PlanCardUi` (primitives only). The ring never relies on colour alone (an icon and the percentage text accompany the warning and exceeded states).
+- `ForecastUi` mapping (`:app`): never runs out → "Safe / Won't run out this cycle"; run-out already reached → "Out / data used up"; expected is null but earliest is not → "Probably safe / could run out as early as <day>"; otherwise as in M2.
+- Routes: `plans` (list) and `plans/{planId}` (editor; `0` = new plan). Home gets a plan chip row when there are two or more plans, and a "Set up your data plan" tile (opens the editor) when there is none. Onboarding gains a third, skippable step "Your data plan".
+
+### 10.5 Fix-wave additions (after the first M3 audit)
+
+- `PlanRepository.validateDraft(plan, addOns, freeRules): Map<String, String>` (pure, not suspend): every problem of the draft at once, keyed `name`, `capBytes`, `cycle.dayOfMonth`, `cycle.days`, `rollover.maxBytes`, `subscriptionId`, `addOn.<index>.<field>`, `freeRule.<index>.<field>`; empty when valid. The editor calls it BEFORE any write, so a draft with an invalid child saves nothing. Saving is validated first and then written step by step; it is not a database transaction.
+- `PlanState.percentUsed(): Int` = `usedBytes * 100 / effectiveCapBytes` (integer division, 0 when the cap is 0). The plan card, the ring and `AlertEvaluator` all use it, so the percent on a card equals the percent of an alert.
+- `PlanState.isApproximate` is also true when (a) the plan is bound to a SIM and the window has mobile traffic whose subscription is unknown (`-1`: backfilled or pre-install traffic), or (b) the window starts more than one platform window (2 h) before the earliest stored measurement (for example without usage access, or a cycle older than the backfill).
+- `forecastToUi(..., remainingBytes: Long? = null)`: "Out / Data used up" only when the expected instant has passed AND no data remains; with data remaining it reads "runs out today". When `runOutLatest` is null the sentence reads "runs out <day> (could be later)". One text for "nothing left" everywhere: "No data left".
+- Deep links opened while the app is running are pushed onto the current back stack (`navigate(uri)`); the `emberbyte` filter is not `BROWSABLE` (web pages cannot open the app; notifications and widgets use explicit intents).
+- `AlertRunner` also stays quiet when only the `alerts` channel is blocked, and `AlertEvaluator.evaluate()` is serialised by a mutex.
+- `BentoWidgetModel.compactApps`: the 4x2 Bento widget shows the top two apps on one line.
