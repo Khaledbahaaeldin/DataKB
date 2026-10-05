@@ -64,6 +64,8 @@ private fun BentoContent(model: BentoWidgetModel, open: Action) {
             for (app in model.topApps) {
                 Text(app, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp))
             }
+        } else if (model.compactApps.isNotEmpty()) {
+            Text(model.compactApps, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp), maxLines = 1)
         }
     }
 }

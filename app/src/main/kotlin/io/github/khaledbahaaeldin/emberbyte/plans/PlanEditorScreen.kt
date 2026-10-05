@@ -2,6 +2,9 @@ package io.github.khaledbahaaeldin.emberbyte.plans
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,7 +66,7 @@ fun PlanEditorScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun PlanEditorContent(
     state: PlanEditorUiState,
@@ -151,12 +154,12 @@ internal fun PlanEditorContent(
                     isError = state.errors.containsKey("capBytes"),
                     supportingText = state.errors["capBytes"]?.let { { Text(it) } },
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (unit in CapUnit.entries) {
                         FilterChip(
                             selected = state.form.capUnit == unit,
                             onClick = { onEvent(PlanEditorEvent.SetCapUnit(unit)) },
-                            label = { Text(unit.label) },
+                            label = { Text(unit.label, softWrap = false) },
                         )
                     }
                 }
@@ -251,12 +254,12 @@ internal fun PlanEditorContent(
                         isError = state.errors.containsKey("rollover.maxBytes"),
                         supportingText = state.errors["rollover.maxBytes"]?.let { { Text(it) } },
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for (unit in CapUnit.entries) {
                             FilterChip(
                                 selected = state.form.rolloverCapUnit == unit,
                                 onClick = { onEvent(PlanEditorEvent.SetRolloverUnit(unit)) },
-                                label = { Text(unit.label) },
+                                label = { Text(unit.label, softWrap = false) },
                             )
                         }
                     }
@@ -283,12 +286,12 @@ internal fun PlanEditorContent(
                         isError = state.errors.containsKey("addOn.$index.bytes"),
                         supportingText = state.errors["addOn.$index.bytes"]?.let { { Text(it) } },
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for (unit in CapUnit.entries) {
                             FilterChip(
                                 selected = addOn.unit == unit,
                                 onClick = { onEvent(PlanEditorEvent.UpdateAddOn(index, addOn.copy(unit = unit))) },
-                                label = { Text(unit.label) },
+                                label = { Text(unit.label, softWrap = false) },
                             )
                         }
                     }
@@ -338,7 +341,7 @@ internal fun PlanEditorContent(
                         isError = state.errors.containsKey("freeRule.$index.label"),
                         supportingText = state.errors["freeRule.$index.label"]?.let { { Text(it) } },
                     )
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -358,7 +361,8 @@ internal fun PlanEditorContent(
                                     val nextDays = if (day in rule.days) rule.days - day else rule.days + day
                                     onEvent(PlanEditorEvent.UpdateFreeRule(index, rule.copy(days = nextDays)))
                                 },
-                                label = { Text(label) },
+                                label = { Text(label, softWrap = false) },
+                                modifier = Modifier.defaultMinSize(minWidth = 48.dp),
                             )
                         }
                     }

@@ -13,6 +13,10 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneOffset
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -83,5 +87,18 @@ class AlertEvaluatorTest {
         plan(rules = listOf(49, 50)); use(4_900_000_000L) // 49% of 10 GB
         val n = evaluator().evaluate().single()
         assertEquals(49, n.thresholdPercent)
+    }
+
+    @Test fun concurrent_evaluate_calls_return_exactly_one_notice() = runBlocking(Dispatchers.Default) {
+        plan(rules = listOf(50)); use(5_200_000_000L)
+        val e = evaluator()
+        val allNotices = coroutineScope {
+            awaitAll(
+                async { e.evaluate() },
+                async { e.evaluate() },
+            ).flatten()
+        }
+        assertEquals(1, allNotices.size)
+        assertEquals(50, allNotices.single().thresholdPercent)
     }
 }

@@ -37,17 +37,23 @@ fun PlanCard(model: PlanCardUi, onClick: () -> Unit, modifier: Modifier = Modifi
                 Text(model.name, style = MaterialTheme.typography.titleMedium)
                 model.simLabel?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 ForceLtr { Text(model.usedText, style = MaterialTheme.typography.bodyMedium) }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(model.remainingText, style = MaterialTheme.typography.bodyMedium)
-                    Text("·", style = MaterialTheme.typography.bodyMedium)
-                    Text(model.daysLeftText, style = MaterialTheme.typography.bodyMedium)
+                ForceLtr {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(model.remainingText, style = MaterialTheme.typography.bodyMedium)
+                        Text("·", style = MaterialTheme.typography.bodyMedium)
+                        Text(model.daysLeftText, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
-                model.forecastText?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary) }
+                model.forecastText?.let {
+                    ForceLtr {
+                        Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
+                    }
+                }
                 if (model.isEstimated) EstimatedBadge()
                 if (model.archived) Text("Archived", style = MaterialTheme.typography.labelMedium)
                 if (model.chips.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        model.chips.forEach { AssistChip(onClick = {}, label = { Text(it) }) }
+                        model.chips.forEach { AssistChip(onClick = {}, label = { Text(it, maxLines = 1) }) }
                     }
                 }
             }

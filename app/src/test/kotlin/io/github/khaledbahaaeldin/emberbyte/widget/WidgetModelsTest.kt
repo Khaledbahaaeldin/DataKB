@@ -53,4 +53,10 @@ class WidgetModelsTest {
         val apps = listOf(AppUsage("com.video", "Video", 10001, 600_000_000L, 10_000_000L, null), AppUsage("com.chat", "Chat", 10002, 50_000_000L, 0, null))
         assertEquals(listOf("Video · 610 MB", "Chat · 50.0 MB"), bentoWidgetModel(snapshot(apps = apps)).topApps)
     }
+    @Test fun bento_compact_apps_joins_top_apps_with_bullet() {
+        val apps = listOf(AppUsage("com.video", "Video", 10001, 600_000_000L, 10_000_000L, null), AppUsage("com.chat", "Chat", 10002, 50_000_000L, 0, null))
+        assertEquals("Video · 610 MB  ·  Chat · 50.0 MB", bentoWidgetModel(snapshot(apps = apps)).compactApps)
+        assertEquals("", bentoWidgetModel(snapshot(apps = emptyList())).compactApps)
+    }
 }
+

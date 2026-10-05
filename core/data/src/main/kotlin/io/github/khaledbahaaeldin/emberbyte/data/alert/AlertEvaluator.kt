@@ -5,6 +5,8 @@ import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStore
 import io.github.khaledbahaaeldin.emberbyte.engine.plan.percentUsed
 import java.time.Instant
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class AlertNotice(
     val planId: Long, val planName: String, val thresholdPercent: Int, val usedBytes: Long,
@@ -12,8 +14,10 @@ data class AlertNotice(
 )
 
 class AlertEvaluator(private val plans: PlanRepository, private val store: PlanStore) {
+    private val mutex = Mutex()
+
     /** Contract 10.2: one notice per plan at most (the highest crossed, not yet fired threshold of the current window). */
-    suspend fun evaluate(): List<AlertNotice> {
+    suspend fun evaluate(): List<AlertNotice> = mutex.withLock {
         val notices = ArrayList<AlertNotice>()
         for (state in plans.observeActivePlanStates().first()) {
             val cap = state.effectiveCapBytes
@@ -27,6 +31,6 @@ class AlertEvaluator(private val plans: PlanRepository, private val store: PlanS
             notices += AlertNotice(state.plan.id, state.plan.name, top, state.usedBytes, cap, state.remainingBytes, forecast?.runOutExpected)
             store.setFiredPercent(state.plan.id, state.window.start, top)
         }
-        return notices
+        notices
     }
 }

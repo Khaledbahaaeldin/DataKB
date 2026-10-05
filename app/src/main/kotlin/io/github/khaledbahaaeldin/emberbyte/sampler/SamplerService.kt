@@ -14,6 +14,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.LiveSpeed
 import io.github.khaledbahaaeldin.emberbyte.home.toByteUnits
 import io.github.khaledbahaaeldin.emberbyte.widget.WidgetUpdater
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -80,7 +81,13 @@ class SamplerService : Service() {
                     val ms = (System.nanoTime() - t0) / 1_000_000L
                     Log.i(TAG, "catch-up finished in ${ms} ms")
                     graph.prune()
-                    runCatching { WidgetUpdater.updateAll(this@SamplerService) }
+                    try {
+                        WidgetUpdater.updateAll(this@SamplerService)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "widget update failed", e)
+                    }
                     delay(CATCH_UP_INTERVAL_MS)
                 }
             }

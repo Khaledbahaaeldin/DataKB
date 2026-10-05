@@ -73,7 +73,7 @@ fun BudgetRing(
             drawArc(track, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
             if (sweep > 0f) drawArc(color, -90f, 360f * sweep, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
         }
-        Text(displayText, style = MaterialTheme.typography.labelLarge, color = scheme.onSurface)
+        Text(displayText, style = MaterialTheme.typography.labelLarge, color = scheme.onSurface, maxLines = 1)
         // A state is never colour only: warning and exceeded also show an icon in the corner.
         if (state != BudgetStateUi.Ok) {
             Icon(

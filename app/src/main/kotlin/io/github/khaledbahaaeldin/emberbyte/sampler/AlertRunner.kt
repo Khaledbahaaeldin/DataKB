@@ -1,7 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.sampler
 
 import android.content.Context
-import androidx.core.app.NotificationManagerCompat
 import io.github.khaledbahaaeldin.emberbyte.AppGraph
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertNotice
@@ -22,7 +21,7 @@ class AlertRunner(
         fun create(context: Context, graph: AppGraph): AlertRunner {
             val app = context.applicationContext
             return AlertRunner(
-                enabled = { NotificationManagerCompat.from(app).areNotificationsEnabled() },
+                enabled = { AlertGate.isEnabled(app) },
                 evaluate = { graph.alertEvaluator.evaluate() },
                 post = { notice ->
                     val units = (graph.settingsState.value?.unitSystem ?: UnitSystem.DECIMAL).toByteUnits()

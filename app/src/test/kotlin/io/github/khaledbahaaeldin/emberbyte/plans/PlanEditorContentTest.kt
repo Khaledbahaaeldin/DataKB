@@ -1,5 +1,9 @@
 package io.github.khaledbahaaeldin.emberbyte.plans
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -243,5 +247,29 @@ class PlanEditorContentTest {
         ))
         val expected = java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM).withLocale(java.util.Locale.getDefault()).format(date)
         rule.onNodeWithText("Starts on: $expected").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun free_window_day_chips_in_320dp_container_wrap_and_keep_min_width() {
+        val draft = FreeRuleDraft(label = "Night", days = DayOfWeek.entries.toSet())
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                Box(modifier = Modifier.width(320.dp)) {
+                    PlanEditorContent(
+                        state = state.copy(form = state.form.copy(freeRules = listOf(draft))),
+                        onEvent = {},
+                        onBack = {},
+                        onPrompt = {},
+                    )
+                }
+            }
+        }
+        val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        for (day in dayLabels) {
+            val node = rule.onNodeWithText(day).performScrollTo()
+            node.assertIsDisplayed()
+            val width = node.fetchSemanticsNode().size.width
+            val widthDp = with(rule.density) { width.toDp() }
+            assertTrue("Expected $day chip width ($widthDp) >= 48dp", widthDp >= 48.dp)
+        }
     }
 }

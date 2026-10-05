@@ -8,7 +8,7 @@ import io.github.khaledbahaaeldin.emberbyte.home.toByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.formatBytes
 
 data class HeroWidgetModel(val number: String, val unit: String, val caption: String)
-data class BentoWidgetModel(val hero: HeroWidgetModel, val forecast: String, val speed: String, val topApps: List<String>)
+data class BentoWidgetModel(val hero: HeroWidgetModel, val forecast: String, val speed: String, val topApps: List<String>, val compactApps: String = "")
 
 internal fun heroWidgetModel(s: WidgetSnapshot): HeroWidgetModel {
     val units = s.units.toByteUnits()
@@ -30,5 +30,7 @@ internal fun bentoWidgetModel(s: WidgetSnapshot): BentoWidgetModel {
         speedObj.network == null -> "Offline"
         else -> "↓ ${plainBytes(speedObj.rxBps, units)}/s"
     }
-    return BentoWidgetModel(heroWidgetModel(s), forecast, speed, s.topApps.map { "${it.label} · ${plainBytes(it.totalBytes, units)}" })
+    val topApps = s.topApps.map { "${it.label} · ${plainBytes(it.totalBytes, units)}" }
+    val compactApps = topApps.joinToString("  ·  ")
+    return BentoWidgetModel(heroWidgetModel(s), forecast, speed, topApps, compactApps)
 }
