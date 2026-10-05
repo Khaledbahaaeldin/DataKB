@@ -106,7 +106,7 @@ class PlanStateAssemblerTest {
 
     @Test fun the_history_has_one_mobile_entry_per_day_without_leading_empty_days() {
         val r = rows(listOf(minute("2026-10-05T10:00:00Z", 1_000_000_000L), minute("2026-10-07T10:00:00Z", 2_000_000_000L)))
-        val h = PlanStateAssembler.history(plan(), now, r)
+        val h = PlanStateAssembler.history(plan(), emptyList(), now, r)
         assertEquals(LocalDate.of(2026, 10, 5), h.first().date)
         assertEquals(LocalDate.of(2026, 10, 15), h.last().date)           // today is included; the forecast engine ignores it
         assertEquals(11, h.size)
@@ -114,7 +114,41 @@ class PlanStateAssemblerTest {
     }
 
     @Test fun no_traffic_gives_an_empty_history() {
-        assertTrue(PlanStateAssembler.history(plan(), now, rows()).isEmpty())
+        assertTrue(PlanStateAssembler.history(plan(), emptyList(), now, rows()).isEmpty())
+    }
+
+    @Test fun history_excludes_traffic_inside_free_windows() {
+        val night = FreeRule(1, 1, "Night", DayOfWeek.entries.toSet(), LocalTime.of(0, 0), LocalTime.of(6, 0), null)
+        val r = rows(listOf(
+            minute("2026-10-05T02:00:00Z", 1_000_000_000L),
+            minute("2026-10-05T10:00:00Z", 2_000_000_000L),
+        ))
+        val h = PlanStateAssembler.history(plan(), listOf(night), now, r)
+        val oct5 = h.single { it.date == LocalDate.of(2026, 10, 5) }
+        assertEquals(2_000_000_000L, oct5.mobileBytes)
+    }
+
+    @Test fun history_without_rules_is_unchanged() {
+        val r = rows(listOf(
+            minute("2026-10-05T02:00:00Z", 1_000_000_000L),
+            minute("2026-10-05T10:00:00Z", 2_000_000_000L),
+        ))
+        val h = PlanStateAssembler.history(plan(), emptyList(), now, r)
+        val oct5 = h.single { it.date == LocalDate.of(2026, 10, 5) }
+        assertEquals(3_000_000_000L, oct5.mobileBytes)
+    }
+
+    @Test fun history_excludes_package_scoped_free_traffic() {
+        val video = FreeRule(1, 1, "Video", DayOfWeek.entries.toSet(), LocalTime.of(21, 0), LocalTime.of(23, 0), "com.video")
+        val hourly = listOf(
+            HourlyUsage(Instant.parse("2026-10-05T20:00:00Z"), 10001, NetworkKind.MOBILE, 1, 700_000_000L, 0),
+            HourlyUsage(Instant.parse("2026-10-05T20:00:00Z"), 10002, NetworkKind.MOBILE, 1, 300_000_000L, 0),
+        )
+        val meta = listOf(AppMeta(10001, "com.video", "Video"), AppMeta(10002, "com.other", "Other"))
+        val r = rows(hourly = hourly, meta = meta)
+        val h = PlanStateAssembler.history(plan(), listOf(video), now, r)
+        val oct5 = h.single { it.date == LocalDate.of(2026, 10, 5) }
+        assertEquals(650_000_000L, oct5.mobileBytes)
     }
 
     @Test fun rows_are_requested_from_before_the_history_and_the_previous_window() {

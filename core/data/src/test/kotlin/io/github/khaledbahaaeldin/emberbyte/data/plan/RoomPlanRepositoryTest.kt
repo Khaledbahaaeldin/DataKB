@@ -145,7 +145,16 @@ class RoomPlanRepositoryTest {
         fillHistory()
         val id = save(draft(cap = 20_000_000_000L))       // 14 GB used in October, 6 GB left at 1 GB/day
         val f = repo.observeForecast(id).first()!!
-        assertEquals("2026-10-21", f.runOutExpected!!.toString().substring(0, 10))
+        assertEquals("2026-10-22", f.runOutExpected!!.toString().substring(0, 10))
+    }
+
+    @Test fun two_days_of_history_keep_the_default_curve() = runBlocking {
+        mobile("2026-10-13T10:00:00Z", 1_000_000_000L)
+        mobile("2026-10-14T10:00:00Z", 1_000_000_000L)
+        val id = save(draft(cap = 5_000_000_000L))
+        val f = repo.observeForecast(id).first()!!
+        assertNotNull(f.runOutExpected)
+        assertEquals("2026-10-18", f.runOutExpected!!.toString().substring(0, 10))
     }
 
     @Test fun preview_state_evaluates_an_unsaved_draft_and_rejects_an_invalid_one() = runBlocking {

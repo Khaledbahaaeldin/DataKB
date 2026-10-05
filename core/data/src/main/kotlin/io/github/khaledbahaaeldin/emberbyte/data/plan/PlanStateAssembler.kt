@@ -58,21 +58,35 @@ internal object PlanStateAssembler {
         return PlanCalculator.state(plan, now, slices, addOns, rules, previousUnused, approximate(plan, window, now, rows))
     }
 
-    fun history(plan: Plan, now: Instant, rows: PlanRows): List<DayUsage> {
+    fun history(plan: Plan, rules: List<FreeRule>, now: Instant, rows: PlanRows): List<DayUsage> {
         val zone = zoneOf(plan)
         val today = now.atZone(zone).toLocalDate()
         val from = today.minusDays(HISTORY_DAYS).atStartOfDay(zone).toInstant()
         val to = today.plusDays(1).atStartOfDay(zone).toInstant()
-        val points = SeriesBuilder.build(
-            DateRange(from, to), Granularity.DAY, zone, rows.minutes, rows.hourly,
-            UsageFilter(NetworkKind.MOBILE, plan.subscriptionId),
-        )
-        return points.map { DayUsage(it.start.atZone(zone).toLocalDate(), it.mobileBytes, 0L) }.dropWhile { it.mobileBytes == 0L }
+        val filter = UsageFilter(NetworkKind.MOBILE, plan.subscriptionId)
+        val points = SeriesBuilder.build(DateRange(from, to), Granularity.DAY, zone, rows.minutes, rows.hourly, filter)
+        if (rules.isEmpty()) {
+            return points.map { DayUsage(it.start.atZone(zone).toLocalDate(), it.mobileBytes, 0L) }
+                .dropWhile { it.mobileBytes == 0L }
+        }
+        val historySlices = slices(plan, rules, from, to, rows)
+        return points.map { point ->
+            val dayStart = point.start
+            val dayEnd = point.start.atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant()
+            val dayWindow = CycleWindow(dayStart, dayEnd)
+            val slicesOfThatDay = historySlices.filter { it.end > dayStart && it.start < dayEnd }
+            val free = PlanCalculator.freeBytes(plan, slicesOfThatDay, rules, dayWindow)
+            val netMobile = maxOf(0L, point.mobileBytes - free)
+            DayUsage(point.start.atZone(zone).toLocalDate(), netMobile, 0L)
+        }.dropWhile { it.mobileBytes == 0L }
     }
 
-    private fun slices(plan: Plan, rules: List<FreeRule>, window: CycleWindow, rows: PlanRows): List<UsageSlice> {
+    private fun slices(plan: Plan, rules: List<FreeRule>, window: CycleWindow, rows: PlanRows): List<UsageSlice> =
+        slices(plan, rules, window.start, window.end, rows)
+
+    private fun slices(plan: Plan, rules: List<FreeRule>, start: Instant, end: Instant, rows: PlanRows): List<UsageSlice> {
         val filter = UsageFilter(NetworkKind.MOBILE, plan.subscriptionId)
-        val hours = SeriesBuilder.build(DateRange(window.start, window.end), Granularity.HOUR, zoneOf(plan), rows.minutes, rows.hourly, filter)
+        val hours = SeriesBuilder.build(DateRange(start, end), Granularity.HOUR, zoneOf(plan), rows.minutes, rows.hourly, filter)
         val total = hours.filter { it.mobileBytes > 0L }.map { UsageSlice(it.start, it.start.plusSeconds(3_600), null, it.mobileBytes) }
         if (rules.none { it.packageName != null }) return total
         // Per-app slices are the 2-hour window rows (the platform's resolution); only package-scoped free rules use them.

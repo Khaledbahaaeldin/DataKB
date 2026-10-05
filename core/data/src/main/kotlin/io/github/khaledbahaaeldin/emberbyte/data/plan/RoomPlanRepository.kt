@@ -3,6 +3,7 @@ package io.github.khaledbahaaeldin.emberbyte.data.plan
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStore
 import io.github.khaledbahaaeldin.emberbyte.engine.forecast.ForecastEngine
+import io.github.khaledbahaaeldin.emberbyte.engine.forecast.HourCurves
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DayUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
@@ -45,7 +46,7 @@ class RoomPlanRepository(
 ) : PlanRepository {
 
     private data class Inputs(val plan: Plan?, val addOns: List<AddOn>, val rules: List<FreeRule>)
-    private data class Snapshot(val state: PlanState, val history: List<DayUsage>, val now: Instant)
+    private data class Snapshot(val state: PlanState, val history: List<DayUsage>, val now: Instant, val hourCurve: DoubleArray)
 
     private fun rows(plan: Plan, now: Instant): Flow<PlanRows> {
         val window = CycleCalculator.windowAt(plan.cycle, now)
@@ -63,8 +64,14 @@ class RoomPlanRepository(
             .flatMapLatest { (plan, addOns, rules) ->
                 if (plan == null) flowOf(null)
                 else ticks.flatMapLatest { now ->
+                    val zone = PlanCalculator.zoneOf(plan.cycle)
                     rows(plan, now).map { rows ->
-                        Snapshot(PlanStateAssembler.state(plan, addOns, rules, now, rows), PlanStateAssembler.history(plan, now, rows), now)
+                        Snapshot(
+                            PlanStateAssembler.state(plan, addOns, rules, now, rows),
+                            PlanStateAssembler.history(plan, rules, now, rows),
+                            now,
+                            HourCurves.personal(rows.minutes, now, zone),
+                        )
                     }
                 }
             }
@@ -73,6 +80,7 @@ class RoomPlanRepository(
         ForecastEngine.forecast(
             snapshot.state, snapshot.history, snapshot.now, PlanCalculator.zoneOf(snapshot.state.plan.cycle),
             extraBytesPerDay = extra, extraFrom = extraFrom,
+            hourCurve = snapshot.hourCurve,
         )
 
     override fun observePlans(includeArchived: Boolean): Flow<List<Plan>> =
@@ -139,7 +147,13 @@ class RoomPlanRepository(
         return guarded {
             val now = clock.instant()
             val rows = rows(plan, now).first()
-            val snapshot = Snapshot(PlanStateAssembler.state(plan, addOns, freeRules, now, rows), PlanStateAssembler.history(plan, now, rows), now)
+            val zone = PlanCalculator.zoneOf(plan.cycle)
+            val snapshot = Snapshot(
+                PlanStateAssembler.state(plan, addOns, freeRules, now, rows),
+                PlanStateAssembler.history(plan, freeRules, now, rows),
+                now,
+                HourCurves.personal(rows.minutes, now, zone),
+            )
             PlanPreview(snapshot.state, forecastOf(snapshot))
         }
     }
