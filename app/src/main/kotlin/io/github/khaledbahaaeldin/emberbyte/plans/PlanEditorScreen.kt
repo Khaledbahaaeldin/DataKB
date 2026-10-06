@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.plan.PlanCard
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.PermissionPrompt
@@ -98,6 +99,37 @@ internal fun PlanEditorContent(
                 if (state.preview != null) {
                     Text("Preview", style = MaterialTheme.typography.titleMedium)
                     PlanCard(model = state.preview, onClick = {})
+                }
+
+                if (state.whatIf != null) {
+                    Text("What if I use more?", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = state.whatIf.amountText,
+                        onValueChange = { onEvent(PlanEditorEvent.SetWhatIfAmount(it)) },
+                        label = { Text("Extra per day") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        isError = state.whatIf.error != null,
+                        supportingText = state.whatIf.error?.let { { Text(it) } },
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (unit in listOf(CapUnit.MB, CapUnit.GB)) {
+                            FilterChip(
+                                selected = state.whatIf.unit == unit,
+                                onClick = { onEvent(PlanEditorEvent.SetWhatIfUnit(unit)) },
+                                label = { Text(unit.label, softWrap = false) },
+                            )
+                        }
+                    }
+                    ForceLtr {
+                        Text("Now: ${state.whatIf.currentText}")
+                    }
+                    if (state.whatIf.whatIfText != null) {
+                        ForceLtr {
+                            Text("With extra: ${state.whatIf.whatIfText}")
+                        }
+                    }
                 }
 
                 OutlinedTextField(

@@ -63,6 +63,7 @@ data class PlanEditorUiState(
     val saving: Boolean = false,
     val saved: Boolean = false,
     val unitSystem: UnitSystem = UnitSystem.DECIMAL,
+    val whatIf: WhatIfUi? = null,
 )
 
 sealed interface PlanEditorEvent {
@@ -70,6 +71,8 @@ sealed interface PlanEditorEvent {
     data class SetSim(val subscriptionId: Int?) : PlanEditorEvent
     data class SetCap(val text: String) : PlanEditorEvent
     data class SetCapUnit(val unit: CapUnit) : PlanEditorEvent
+    data class SetWhatIfAmount(val text: String) : PlanEditorEvent
+    data class SetWhatIfUnit(val unit: CapUnit) : PlanEditorEvent
     data class SetCycleKind(val kind: CycleKind) : PlanEditorEvent
     data class SetDayOfMonth(val day: Int) : PlanEditorEvent
     data class SetEveryDays(val days: Int) : PlanEditorEvent

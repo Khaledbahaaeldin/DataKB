@@ -43,6 +43,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -378,6 +379,165 @@ class PlanEditorViewModelTest {
         vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
         assertTrue(vm.uiState.value.saved)
         assertEquals(1, plans.observePlans(true).first().size)
+        job.cancel()
+    }
+
+    private suspend fun mobile(at: String, bytes: Long, sub: Int = 1) =
+        usage.addMinute(MinuteTotal(Instant.parse(at), NetworkKind.MOBILE, sub, bytes, 0))
+
+    private suspend fun fillHistory() {
+        var day = Instant.parse("2026-09-17T10:00:00Z")
+        repeat(28) { mobile(day.toString(), 1_000_000_000L); day = day.plusSeconds(86_400) }
+    }
+
+    private suspend fun savePlan(cap: Long = 20_000_000_000L): Long =
+        (plans.upsertPlan(Plan(0, "Main", 1, cap, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None)) as Outcome.Success).value
+
+    @Test fun what_if_is_null_for_a_new_plan() = runTest(dispatcher) {
+        val vm = vm(0L)
+        val job = started(vm)
+        assertNull(vm.uiState.value.whatIf)
+        job.cancel()
+    }
+
+    @Test fun what_if_is_populated_for_an_existing_plan() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val expectedForecast = plans.observeForecast(id).first()!!
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val expectedSentence = whatIfSentence(expectedForecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH)
+
+        val vm = vm(id)
+        val job = started(vm)
+        val whatIf = vm.uiState.value.whatIf
+        assertNotNull(whatIf)
+        assertEquals(expectedSentence, whatIf!!.currentText)
+        assertEquals("", whatIf.amountText)
+        assertEquals(CapUnit.MB, whatIf.unit)
+        assertNull(whatIf.whatIfText)
+        assertNull(whatIf.error)
+        job.cancel()
+    }
+
+    @Test fun set_what_if_amount_computes_what_if_sentence_and_earlier_run_out() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val currentForecast = plans.observeForecast(id).first()!!
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val whatIfOutcome = plans.whatIf(id, 500_000_000L, now) as Outcome.Success
+        val expectedSentence = whatIfSentence(whatIfOutcome.value, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH)
+
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        advanceUntilIdle()
+
+        val whatIf = vm.uiState.value.whatIf!!
+        assertEquals("500", whatIf.amountText)
+        assertEquals(expectedSentence, whatIf.whatIfText)
+        assertNull(whatIf.error)
+        assertTrue(whatIfOutcome.value.runOutExpected!! <= currentForecast.runOutExpected!!)
+        job.cancel()
+    }
+
+    @Test fun clearing_what_if_amount_clears_what_if_text_without_error() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        advanceUntilIdle()
+        assertNotNull(vm.uiState.value.whatIf!!.whatIfText)
+
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount(""))
+        advanceUntilIdle()
+        val whatIf = vm.uiState.value.whatIf!!
+        assertEquals("", whatIf.amountText)
+        assertNull(whatIf.whatIfText)
+        assertNull(whatIf.error)
+        job.cancel()
+    }
+
+    @Test fun invalid_what_if_amount_sets_error_and_clears_what_if_text() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("abc"))
+        advanceUntilIdle()
+
+        val whatIf = vm.uiState.value.whatIf!!
+        assertEquals("abc", whatIf.amountText)
+        assertEquals("Enter a number", whatIf.error)
+        assertNull(whatIf.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_unit_change_recomputes_with_new_unit() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("1"))
+        advanceUntilIdle()
+        val mbForecast = (plans.whatIf(id, 1_000_000L, now) as Outcome.Success).value
+        assertEquals(whatIfSentence(mbForecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH), vm.uiState.value.whatIf!!.whatIfText)
+
+        vm.onEvent(PlanEditorEvent.SetWhatIfUnit(CapUnit.GB))
+        advanceUntilIdle()
+        val gbForecast = (plans.whatIf(id, 1_000_000_000L, now) as Outcome.Success).value
+        assertEquals(whatIfSentence(gbForecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH), vm.uiState.value.whatIf!!.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_honours_binary_unit_system() = runTest(dispatcher) {
+        settings.update { it.copy(unitSystem = UnitSystem.BINARY) }
+        fillHistory()
+        val id = savePlan()
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("1"))
+        vm.onEvent(PlanEditorEvent.SetWhatIfUnit(CapUnit.GB))
+        advanceUntilIdle()
+
+        val binaryGb = 1024L * 1024 * 1024
+        val forecast = (plans.whatIf(id, binaryGb, now) as Outcome.Success).value
+        assertEquals(whatIfSentence(forecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH), vm.uiState.value.whatIf!!.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_computation_is_debounced() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val vm = PlanEditorViewModel(
+            id, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH,
+            previewDebounceMillis = 300L, savedStateHandle = SavedStateHandle(),
+        )
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        testScheduler.advanceTimeBy(100L)
+        assertNull(vm.uiState.value.whatIf!!.whatIfText)
+
+        testScheduler.advanceTimeBy(250L)
+        advanceUntilIdle()
+        assertNotNull(vm.uiState.value.whatIf!!.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_never_writes_to_plan_store() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val beforePlans = plans.observePlans(true).first()
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        vm.onEvent(PlanEditorEvent.SetWhatIfUnit(CapUnit.GB))
+        advanceUntilIdle()
+
+        val afterPlans = plans.observePlans(true).first()
+        assertEquals(beforePlans, afterPlans)
         job.cancel()
     }
 

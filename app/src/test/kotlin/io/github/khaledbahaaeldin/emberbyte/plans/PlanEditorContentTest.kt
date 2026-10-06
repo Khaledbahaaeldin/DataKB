@@ -293,4 +293,40 @@ class PlanEditorContentTest {
             chip100.size.height <= chip50.size.height,
         )
     }
+
+    @Test fun for_existing_plan_what_if_section_shows_fields_chips_and_sentences() {
+        val whatIf = WhatIfUi(
+            amountText = "500",
+            unit = CapUnit.MB,
+            currentText = "runs out Mon (±1 day)",
+            whatIfText = "runs out Sun (±1 day)",
+            error = null,
+        )
+        show(state.copy(isNew = false, planId = 1, whatIf = whatIf))
+        rule.onNodeWithText("What if I use more?").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Extra per day").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Now: runs out Mon (±1 day)").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("With extra: runs out Sun (±1 day)").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun what_if_section_is_absent_for_new_plan() {
+        show(state.copy(isNew = true, planId = 0, whatIf = null))
+        rule.onNodeWithText("What if I use more?").assertDoesNotExist()
+        rule.onNodeWithText("Extra per day").assertDoesNotExist()
+        rule.onNodeWithText("Now:", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("With extra:", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun what_if_error_text_is_shown_under_field_when_error_is_present() {
+        val whatIf = WhatIfUi(
+            amountText = "abc",
+            unit = CapUnit.MB,
+            currentText = "runs out Mon (±1 day)",
+            whatIfText = null,
+            error = "Enter a number",
+        )
+        show(state.copy(isNew = false, planId = 1, whatIf = whatIf))
+        rule.onNodeWithText("Enter a number").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("With extra:", substring = true).assertDoesNotExist()
+    }
 }

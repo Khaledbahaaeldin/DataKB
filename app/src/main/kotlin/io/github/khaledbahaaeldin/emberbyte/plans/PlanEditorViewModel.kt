@@ -70,6 +70,17 @@ class PlanEditorViewModel(
             _state.map { it.form to it.unitSystem }.distinctUntilChanged().debounce(previewDebounceMillis)
                 .collectLatest { (form, system) -> _state.update { it.copy(preview = preview(form, system)) } }
         }
+        if (planId != 0L) {
+            viewModelScope.launch {
+                _state.map { Triple(it.whatIf?.amountText, it.whatIf?.unit, it.unitSystem) }
+                    .distinctUntilChanged()
+                    .debounce(previewDebounceMillis)
+                    .collectLatest { (amountText, unit, unitSystem) ->
+                        if (amountText == null || unit == null) return@collectLatest
+                        recomputeWhatIf(amountText, unit, unitSystem)
+                    }
+            }
+        }
     }
 
     private suspend fun load() {
@@ -118,6 +129,21 @@ class PlanEditorViewModel(
         val alertRules = alerts.observeRules(planId).first()
         val thresholds = alertRules.map { it.thresholdPercent }.toSet()
 
+        val currentForecast = plans.observeForecast(planId).first()
+        val remainingBytes = plans.observePlanState(planId).first()?.remainingBytes ?: 0L
+        val currentText = if (currentForecast != null) {
+            whatIfSentence(currentForecast, remainingBytes, clock.instant(), zone, locale)
+        } else {
+            "Not enough data yet"
+        }
+        val initialWhatIf = WhatIfUi(
+            amountText = "",
+            unit = CapUnit.MB,
+            currentText = currentText,
+            whatIfText = null,
+            error = null,
+        )
+
         val hasRestored = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) } != null
         if (!hasRestored) {
             val form = PlanEditorForm(
@@ -137,9 +163,9 @@ class PlanEditorViewModel(
                 freeRules = freeRuleDrafts,
                 alertThresholds = thresholds,
             )
-            _state.update { it.copy(form = form, loading = false) }
+            _state.update { it.copy(form = form, loading = false, whatIf = initialWhatIf) }
         } else {
-            _state.update { it.copy(loading = false) }
+            _state.update { it.copy(loading = false, whatIf = initialWhatIf) }
         }
     }
 
@@ -190,6 +216,16 @@ class PlanEditorViewModel(
             is PlanEditorEvent.SetSim -> updateForm { it.copy(subscriptionId = event.subscriptionId) }
             is PlanEditorEvent.SetCap -> updateForm { it.copy(capText = event.text) }
             is PlanEditorEvent.SetCapUnit -> updateForm { it.copy(capUnit = event.unit) }
+            is PlanEditorEvent.SetWhatIfAmount -> {
+                _state.update { s ->
+                    s.copy(whatIf = s.whatIf?.copy(amountText = event.text))
+                }
+            }
+            is PlanEditorEvent.SetWhatIfUnit -> {
+                _state.update { s ->
+                    s.copy(whatIf = s.whatIf?.copy(unit = event.unit))
+                }
+            }
             is PlanEditorEvent.SetCycleKind -> updateForm { it.copy(cycleKind = event.kind) }
             is PlanEditorEvent.SetDayOfMonth -> updateForm { it.copy(dayOfMonth = event.day) }
             is PlanEditorEvent.SetEveryDays -> updateForm { it.copy(everyDays = event.days) }
@@ -324,6 +360,60 @@ class PlanEditorViewModel(
                 _state.update { it.copy(saved = true) }
             }
             is Outcome.Failure -> _state.update { it.copy(errors = mapOf("form" to "Could not archive. Try again.")) }
+        }
+    }
+
+    private suspend fun recomputeWhatIf(amountText: String, unit: CapUnit, system: UnitSystem) {
+        val currentForecast = plans.observeForecast(planId).first()
+        val remainingBytes = plans.observePlanState(planId).first()?.remainingBytes ?: 0L
+        val currentText = if (currentForecast != null) {
+            whatIfSentence(currentForecast, remainingBytes, clock.instant(), zone, locale)
+        } else {
+            "Not enough data yet"
+        }
+
+        if (amountText.isBlank()) {
+            _state.update { s ->
+                s.copy(
+                    whatIf = s.whatIf?.copy(
+                        currentText = currentText,
+                        whatIfText = null,
+                        error = null,
+                    ),
+                )
+            }
+            return
+        }
+
+        val bytes = bytesOf(amountText, unit, system)
+        if (bytes == null) {
+            _state.update { s ->
+                s.copy(
+                    whatIf = s.whatIf?.copy(
+                        currentText = currentText,
+                        whatIfText = null,
+                        error = "Enter a number",
+                    ),
+                )
+            }
+            return
+        }
+
+        val outcome = plans.whatIf(planId, bytes, clock.instant())
+        val sentence = if (outcome is Outcome.Success) {
+            whatIfSentence(outcome.value, remainingBytes, clock.instant(), zone, locale)
+        } else {
+            null
+        }
+
+        _state.update { s ->
+            s.copy(
+                whatIf = s.whatIf?.copy(
+                    currentText = currentText,
+                    whatIfText = sentence,
+                    error = null,
+                ),
+            )
         }
     }
 
