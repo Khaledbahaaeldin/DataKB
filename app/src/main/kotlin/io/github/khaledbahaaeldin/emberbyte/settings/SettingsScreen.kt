@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
@@ -143,7 +144,7 @@ class SettingsPendingState(
                 val rangeName = map["range"] as? String
                 val range = rangeName?.let { runCatching { ExportRange.valueOf(it) }.getOrNull() } ?: ExportRange.LAST_7_DAYS
                 val uriStr = map["restoreUri"] as? String
-                val uri = uriStr?.let { Uri.parse(it) }
+                val uri = uriStr?.toUri()
                 SettingsPendingState(range, uri)
             },
         )
