@@ -51,12 +51,17 @@ class PlanEditorViewModel(
     private val previewDebounceMillis: Long = 300L,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val hasRestored = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) } != null
+    private var isRestoredDirty = hasRestored
+    private var loadedForm: PlanEditorForm? = null
+
     private val _state = MutableStateFlow(
         PlanEditorUiState(
             planId = planId,
             isNew = planId == 0L,
             form = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) }
                 ?: PlanEditorForm(anchor = LocalDate.now(clock)),
+            isDirty = hasRestored,
         ),
     )
     val uiState: StateFlow<PlanEditorUiState> = _state.asStateFlow()
@@ -87,7 +92,12 @@ class PlanEditorViewModel(
         val system = settings.observe().first().unitSystem
         _state.update { it.copy(unitSystem = system) }
         if (planId == 0L) {
-            _state.update { it.copy(loading = false) }
+            if (!hasRestored) {
+                loadedForm = _state.value.form
+                _state.update { it.copy(loading = false, isDirty = false) }
+            } else {
+                _state.update { it.copy(loading = false, isDirty = true) }
+            }
             return
         }
         val allPlans = plans.observePlans(includeArchived = true).first()
@@ -163,9 +173,10 @@ class PlanEditorViewModel(
                 freeRules = freeRuleDrafts,
                 alertThresholds = thresholds,
             )
-            _state.update { it.copy(form = form, loading = false, whatIf = initialWhatIf) }
+            loadedForm = form
+            _state.update { it.copy(form = form, loading = false, whatIf = initialWhatIf, isDirty = false) }
         } else {
-            _state.update { it.copy(loading = false, whatIf = initialWhatIf) }
+            _state.update { it.copy(loading = false, whatIf = initialWhatIf, isDirty = true) }
         }
     }
 
@@ -206,7 +217,8 @@ class PlanEditorViewModel(
         _state.update { current ->
             val nextForm = transform(current.form)
             savedStateHandle[KEY_FORM] = PlanEditorFormJson.encode(nextForm)
-            current.copy(form = nextForm, errors = emptyMap())
+            val dirty = if (isRestoredDirty) true else (loadedForm == null || nextForm != loadedForm)
+            current.copy(form = nextForm, errors = emptyMap(), isDirty = dirty)
         }
     }
 
@@ -326,8 +338,7 @@ class PlanEditorViewModel(
         }
         val ok = domainResult as FormResult.Ok
 
-        // Validate the entire draft first before writing anything. Saving is validated first
-        // and then written step by step; it is NOT a database transaction.
+        // Validate the entire draft first before writing anything.
         val draftErrors = plans.validateDraft(ok.plan, ok.addOns, ok.freeRules)
         if (draftErrors.isNotEmpty()) {
             _state.update { it.copy(errors = draftErrors) }
@@ -339,7 +350,9 @@ class PlanEditorViewModel(
         when (val res = plans.savePlan(ok.plan, ok.addOns, ok.freeRules, _state.value.form.alertThresholds)) {
             is Outcome.Success -> {
                 savedStateHandle.remove<String>(KEY_FORM)
-                _state.update { it.copy(planId = res.value, isNew = false, saved = true, saving = false) }
+                isRestoredDirty = false
+                loadedForm = _state.value.form
+                _state.update { it.copy(planId = res.value, isNew = false, saved = true, saving = false, isDirty = false) }
             }
             is Outcome.Failure -> {
                 val err = when (val e = res.error) {
@@ -357,7 +370,9 @@ class PlanEditorViewModel(
         when (plans.archivePlan(currentPlanId)) {
             is Outcome.Success -> {
                 savedStateHandle.remove<String>(KEY_FORM)
-                _state.update { it.copy(saved = true) }
+                isRestoredDirty = false
+                loadedForm = _state.value.form
+                _state.update { it.copy(saved = true, isDirty = false) }
             }
             is Outcome.Failure -> _state.update { it.copy(errors = mapOf("form" to "Could not archive. Try again.")) }
         }

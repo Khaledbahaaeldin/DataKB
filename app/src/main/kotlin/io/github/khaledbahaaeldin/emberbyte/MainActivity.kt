@@ -58,3 +58,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { graph.permissions.recheck() }
     }
 }
+
+internal fun launchIntentFor(intent: Intent, onboardingCompleted: Boolean): Intent =
+    if (onboardingCompleted) intent else Intent(intent).setData(null)
+

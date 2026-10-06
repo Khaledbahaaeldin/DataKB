@@ -23,6 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,27 +55,25 @@ fun SettingsScreen(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
 
-    var pendingRange by remember { mutableStateOf(ExportRange.LAST_7_DAYS) }
-    var pendingCreatePassphrase by remember { mutableStateOf<CharArray?>(null) }
-    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    val pendingState = rememberSaveable(saver = SettingsPendingState.Saver) { SettingsPendingState() }
 
     val createCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        uri?.let { dataViewModel.exportCsv(pendingRange, it) }
+        uri?.let { dataViewModel.exportCsv(pendingState.pendingRange, it) }
     }
     val createJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let(dataViewModel::exportJson)
     }
     val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        val pass = pendingCreatePassphrase
+        val pass = pendingState.pendingCreatePassphrase
         if (uri != null && pass != null) {
             dataViewModel.createBackup(uri, pass)
         } else {
             pass?.fill('\u0000')
         }
-        pendingCreatePassphrase = null
+        pendingState.pendingCreatePassphrase = null
     }
     val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        pendingRestoreUri = uri
+        pendingState.pendingRestoreUri = uri
     }
 
     SettingsContent(
@@ -91,7 +91,7 @@ fun SettingsScreen(
         },
         dataUiState = dataUiState,
         onExportCsv = { range ->
-            pendingRange = range
+            pendingState.pendingRange = range
             val date = LocalDate.now(dataViewModel.clock)
             createCsv.launch("emberbyte-usage-$date.csv")
         },
@@ -100,7 +100,7 @@ fun SettingsScreen(
             createJson.launch("emberbyte-export-$date.json")
         },
         onCreateBackup = { passphrase ->
-            pendingCreatePassphrase = passphrase.copyOf()
+            pendingState.pendingCreatePassphrase = passphrase.copyOf()
             val date = LocalDate.now(dataViewModel.clock)
             createBackup.launch("emberbyte-backup-$date.emberbyte")
         },
@@ -108,19 +108,46 @@ fun SettingsScreen(
             openBackup.launch(arrayOf("application/octet-stream", "*/*"))
         },
         onRestoreBackup = { passphrase ->
-            val uri = pendingRestoreUri
+            val uri = pendingState.pendingRestoreUri
             if (uri != null) {
                 dataViewModel.restoreBackup(uri, passphrase)
-                pendingRestoreUri = null
+                pendingState.pendingRestoreUri = null
             }
         },
         onClearDataMessage = dataViewModel::clearMessage,
-        restoreFileChosen = pendingRestoreUri != null,
+        restoreFileChosen = pendingState.pendingRestoreUri != null,
         onDismissRestorePassphrase = {
-            pendingRestoreUri = null
+            pendingState.pendingRestoreUri = null
         },
         modifier = modifier,
     )
+}
+
+class SettingsPendingState(
+    initialRange: ExportRange = ExportRange.LAST_7_DAYS,
+    initialRestoreUri: Uri? = null,
+) {
+    var pendingRange: ExportRange by mutableStateOf(initialRange)
+    var pendingRestoreUri: Uri? by mutableStateOf(initialRestoreUri)
+    var pendingCreatePassphrase: CharArray? by mutableStateOf(null)
+
+    companion object {
+        val Saver: Saver<SettingsPendingState, Map<String, Any?>> = Saver(
+            save = { state ->
+                mapOf(
+                    "range" to state.pendingRange.name,
+                    "restoreUri" to state.pendingRestoreUri?.toString(),
+                )
+            },
+            restore = { map ->
+                val rangeName = map["range"] as? String
+                val range = rangeName?.let { runCatching { ExportRange.valueOf(it) }.getOrNull() } ?: ExportRange.LAST_7_DAYS
+                val uriStr = map["restoreUri"] as? String
+                val uri = uriStr?.let { Uri.parse(it) }
+                SettingsPendingState(range, uri)
+            },
+        )
+    }
 }
 
 @Composable

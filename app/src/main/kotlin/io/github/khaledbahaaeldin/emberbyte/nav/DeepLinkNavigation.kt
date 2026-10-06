@@ -11,6 +11,8 @@ internal sealed interface DeepLinkTarget {
     data class PlanEditor(val planId: Long) : DeepLinkTarget
 
     companion object {
+        private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z0-9_.:\\-]{1,200}$")
+
         fun parse(uri: Uri): DeepLinkTarget? {
             if (!uri.scheme.equals(DeepLinks.SCHEME, ignoreCase = true)) return null
             val host = uri.host?.takeIf { it.isNotEmpty() }?.lowercase() ?: return null
@@ -19,7 +21,7 @@ internal sealed interface DeepLinkTarget {
                 "home" -> if (segments.isEmpty()) Tab(Destination.Home) else null
                 "apps" -> when (segments.size) {
                     0 -> Tab(Destination.Apps)
-                    1 -> segments[0].takeIf { it.isNotEmpty() }?.let { AppDetail(it) }
+                    1 -> segments[0].takeIf { it != ".." && it != "." && PACKAGE_NAME_REGEX.matches(it) }?.let { AppDetail(it) }
                     else -> null
                 }
                 "plans" -> when (segments.size) {

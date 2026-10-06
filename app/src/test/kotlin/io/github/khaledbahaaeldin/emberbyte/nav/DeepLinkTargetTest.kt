@@ -36,9 +36,18 @@ class DeepLinkTargetTest {
     @Test
     fun parse_app_detail_percent_encoded() {
         assertEquals(
-            DeepLinkTarget.AppDetail("com.example.special app"),
-            DeepLinkTarget.parse("emberbyte://apps/com.example.special%20app".toUri()),
+            DeepLinkTarget.AppDetail("uid:10123"),
+            DeepLinkTarget.parse("emberbyte://apps/uid%3A10123".toUri()),
         )
+    }
+
+    @Test
+    fun parse_app_detail_invalid_package_names_return_null() {
+        assertNull(DeepLinkTarget.parse("emberbyte://apps/..".toUri()))
+        assertNull(DeepLinkTarget.parse("emberbyte://apps/a%2Fb".toUri()))
+        assertNull(DeepLinkTarget.parse("emberbyte://apps/com.example.special%20app".toUri()))
+        assertNull(DeepLinkTarget.parse("emberbyte://apps/   ".toUri()))
+        assertNull(DeepLinkTarget.parse("emberbyte://apps/${"a".repeat(201)}".toUri()))
     }
 
     @Test

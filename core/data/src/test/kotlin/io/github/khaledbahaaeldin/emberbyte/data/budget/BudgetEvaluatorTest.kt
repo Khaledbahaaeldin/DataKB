@@ -148,15 +148,25 @@ class BudgetEvaluatorTest {
     fun parallel_evaluations_post_a_transition_once() = runBlocking(Dispatchers.Default) {
         val b = budget()
         val currentStatuses = listOf(periodStatus(b, 850L, BudgetState.WARNING))
-        val evaluator = BudgetEvaluator({ currentStatuses }, store)
-
-        val allNotices = coroutineScope {
-            awaitAll(
-                async { evaluator.evaluate().notices },
-                async { evaluator.evaluate().notices },
-                async { evaluator.evaluate().notices },
-            ).flatten()
+        val firstCalled = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var count = 0
+        val interceptingStore = object : BudgetStore by store {
+            override suspend fun lastState(budgetId: Long, periodStart: Instant): BudgetState? {
+                if (count++ == 0) {
+                    firstCalled.complete(Unit)
+                    gate.await()
+                }
+                return store.lastState(budgetId, periodStart)
+            }
         }
+        val evaluator = BudgetEvaluator({ currentStatuses }, interceptingStore)
+
+        val first = async { evaluator.evaluate().notices }
+        firstCalled.await()
+        val second = async { evaluator.evaluate().notices }
+        gate.complete(Unit)
+        val allNotices = first.await() + second.await()
         assertEquals(1, allNotices.size)
         assertEquals(BudgetState.WARNING, allNotices.single().state)
     }

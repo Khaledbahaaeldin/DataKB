@@ -130,11 +130,13 @@ class SpikeEvaluatorTest {
 
         val prev1 = currentWindow.minus(windowDuration)
         val prev2 = currentWindow.minus(windowDuration.multipliedBy(2))
+        val prev3 = currentWindow.minus(windowDuration.multipliedBy(3))
 
         val history = listOf(
             HourlyUsage(currentWindow.minus(Duration.ofDays(10)), uid, NetworkKind.MOBILE, 1, 10_000_000L, 0L),
             HourlyUsage(prev1, uid, NetworkKind.MOBILE, 1, 300_000_000L, 0L),
             HourlyUsage(prev2, uid, NetworkKind.MOBILE, 1, 400_000_000L, 0L),
+            HourlyUsage(prev3, uid, NetworkKind.MOBILE, 1, 500_000_000L, 0L),
         )
         usage.upsertHourly(history)
 
@@ -142,6 +144,7 @@ class SpikeEvaluatorTest {
         assertEquals(2, spikes.size)
         val windowStarts = spikes.map { it.windowStart }.toSet()
         assertEquals(setOf(prev1, prev2), windowStarts)
+        assertTrue(prev3 !in windowStarts)
     }
 
     @Test

@@ -1,8 +1,11 @@
 package io.github.khaledbahaaeldin.emberbyte.nav
 
 import android.app.Application
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -66,6 +69,28 @@ class NavigationTest {
             if (current != null) {
                 EmberbyteTheme(darkTheme = true, dynamicColor = current.useDynamicColor, amoledBlack = current.amoledBlack) {
                     EmberbyteApp(graph, hapticsEnabled = current.hapticsEnabled)
+                }
+            }
+        }
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("nav_lens").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("nav_lens").performClick()
+        rule.onNodeWithText("Live Lens is opt-in and arrives in a later update.").assertIsDisplayed()
+    }
+
+    @Test fun lens_tab_shows_placeholder_text_under_rtl() {
+        val graph = (app as EmberbyteApplication).graph
+        runBlocking {
+            graph.onboarding.complete()
+            graph.onboardingCompleted.first { it == true }
+        }
+        rule.setContent {
+            val settings by graph.settingsState.collectAsState()
+            val current = settings
+            if (current != null) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    EmberbyteTheme(darkTheme = true, dynamicColor = current.useDynamicColor, amoledBlack = current.amoledBlack) {
+                        EmberbyteApp(graph, hapticsEnabled = current.hapticsEnabled)
+                    }
                 }
             }
         }

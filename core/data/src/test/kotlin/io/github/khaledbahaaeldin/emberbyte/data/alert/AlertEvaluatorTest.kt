@@ -91,13 +91,24 @@ class AlertEvaluatorTest {
 
     @Test fun concurrent_evaluate_calls_return_exactly_one_notice() = runBlocking(Dispatchers.Default) {
         plan(rules = listOf(50)); use(5_200_000_000L)
-        val e = evaluator()
-        val allNotices = coroutineScope {
-            awaitAll(
-                async { e.evaluate() },
-                async { e.evaluate() },
-            ).flatten()
+        val firstCalled = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var count = 0
+        val interceptingStore = object : io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStore by store {
+            override suspend fun lastFiredPercent(planId: Long, windowStart: Instant): Int? {
+                if (count++ == 0) {
+                    firstCalled.complete(Unit)
+                    gate.await()
+                }
+                return store.lastFiredPercent(planId, windowStart)
+            }
         }
+        val e = AlertEvaluator(repo(october), interceptingStore)
+        val first = async { e.evaluate() }
+        firstCalled.await()
+        val second = async { e.evaluate() }
+        gate.complete(Unit)
+        val allNotices = first.await() + second.await()
         assertEquals(1, allNotices.size)
         assertEquals(50, allNotices.single().thresholdPercent)
     }

@@ -541,6 +541,32 @@ class PlanEditorViewModelTest {
         job.cancel()
     }
 
+    @Test fun isDirty_is_false_right_after_loading_and_true_after_any_edit_false_again_after_successful_save() = runTest(dispatcher) {
+        val id = (plans.upsertPlan(Plan(0, "Existing", null, 5_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.Full)) as Outcome.Success).value
+        val vm = vm(id)
+        val job = started(vm)
+        assertFalse(vm.uiState.value.isDirty)
+
+        vm.onEvent(PlanEditorEvent.SetName("Edited Name"))
+        assertTrue(vm.uiState.value.isDirty)
+
+        vm.onEvent(PlanEditorEvent.Save)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.saved)
+        assertFalse(vm.uiState.value.isDirty)
+        job.cancel()
+    }
+
+    @Test fun restored_saved_state_form_counts_as_dirty() = runTest(dispatcher) {
+        val handle = SavedStateHandle().apply {
+            set("form", PlanEditorFormJson.encode(PlanEditorForm(name = "Restored Draft", capText = "20")))
+        }
+        val vm = vm(0L, handle = handle)
+        val job = started(vm)
+        assertTrue(vm.uiState.value.isDirty)
+        job.cancel()
+    }
+
     private class RecordingPlanRepository(private val delegate: PlanRepository) : PlanRepository by delegate {
         var savePlanCalls = 0
         var upsertPlanCalls = 0

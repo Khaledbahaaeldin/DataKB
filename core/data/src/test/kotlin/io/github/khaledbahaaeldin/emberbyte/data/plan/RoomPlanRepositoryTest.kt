@@ -146,6 +146,9 @@ class RoomPlanRepositoryTest {
         val id = save(draft(cap = 20_000_000_000L))       // 14 GB used in October, 6 GB left at 1 GB/day
         val f = repo.observeForecast(id).first()!!
         assertEquals("2026-10-22", f.runOutExpected!!.toString().substring(0, 10))
+        val expected = Instant.parse("2026-10-22T00:00:00Z")
+        val diffSeconds = Math.abs(f.runOutExpected!!.epochSecond - expected.epochSecond)
+        assertTrue("runOutExpected was ${f.runOutExpected}, expected within 1s of $expected", diffSeconds <= 1)
     }
 
     @Test fun two_days_of_history_keep_the_default_curve() = runBlocking {

@@ -64,6 +64,7 @@ data class PlanEditorUiState(
     val saved: Boolean = false,
     val unitSystem: UnitSystem = UnitSystem.DECIMAL,
     val whatIf: WhatIfUi? = null,
+    val isDirty: Boolean = false,
 )
 
 sealed interface PlanEditorEvent {

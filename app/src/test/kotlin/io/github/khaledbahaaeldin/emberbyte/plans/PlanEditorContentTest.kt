@@ -329,4 +329,54 @@ class PlanEditorContentTest {
         rule.onNodeWithText("Enter a number").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("With extra:", substring = true).assertDoesNotExist()
     }
+
+    @Test fun when_not_dirty_back_leaves_immediately() {
+        var backCount = 0
+        show(state.copy(isDirty = false), onBack = { backCount++ })
+        rule.onNodeWithContentDescription("Back").performClick()
+        assertEquals(1, backCount)
+        rule.onNodeWithText("Discard changes?").assertDoesNotExist()
+    }
+
+    @Test fun when_dirty_back_arrow_shows_discard_dialog_keep_editing_dismisses() {
+        var backCount = 0
+        show(state.copy(isDirty = true), onBack = { backCount++ })
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithText("Discard changes?").assertIsDisplayed()
+        assertEquals(0, backCount)
+
+        rule.onNodeWithText("Keep editing").performClick()
+        rule.onNodeWithText("Discard changes?").assertDoesNotExist()
+        assertEquals(0, backCount)
+    }
+
+    @Test fun when_dirty_discard_dialog_confirm_calls_on_back() {
+        var backCount = 0
+        show(state.copy(isDirty = true), onBack = { backCount++ })
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithText("Discard changes?").assertIsDisplayed()
+
+        rule.onNodeWithText("Discard").performClick()
+        assertEquals(1, backCount)
+        rule.onNodeWithText("Discard changes?").assertDoesNotExist()
+    }
+
+    @Test fun when_dirty_system_back_triggers_discard_dialog() {
+        var backCount = 0
+        show(state.copy(isDirty = true), onBack = { backCount++ })
+        (rule as? androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>)?.activity?.onBackPressedDispatcher?.onBackPressed()
+        rule.onNodeWithText("Discard changes?").assertIsDisplayed()
+        assertEquals(0, backCount)
+
+        rule.onNodeWithText("Discard").performClick()
+        assertEquals(1, backCount)
+    }
+
+    @Test fun when_not_dirty_system_back_leaves_immediately() {
+        var backCount = 0
+        show(state.copy(isDirty = false), onBack = { backCount++ })
+        (rule as? androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>)?.activity?.onBackPressedDispatcher?.onBackPressed()
+        assertEquals(1, backCount)
+        rule.onNodeWithText("Discard changes?").assertDoesNotExist()
+    }
 }

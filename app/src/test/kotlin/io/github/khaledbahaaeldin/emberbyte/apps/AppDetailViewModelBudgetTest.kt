@@ -298,4 +298,67 @@ class AppDetailViewModelBudgetTest {
 
         job.cancel()
     }
+
+    @Test fun test_10_clearing_errors_on_any_edit() = runTest(dispatcher) {
+        val vm = vm()
+        val job = started(vm)
+
+        vm.onEvent(AppDetailEvent.OpenBudgetEditor)
+        vm.onEvent(AppDetailEvent.SetBudgetLimit("abc"))
+        vm.onEvent(AppDetailEvent.SaveBudget)
+        advanceUntilIdle()
+
+        assertEquals(mapOf("limitBytes" to "Enter a number greater than zero"), vm.uiState.value.editor!!.errors)
+
+        // SetBudgetLimit clears errors
+        vm.onEvent(AppDetailEvent.SetBudgetLimit("5"))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.isEmpty())
+
+        // Re-trigger error
+        vm.onEvent(AppDetailEvent.SetBudgetLimit("abc"))
+        vm.onEvent(AppDetailEvent.SaveBudget)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.containsKey("limitBytes"))
+
+        // SetBudgetUnit clears errors
+        vm.onEvent(AppDetailEvent.SetBudgetUnit(CapUnit.MB))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.isEmpty())
+
+        // Re-trigger error
+        vm.onEvent(AppDetailEvent.SetBudgetLimit("abc"))
+        vm.onEvent(AppDetailEvent.SaveBudget)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.containsKey("limitBytes"))
+
+        // SetBudgetPeriod clears errors
+        vm.onEvent(AppDetailEvent.SetBudgetPeriod(BudgetPeriod.CYCLE))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.isEmpty())
+
+        // Re-trigger error
+        vm.onEvent(AppDetailEvent.SetBudgetLimit("abc"))
+        vm.onEvent(AppDetailEvent.SaveBudget)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.containsKey("limitBytes"))
+
+        // SetBudgetPlan clears errors
+        vm.onEvent(AppDetailEvent.SetBudgetPlan(1L))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.isEmpty())
+
+        // Re-trigger error
+        vm.onEvent(AppDetailEvent.SetBudgetLimit("abc"))
+        vm.onEvent(AppDetailEvent.SaveBudget)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.containsKey("limitBytes"))
+
+        // SetBudgetWarn clears errors
+        vm.onEvent(AppDetailEvent.SetBudgetWarn(50))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.editor!!.errors.isEmpty())
+
+        job.cancel()
+    }
 }

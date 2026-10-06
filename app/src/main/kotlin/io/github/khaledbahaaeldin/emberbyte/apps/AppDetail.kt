@@ -209,19 +209,19 @@ class AppDetailViewModel(
                 _editor.value = null
             }
             is AppDetailEvent.SetBudgetLimit -> {
-                _editor.value = _editor.value?.copy(limitText = event.text)
+                _editor.value = _editor.value?.copy(limitText = event.text, errors = emptyMap())
             }
             is AppDetailEvent.SetBudgetUnit -> {
-                _editor.value = _editor.value?.copy(unit = event.unit)
+                _editor.value = _editor.value?.copy(unit = event.unit, errors = emptyMap())
             }
             is AppDetailEvent.SetBudgetPeriod -> {
-                _editor.value = _editor.value?.copy(period = event.period)
+                _editor.value = _editor.value?.copy(period = event.period, errors = emptyMap())
             }
             is AppDetailEvent.SetBudgetPlan -> {
-                _editor.value = _editor.value?.copy(planId = event.planId)
+                _editor.value = _editor.value?.copy(planId = event.planId, errors = emptyMap())
             }
             is AppDetailEvent.SetBudgetWarn -> {
-                _editor.value = _editor.value?.copy(warnAtPercent = event.percent)
+                _editor.value = _editor.value?.copy(warnAtPercent = event.percent, errors = emptyMap())
             }
             AppDetailEvent.SaveBudget -> {
                 val ed = _editor.value ?: return

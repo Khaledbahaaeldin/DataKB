@@ -56,6 +56,7 @@ import io.github.khaledbahaaeldin.emberbyte.settings.ContentResolverStreamOpener
 import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.FloatingPillNavBar
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.glassSource
@@ -79,6 +80,10 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
 @Composable
 private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnabled: Boolean) {
     val context = LocalContext.current
+    val activity = remember(context) { context.findComponentActivity() }
+    if (activity != null && activity.intent != null) {
+        activity.intent = launchIntentFor(activity.intent, onboardingCompleted = !startOnboarding)
+    }
     val navController = rememberNavController()
 
     DisposableEffect(navController, context) {
@@ -192,7 +197,9 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 Destination.Lens.route,
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),
             ) {
-                PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in a later update.")
+                ForceLtr {
+                    PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in a later update.")
+                }
             }
             composable(Routes.HISTORY) {
                 val viewModel: HistoryViewModel = viewModel(factory = graph.historyViewModelFactory())
