@@ -66,79 +66,83 @@ class DefaultBackupService(
 
         val decompressed = BackupCodec.open(sealed, passphrase)
 
-        val parsed = try {
-            GZIPInputStream(ByteArrayInputStream(decompressed)).use { gzipStream ->
-                BackupParser.parse(gzipStream)
-            }
+        val gzipStream = try {
+            GZIPInputStream(ByteArrayInputStream(decompressed))
         } catch (_: ZipException) {
             throw BackupFormatException("file", "The backup is damaged")
         }
 
-        if (parsed.contractVersion > 1) {
-            return Outcome.Failure(EmberbyteError.Invalid("file", "This backup was made by a newer version of Emberbyte"))
-        }
+        gzipStream.use { stream ->
+            val parsed = BackupParser.parse(stream)
 
-        for (p in parsed.plans) {
-            if (PlanValidation.plan(p.plan) != null) {
-                return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
+            if (parsed.contractVersion > 1) {
+                return Outcome.Failure(EmberbyteError.Invalid("file", "This backup was made by a newer version of Emberbyte"))
             }
-            for (addOn in p.addOns) {
-                if (PlanValidation.addOn(addOn) != null) {
+
+            for (p in parsed.plans) {
+                if (PlanValidation.plan(p.plan) != null) {
                     return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
                 }
-            }
-            for (freeRule in p.freeRules) {
-                if (PlanValidation.freeRule(freeRule) != null) {
-                    return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
+                for (addOn in p.addOns) {
+                    if (PlanValidation.addOn(addOn) != null) {
+                        return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
+                    }
                 }
-            }
-        }
-
-        for (b in parsed.budgets) {
-            if (b.packageName.isBlank() || b.limitBytes <= 0L || b.warnAtPercent !in 1..99) {
-                return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid budget: ${b.packageName}"))
-            }
-        }
-
-        var insertedCount = 0
-        var skippedCount = 0
-        val metaByUid = LinkedHashMap<Int, AppMeta>()
-        val resolveCache = mutableMapOf<String, AppMeta?>()
-
-        val usageSequence = sequence {
-            for (row in parsed.usage) {
-                if (row.packageName.startsWith("uid:")) {
-                    val uid = row.packageName.removePrefix("uid:").toIntOrNull()
-                    if (uid != null) {
-                        insertedCount++
-                        yield(HourlyUsage(row.hourStart, uid, row.network, row.subscriptionId, row.rxBytes, row.txBytes))
-                    } else {
-                        skippedCount++
-                    }
-                } else {
-                    val meta = resolveCache.getOrPut(row.packageName) {
-                        resolver.resolve(row.packageName)
-                    }
-                    if (meta != null) {
-                        metaByUid[meta.uid] = meta
-                        insertedCount++
-                        yield(HourlyUsage(row.hourStart, meta.uid, row.network, row.subscriptionId, row.rxBytes, row.txBytes))
-                    } else {
-                        skippedCount++
+                for (freeRule in p.freeRules) {
+                    if (PlanValidation.freeRule(freeRule) != null) {
+                        return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
                     }
                 }
             }
-        }
 
-        restore.replaceAll(parsed.plans, parsed.budgets, usageSequence) {
-            metaByUid.values.toList()
-        }
+            for (b in parsed.budgets) {
+                if (b.packageName.isBlank() || b.limitBytes <= 0L || b.warnAtPercent !in 1..99) {
+                    return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid budget: ${b.packageName}"))
+                }
+            }
 
-        Outcome.Success(RestoreSummary(parsed.plans.size, parsed.budgets.size, insertedCount, skippedCount))
+            var insertedCount = 0
+            var skippedCount = 0
+            val metaByUid = LinkedHashMap<Int, AppMeta>()
+            val resolveCache = mutableMapOf<String, AppMeta?>()
+
+            val usageSequence = sequence {
+                for (row in parsed.usage) {
+                    if (row.packageName.startsWith("uid:")) {
+                        val uid = row.packageName.removePrefix("uid:").toIntOrNull()
+                        if (uid != null) {
+                            insertedCount++
+                            yield(HourlyUsage(row.hourStart, uid, row.network, row.subscriptionId, row.rxBytes, row.txBytes))
+                        } else {
+                            skippedCount++
+                        }
+                    } else {
+                        val meta = resolveCache.getOrPut(row.packageName) {
+                            resolver.resolve(row.packageName)
+                        }
+                        if (meta != null) {
+                            metaByUid[meta.uid] = meta
+                            insertedCount++
+                            yield(HourlyUsage(row.hourStart, meta.uid, row.network, row.subscriptionId, row.rxBytes, row.txBytes))
+                        } else {
+                            skippedCount++
+                        }
+                    }
+                }
+            }
+
+            restore.replaceAll(parsed.plans, parsed.budgets, usageSequence) {
+                metaByUid.values.toList()
+            }
+
+            Outcome.Success(RestoreSummary(parsed.plans.size, parsed.budgets.size, insertedCount, skippedCount))
+        }
     } catch (e: CancellationException) {
         throw e
     } catch (e: BackupFormatException) {
         Outcome.Failure(EmberbyteError.Invalid(e.field, e.message ?: "The backup is damaged"))
+    } catch (e: ZipException) {
+        Outcome.Failure(EmberbyteError.Invalid("file", "The backup is damaged"))
     } catch (e: Exception) {
         Outcome.Failure(EmberbyteError.Storage(e.message ?: "Restore failed"))
     } finally {

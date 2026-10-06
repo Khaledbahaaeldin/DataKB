@@ -448,4 +448,39 @@ class DefaultBackupServiceTest {
         assertEquals(20001, flowRows.first().uid)
         assertEquals(100L, flowRows.first().rxBytes)
     }
+
+    @Test
+    fun restoring_a_large_backup_with_many_usage_rows_succeeds_without_closing_stream_prematurely() = runBlocking {
+        val usageStoreA = RoomUsageStore(dbA)
+        usageStoreA.upsertAppMeta(listOf(AppMeta(10001, "com.video", "Video")))
+        val rowCount = 250
+        val baseInstant = clock.instant().minusSeconds(3600L)
+        val rows = (1..rowCount).map { i ->
+            HourlyUsage(
+                baseInstant.minusSeconds(i * 3600L),
+                10001,
+                NetworkKind.MOBILE,
+                3,
+                100L * i,
+                20L * i,
+            )
+        }
+        usageStoreA.upsertHourly(rows)
+
+        val file = ByteArrayOutputStream()
+        val createResult = service(dbA).createBackup(file, "correct horse".toCharArray())
+        assertTrue(createResult is Outcome.Success)
+
+        val backupBytes = file.toByteArray()
+        val usageStoreB = RoomUsageStore(dbB)
+        val restoreResult = service(dbB).restoreBackup(ByteArrayInputStream(backupBytes), "correct horse".toCharArray())
+        assertTrue("Restore should succeed for large backup, but got: $restoreResult", restoreResult is Outcome.Success)
+
+        val summary = (restoreResult as Outcome.Success).value
+        assertEquals(RestoreSummary(plans = 0, budgets = 0, usageRows = rowCount, skippedUsageRows = 0), summary)
+
+        val rowsB = usageStoreB.hourlyRows(baseInstant.minusSeconds((rowCount + 1) * 3600L), clock.instant().plusSeconds(3600L))
+        assertEquals(rowCount, rowsB.size)
+    }
 }
+
