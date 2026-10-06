@@ -1,7 +1,14 @@
 package io.github.khaledbahaaeldin.emberbyte.apps
 
+import io.github.khaledbahaaeldin.emberbyte.data.budget.RoomBudgetRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryBudgetStore
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryPlanStore
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemorySpikeStore
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryUsageStore
+import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
+import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
@@ -63,9 +70,21 @@ class AppDetailTest {
 
     @Test fun the_view_model_combines_apps_and_series() = runTest(dispatcher) {
         val clock = Clock.fixed(Instant.parse("2026-10-05T12:00:00Z"), zone)
+        val planStore = InMemoryPlanStore()
+        val usageStore = InMemoryUsageStore()
+        val budgetStore = InMemoryBudgetStore()
+        val spikeStore = InMemorySpikeStore()
         val vm = AppDetailViewModel(
-            "com.android.chrome", FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(),
-            clock, Locale.ENGLISH, flowOf(LocalDate.of(2026, 10, 5)),
+            packageName = "com.android.chrome",
+            usage = FakeUsageRepository(clock, MutableSharedFlow()),
+            settings = FakeSettingsRepository(),
+            budgets = RoomBudgetRepository(budgetStore, planStore, usageStore, clock, ticks = flowOf(clock.instant())),
+            spikes = RoomSpikeRepository(spikeStore),
+            plans = RoomPlanRepository(planStore, usageStore, clock, ticks = flowOf(clock.instant())),
+            is24Hour = { true },
+            clock = clock,
+            locale = Locale.ENGLISH,
+            dates = flowOf(LocalDate.of(2026, 10, 5)),
         )
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()

@@ -122,7 +122,18 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     }
 
     fun appDetailViewModelFactory(packageName: String): ViewModelProvider.Factory = viewModelFactory {
-        initializer { AppDetailViewModel(packageName, usage, settings) }
+        initializer {
+            AppDetailViewModel(
+                packageName = packageName,
+                usage = usage,
+                settings = settings,
+                budgets = budgets,
+                spikes = spikes,
+                plans = plans,
+                is24Hour = { DateFormat.is24HourFormat(appContext) },
+                clock = clock,
+            )
+        }
     }
 
     fun historyViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
