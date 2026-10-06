@@ -1,6 +1,9 @@
 package io.github.khaledbahaaeldin.emberbyte.settings
 
 import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,7 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,17 +34,48 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
+import java.time.LocalDate
 
 private const val SOURCE_URL = "https://github.com/Khaledbahaaeldin/DataKB"
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    dataViewModel: DataViewModel,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val settings by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataUiState by dataViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val versionName = remember(context) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
+
+    var pendingRange by remember { mutableStateOf(ExportRange.LAST_7_DAYS) }
+    var pendingCreatePassphrase by remember { mutableStateOf<CharArray?>(null) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
+    val createCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let { dataViewModel.exportCsv(pendingRange, it) }
+    }
+    val createJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let(dataViewModel::exportJson)
+    }
+    val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val pass = pendingCreatePassphrase
+        if (uri != null && pass != null) {
+            dataViewModel.createBackup(uri, pass)
+        } else {
+            pass?.fill('\u0000')
+        }
+        pendingCreatePassphrase = null
+    }
+    val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        pendingRestoreUri = uri
+    }
+
     SettingsContent(
         settings = settings,
         onUpdate = viewModel::update,
@@ -52,6 +88,36 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, modifier: M
                     Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
+        },
+        dataUiState = dataUiState,
+        onExportCsv = { range ->
+            pendingRange = range
+            val date = LocalDate.now(dataViewModel.clock)
+            createCsv.launch("emberbyte-usage-$date.csv")
+        },
+        onExportJson = {
+            val date = LocalDate.now(dataViewModel.clock)
+            createJson.launch("emberbyte-export-$date.json")
+        },
+        onCreateBackup = { passphrase ->
+            pendingCreatePassphrase = passphrase.copyOf()
+            val date = LocalDate.now(dataViewModel.clock)
+            createBackup.launch("emberbyte-backup-$date.emberbyte")
+        },
+        onRestoreChosen = {
+            openBackup.launch(arrayOf("application/octet-stream", "*/*"))
+        },
+        onRestoreBackup = { passphrase ->
+            val uri = pendingRestoreUri
+            if (uri != null) {
+                dataViewModel.restoreBackup(uri, passphrase)
+                pendingRestoreUri = null
+            }
+        },
+        onClearDataMessage = dataViewModel::clearMessage,
+        restoreFileChosen = pendingRestoreUri != null,
+        onDismissRestorePassphrase = {
+            pendingRestoreUri = null
         },
         modifier = modifier,
     )
@@ -66,6 +132,15 @@ internal fun SettingsContent(
     onOpenSource: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     modifier: Modifier = Modifier,
+    dataUiState: DataUiState = DataUiState(),
+    onExportCsv: (ExportRange) -> Unit = {},
+    onExportJson: () -> Unit = {},
+    onCreateBackup: (CharArray) -> Unit = {},
+    onRestoreChosen: () -> Unit = {},
+    onRestoreBackup: (CharArray) -> Unit = {},
+    onClearDataMessage: () -> Unit = {},
+    restoreFileChosen: Boolean = false,
+    onDismissRestorePassphrase: () -> Unit = {},
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -83,6 +158,15 @@ internal fun SettingsContent(
             SwitchRow("Show speed", "Add your current speed to the notification", settings.notificationShowsSpeed,
                 enabled = settings.liveNotificationEnabled) {
                 onUpdate { s -> s.copy(notificationShowsSpeed = it) }
+            }
+        }
+        item {
+            SwitchRow(
+                "Spike alerts",
+                "Tell me when an app suddenly uses a lot of mobile data",
+                settings.spikeAlertsEnabled,
+            ) {
+                onUpdate { s -> s.copy(spikeAlertsEnabled = it) }
             }
         }
         item { SectionTitle("Background") }
@@ -124,6 +208,20 @@ internal fun SettingsContent(
                     label = { Text("Binary (GiB)") },
                 )
             }
+        }
+        item { SectionTitle("Data") }
+        item {
+            DataSection(
+                uiState = dataUiState,
+                onExportCsv = onExportCsv,
+                onExportJson = onExportJson,
+                onCreateBackup = onCreateBackup,
+                onRestoreChosen = onRestoreChosen,
+                onRestoreBackup = onRestoreBackup,
+                onClearMessage = onClearDataMessage,
+                restoreFileChosen = restoreFileChosen,
+                onDismissRestorePassphrase = onDismissRestorePassphrase,
+            )
         }
         item { SectionTitle("About") }
         item { Text("Emberbyte $versionName", style = MaterialTheme.typography.bodyLarge) }

@@ -25,9 +25,18 @@ import io.github.khaledbahaaeldin.emberbyte.data.budget.BudgetStores
 import io.github.khaledbahaaeldin.emberbyte.data.budget.RoomBudgetRepository
 import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStores
 import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
+import io.github.khaledbahaaeldin.emberbyte.data.backup.BackupService
+import io.github.khaledbahaaeldin.emberbyte.data.backup.DefaultBackupService
+import io.github.khaledbahaaeldin.emberbyte.data.backup.PackageResolver
+import io.github.khaledbahaaeldin.emberbyte.data.backup.RestoreStore
+import io.github.khaledbahaaeldin.emberbyte.data.backup.RoomRestoreStore
+import io.github.khaledbahaaeldin.emberbyte.data.db.EmberbyteDatabases
+import io.github.khaledbahaaeldin.emberbyte.data.export.ExportService
+import io.github.khaledbahaaeldin.emberbyte.data.export.StreamingExportService
 import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
 import io.github.khaledbahaaeldin.emberbyte.data.spike.SpikeEvaluator
 import io.github.khaledbahaaeldin.emberbyte.data.spike.SpikeStores
+import io.github.khaledbahaaeldin.emberbyte.data.android.PackageManagerPackageResolver
 import io.github.khaledbahaaeldin.emberbyte.data.android.AndroidSimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.AppOpsUsageAccess
 import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfoSource
@@ -49,7 +58,9 @@ import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlansViewModel
+import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
+import io.github.khaledbahaaeldin.emberbyte.settings.StreamOpener
 import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,6 +95,11 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     val spikes: SpikeRepository = RoomSpikeRepository(spikeStore)
     val budgetEvaluator = BudgetEvaluator({ budgetsImpl.currentPeriodStatuses() }, budgetStore)
     val spikeEvaluator = SpikeEvaluator(store, spikeStore, clock)
+
+    val exportService: ExportService = StreamingExportService(store, planStore, budgetStore, clock)
+    val restoreStore: RestoreStore = RoomRestoreStore(EmberbyteDatabases.get(appContext))
+    val packageResolver: PackageResolver = PackageManagerPackageResolver(appContext)
+    val backupService: BackupService = DefaultBackupService(exportService, restoreStore, packageResolver)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -163,6 +179,10 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
 
     fun settingsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
         initializer { SettingsViewModel(settings) }
+    }
+
+    fun dataViewModelFactory(opener: StreamOpener): ViewModelProvider.Factory = viewModelFactory {
+        initializer { DataViewModel(exportService, backupService, opener, clock) }
     }
 
     fun onboardingViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {

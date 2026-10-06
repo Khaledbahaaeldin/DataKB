@@ -52,6 +52,8 @@ import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
 import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
+import io.github.khaledbahaaeldin.emberbyte.settings.ContentResolverStreamOpener
+import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
 import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
@@ -198,7 +200,10 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
             ) {
                 val viewModel: SettingsViewModel = viewModel(factory = graph.settingsViewModelFactory())
-                SettingsScreen(viewModel, onBack = { navController.popBackStack() })
+                val dataViewModel: DataViewModel = viewModel(
+                    factory = graph.dataViewModelFactory(ContentResolverStreamOpener(context.contentResolver)),
+                )
+                SettingsScreen(viewModel, dataViewModel, onBack = { navController.popBackStack() })
             }
         }
         if (route != Routes.ONBOARDING) {
