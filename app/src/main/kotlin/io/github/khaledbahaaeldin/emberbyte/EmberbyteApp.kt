@@ -84,7 +84,10 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
     DisposableEffect(navController, context) {
         val activity = context.findComponentActivity()
         val listener = Consumer<Intent> { intent ->
-            navController.openDeepLink(intent)
+            navController.openDeepLink(
+                intent = intent,
+                allowed = { navController.currentDestination?.route != Routes.ONBOARDING },
+            )
         }
         activity?.addOnNewIntentListener(listener)
         onDispose {
