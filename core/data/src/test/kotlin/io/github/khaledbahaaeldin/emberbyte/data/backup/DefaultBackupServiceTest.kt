@@ -27,6 +27,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.usage.AppMeta
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.HourlyUsage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
@@ -481,6 +482,23 @@ class DefaultBackupServiceTest {
 
         val rowsB = usageStoreB.hourlyRows(baseInstant.minusSeconds((rowCount + 1) * 3600L), clock.instant().plusSeconds(3600L))
         assertEquals(rowCount, rowsB.size)
+    }
+
+    @Test
+    fun restore_of_a_hostile_header_returns_invalid_file_and_changes_nothing() = runBlocking {
+        val planStoreB = RoomPlanStore(dbB)
+        val oldPlan = Plan(99, "Old", null, 1_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None, false)
+        planStoreB.savePlanWithChildren(oldPlan, emptyList(), emptyList(), setOf(50))
+
+        val sealed = BackupCodec.seal(byteArrayOf(1), "correct horse".toCharArray(), fast)
+        ByteBuffer.wrap(sealed, 8 + 16, 12).putInt(262_144).putInt(1).putInt(1)
+
+        val result = service(dbB).restoreBackup(ByteArrayInputStream(sealed), "correct horse".toCharArray())
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error as EmberbyteError.Invalid
+        assertEquals("file", error.field)
+
+        assertEquals(listOf(oldPlan), planStoreB.observePlans().first())
     }
 }
 

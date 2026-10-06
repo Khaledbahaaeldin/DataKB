@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.khaledbahaaeldin.emberbyte.data.backup.BackupService
 import io.github.khaledbahaaeldin.emberbyte.data.backup.RestoreSummary
 import io.github.khaledbahaaeldin.emberbyte.data.export.ExportService
+import io.github.khaledbahaaeldin.emberbyte.data.store.UsageRetention
 import io.github.khaledbahaaeldin.emberbyte.data.util.SystemZoneClock
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
@@ -14,8 +15,11 @@ import java.text.NumberFormat
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,13 +39,14 @@ class DataViewModel(
     val backup: BackupService,
     val opener: StreamOpener,
     val clock: Clock = SystemZoneClock(),
+    private val workContext: CoroutineContext = Dispatchers.Default,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DataUiState())
     val uiState: StateFlow<DataUiState> = _uiState.asStateFlow()
 
     fun exportCsv(range: ExportRange, uri: Uri) {
-        viewModelScope.launch {
+        viewModelScope.launch(workContext) {
             _uiState.update { it.copy(busy = true, message = null, isError = false) }
             val zone = clock.zone
             val now = clock.instant()
@@ -56,7 +61,7 @@ class DataViewModel(
                     to = now.plusSeconds(3600),
                 )
                 ExportRange.ALL -> DateRange(
-                    from = Instant.EPOCH,
+                    from = clock.instant().minus(UsageRetention.HOURLY).truncatedTo(ChronoUnit.DAYS),
                     to = now.plusSeconds(7200),
                 )
             }
@@ -82,7 +87,7 @@ class DataViewModel(
     }
 
     fun exportJson(uri: Uri) {
-        viewModelScope.launch {
+        viewModelScope.launch(workContext) {
             _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
                 val stream = opener.output(uri)
@@ -105,7 +110,7 @@ class DataViewModel(
     }
 
     fun createBackup(uri: Uri, passphrase: CharArray) {
-        viewModelScope.launch {
+        viewModelScope.launch(workContext) {
             _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
                 val stream = opener.output(uri)
@@ -136,7 +141,7 @@ class DataViewModel(
     }
 
     fun restoreBackup(uri: Uri, passphrase: CharArray) {
-        viewModelScope.launch {
+        viewModelScope.launch(workContext) {
             _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
                 val stream = opener.input(uri)

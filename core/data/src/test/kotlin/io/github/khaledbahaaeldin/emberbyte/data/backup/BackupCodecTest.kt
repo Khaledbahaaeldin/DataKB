@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.data.backup
 
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
+import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -11,6 +12,11 @@ import java.nio.ByteBuffer
 
 class BackupCodecTest {
     private val fast = BackupCodec.Params(memoryKiB = 64, iterations = 1, parallelism = 1)
+
+    @After
+    fun tearDown() {
+        BackupCodec.keyDerivation = BackupCodec::deriveKey
+    }
 
     @Test
     fun argon2id_matches_the_rfc_9106_test_vector() {
@@ -110,5 +116,61 @@ class BackupCodecTest {
         val plain = ByteArray(0)
         val sealed = BackupCodec.seal(plain, "correct horse".toCharArray(), fast)
         assertArrayEquals(plain, BackupCodec.open(sealed, "correct horse".toCharArray()))
+    }
+
+    @Test
+    fun maximum_memory_constant_is_64_mib() {
+        assertEquals(65_536, BackupCodec.MAX_MEMORY_KIB)
+    }
+
+    @Test
+    fun a_header_that_asks_for_more_than_64_mib_is_refused_before_any_work() {
+        fun withMemory(memoryKiB: Int): ByteArray {
+            val sealed = BackupCodec.seal(byteArrayOf(1, 2, 3), "correct horse".toCharArray(), fast)
+            ByteBuffer.wrap(sealed, 8 + 16, 4).putInt(memoryKiB)
+            return sealed
+        }
+        val e1 = assertThrows(BackupFormatException::class.java) {
+            BackupCodec.open(withMemory(65_537), "correct horse".toCharArray())
+        }
+        assertEquals("file", e1.field)
+
+        val e2 = assertThrows(BackupFormatException::class.java) {
+            BackupCodec.open(withMemory(262_144), "correct horse".toCharArray())
+        }
+        assertEquals("file", e2.field)
+
+        val realDefault = BackupCodec.seal(byteArrayOf(1, 2, 3), "correct horse".toCharArray())
+        val decrypted = BackupCodec.open(realDefault, "correct horse".toCharArray())
+        assertArrayEquals(byteArrayOf(1, 2, 3), decrypted)
+    }
+
+    @Test
+    fun memory_below_eight_times_parallelism_is_refused() {
+        val sealed = BackupCodec.seal(byteArrayOf(1), "correct horse".toCharArray(), fast)
+        ByteBuffer.wrap(sealed, 8 + 16, 12).putInt(16).putInt(1).putInt(4)
+        val e = assertThrows(BackupFormatException::class.java) {
+            BackupCodec.open(sealed, "correct horse".toCharArray())
+        }
+        assertEquals("file", e.field)
+
+        val p32 = BackupCodec.Params(memoryKiB = 32, iterations = 1, parallelism = 4)
+        val sealed32 = BackupCodec.seal(byteArrayOf(42), "correct horse".toCharArray(), p32)
+        assertArrayEquals(byteArrayOf(42), BackupCodec.open(sealed32, "correct horse".toCharArray()))
+
+        val p8 = BackupCodec.Params(memoryKiB = 8, iterations = 1, parallelism = 1)
+        val sealed8 = BackupCodec.seal(byteArrayOf(99), "correct horse".toCharArray(), p8)
+        assertArrayEquals(byteArrayOf(99), BackupCodec.open(sealed8, "correct horse".toCharArray()))
+    }
+
+    @Test
+    fun running_out_of_memory_in_the_key_derivation_is_a_file_problem_not_a_crash() {
+        val sealed = BackupCodec.seal(byteArrayOf(1), "correct horse".toCharArray(), fast)
+        BackupCodec.keyDerivation = { _, _, _ -> throw OutOfMemoryError() }
+        val e = assertThrows(BackupFormatException::class.java) {
+            BackupCodec.open(sealed, "correct horse".toCharArray())
+        }
+        assertEquals("file", e.field)
+        assertEquals("This backup needs more memory than this device can give", e.message)
     }
 }

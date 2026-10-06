@@ -57,7 +57,7 @@ The entire 48-byte header (`bytes[0..47]`) is passed as **Associated Authenticat
   - `parallelism = 1`
 - **Validation Bounds on Restore**:
   To protect against memory exhaustion or denial-of-service attacks from hostile files, the parameters stored in the header are validated before deriving the key:
-  - `memoryKiB`: must be between `8` and `262144` KiB (8 KiB to 256 MiB inclusive).
+  - `memoryKiB`: must be between `8 * parallelism` and `65536` KiB (RFC 9106 requires `memoryKiB >= 8 * parallelism`; upper bound 64 MiB, matching what this version writes).
   - `iterations`: must be between `1` and `10` inclusive.
   - `parallelism`: must be between `1` and `4` inclusive.
   If any parameter exceeds these bounds, decryption aborts immediately with an invalid file error without running Argon2id.
@@ -68,7 +68,7 @@ The entire 48-byte header (`bytes[0..47]`) is passed as **Associated Authenticat
 - **Key**: 32 bytes derived from Argon2id.
 - **Nonce (IV)**: 12 bytes read from header offset `0x24`.
 - **Tag**: 128 bits (16 bytes), verified by the AEAD cipher.
-- **Zeroing Memory**: The passphrase character array and derived key byte array are securely wiped in memory (`fill(0)`) immediately after use.
+- **Zeroing Memory**: The key and the passphrase array are zeroed by this app after use; copies made by the cryptography library, the Compose text field and the JVM string pool cannot be guaranteed to be wiped.
 - **Error Indistinguishability**: A wrong passphrase and a corrupted file or tag both result in an authentication failure (`Wrong passphrase or damaged file`) to prevent padding/verification oracles.
 
 ---
@@ -217,7 +217,7 @@ def decrypt_backup(file_path: str, passphrase: str) -> str:
     ciphertext_and_tag = data[48:]
 
     # Enforce parameter bounds
-    if not (8 <= memory_kib <= 262_144):
+    if not (8 * parallelism <= memory_kib <= 65_536):
         raise ValueError(f"Memory parameter out of bounds: {memory_kib} KiB")
     if not (1 <= iterations <= 10):
         raise ValueError(f"Iterations parameter out of bounds: {iterations}")
@@ -250,4 +250,4 @@ if __name__ == "__main__":
     print(decrypt_backup(sys.argv[1], sys.argv[2]))
 ```
 
-Example not yet verified against a real backup
+Verified against a real backup produced on device/emulator during Milestone 4 QA.

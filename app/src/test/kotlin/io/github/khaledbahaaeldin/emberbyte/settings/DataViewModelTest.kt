@@ -4,6 +4,7 @@ import android.net.Uri
 import io.github.khaledbahaaeldin.emberbyte.data.backup.BackupService
 import io.github.khaledbahaaeldin.emberbyte.data.backup.RestoreSummary
 import io.github.khaledbahaaeldin.emberbyte.data.export.ExportService
+import io.github.khaledbahaaeldin.emberbyte.data.store.UsageRetention
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
@@ -15,6 +16,10 @@ import java.io.OutputStream
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
+import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,7 +59,8 @@ class DataViewModelTest {
     private fun createViewModel(
         customOpener: StreamOpener = opener,
         customClock: Clock = clock,
-    ) = DataViewModel(export, backup, customOpener, customClock)
+        workContext: CoroutineContext = dispatcher,
+    ) = DataViewModel(export, backup, customOpener, customClock, workContext)
 
     @Test
     fun export_csv_last_7_days_calls_service_with_expected_range_and_updates_state() = runTest(dispatcher) {
@@ -71,13 +77,14 @@ class DataViewModelTest {
     }
 
     @Test
-    fun export_csv_all_calls_service_with_epoch_to_now_plus_two_hours() = runTest(dispatcher) {
+    fun export_csv_all_calls_service_with_retention_start_rounded_down_to_day() = runTest(dispatcher) {
         val vm = createViewModel()
         val uri = Uri.parse("content://fake/csv")
         vm.exportCsv(ExportRange.ALL, uri)
         advanceUntilIdle()
 
-        assertEquals(Instant.EPOCH, export.lastCsvRange?.from)
+        val expectedStart = clock.instant().minus(UsageRetention.HOURLY).truncatedTo(ChronoUnit.DAYS)
+        assertEquals(expectedStart, export.lastCsvRange?.from)
         assertEquals(clock.instant().plusSeconds(7200), export.lastCsvRange?.to)
         assertEquals("Usage exported", vm.uiState.value.message)
         assertFalse(vm.uiState.value.isError)
@@ -249,20 +256,49 @@ class DataViewModelTest {
         assertTrue(inputPassphrase.all { it == '\u0000' })
     }
 
+    @Test
+    fun operations_run_off_the_main_dispatcher_on_work_context() = runTest(dispatcher) {
+        val workDispatcher = StandardTestDispatcher(testScheduler)
+        val vm = createViewModel(workContext = workDispatcher)
+
+        vm.exportCsv(ExportRange.LAST_7_DAYS, Uri.parse("content://fake/csv"))
+        advanceUntilIdle()
+        assertSame(workDispatcher, export.lastInterceptor)
+        assertFalse(export.lastInterceptor == dispatcher)
+
+        vm.exportJson(Uri.parse("content://fake/json"))
+        advanceUntilIdle()
+        assertSame(workDispatcher, export.lastInterceptor)
+        assertFalse(export.lastInterceptor == dispatcher)
+
+        vm.createBackup(Uri.parse("content://fake/backup"), "passphrase123".toCharArray())
+        advanceUntilIdle()
+        assertSame(workDispatcher, backup.lastInterceptor)
+        assertFalse(backup.lastInterceptor == dispatcher)
+
+        vm.restoreBackup(Uri.parse("content://fake/backup"), "passphrase123".toCharArray())
+        advanceUntilIdle()
+        assertSame(workDispatcher, backup.lastInterceptor)
+        assertFalse(backup.lastInterceptor == dispatcher)
+    }
+
     private class FakeExportService : ExportService {
         var lastCsvRange: DateRange? = null
         var deferredCsv: CompletableDeferred<Outcome<Unit>>? = null
         var csvOutcome: Outcome<Unit> = Outcome.Success(Unit)
         var jsonOutcome: Outcome<Unit> = Outcome.Success(Unit)
         var exportJsonCalled = false
+        var lastInterceptor: ContinuationInterceptor? = null
 
         override suspend fun exportCsv(range: DateRange, out: OutputStream): Outcome<Unit> {
+            lastInterceptor = coroutineContext[ContinuationInterceptor]
             lastCsvRange = range
             deferredCsv?.await()
             return csvOutcome
         }
 
         override suspend fun exportJson(out: OutputStream): Outcome<Unit> {
+            lastInterceptor = coroutineContext[ContinuationInterceptor]
             exportJsonCalled = true
             return jsonOutcome
         }
@@ -274,8 +310,10 @@ class DataViewModelTest {
         var capturedPassphrase: CharArray? = null
         var createBackupCalled = false
         var restoreBackupCalled = false
+        var lastInterceptor: ContinuationInterceptor? = null
 
         override suspend fun createBackup(out: OutputStream, passphrase: CharArray): Outcome<Unit> {
+            lastInterceptor = coroutineContext[ContinuationInterceptor]
             createBackupCalled = true
             capturedPassphrase = passphrase
             val res = createBackupOutcome
@@ -284,6 +322,7 @@ class DataViewModelTest {
         }
 
         override suspend fun restoreBackup(input: InputStream, passphrase: CharArray): Outcome<RestoreSummary> {
+            lastInterceptor = coroutineContext[ContinuationInterceptor]
             restoreBackupCalled = true
             capturedPassphrase = passphrase
             val res = restoreBackupOutcome

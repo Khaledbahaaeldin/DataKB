@@ -18,16 +18,22 @@ object BackupCodec {
     private const val NONCE = 12
     private const val HEADER = 8 + SALT + 12 + NONCE      // 48
     data class Params(val memoryKiB: Int = 65_536, val iterations: Int = 3, val parallelism: Int = 1)
-    const val MAX_MEMORY_KIB = 262_144
+    const val MAX_MEMORY_KIB = 65_536
     const val MAX_ITERATIONS = 10
     const val MAX_PARALLELISM = 4
+
+    internal var keyDerivation: (CharArray, ByteArray, Params) -> ByteArray = ::deriveKey
 
     fun seal(plain: ByteArray, passphrase: CharArray, params: Params = Params(), random: SecureRandom = SecureRandom()): ByteArray {
         val salt = ByteArray(SALT).also(random::nextBytes)
         val nonce = ByteArray(NONCE).also(random::nextBytes)
         val header = ByteBuffer.allocate(HEADER).put(MAGIC.toByteArray(Charsets.US_ASCII)).put(salt)
             .putInt(params.memoryKiB).putInt(params.iterations).putInt(params.parallelism).put(nonce).array()
-        val key = deriveKey(passphrase, salt, params)
+        val key = try {
+            keyDerivation(passphrase, salt, params)
+        } catch (_: OutOfMemoryError) {
+            throw BackupFormatException("file", "This backup needs more memory than this device can give")
+        }
         try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce))
@@ -42,11 +48,15 @@ object BackupCodec {
         val buffer = ByteBuffer.wrap(sealed, 8, HEADER - 8)
         val salt = ByteArray(SALT).also(buffer::get)
         val params = Params(buffer.int, buffer.int, buffer.int)
-        if (params.memoryKiB !in 8..MAX_MEMORY_KIB || params.iterations !in 1..MAX_ITERATIONS || params.parallelism !in 1..MAX_PARALLELISM) {
+        if (params.memoryKiB !in (8 * params.parallelism)..MAX_MEMORY_KIB || params.iterations !in 1..MAX_ITERATIONS || params.parallelism !in 1..MAX_PARALLELISM) {
             throw BackupFormatException("file", "The backup uses settings this version does not accept")
         }
         val nonce = ByteArray(NONCE).also(buffer::get)
-        val key = deriveKey(passphrase, salt, params)
+        val key = try {
+            keyDerivation(passphrase, salt, params)
+        } catch (_: OutOfMemoryError) {
+            throw BackupFormatException("file", "This backup needs more memory than this device can give")
+        }
         try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce))
