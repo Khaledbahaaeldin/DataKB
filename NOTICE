@@ -28,3 +28,7 @@ Haze (backdrop blur)
 
 AndroidX, Jetpack Compose, Material 3 and Kotlin libraries
   Copyright The Android Open Source Project / JetBrains (Apache License 2.0)
+
+Bouncy Castle (Argon2id)
+  The Legion of the Bouncy Castle Inc. (MIT licence)
+  https://www.bouncycastle.org/
