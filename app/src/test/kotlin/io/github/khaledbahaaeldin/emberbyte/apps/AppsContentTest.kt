@@ -1,11 +1,14 @@
 package io.github.khaledbahaaeldin.emberbyte.apps
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.unit.LayoutDirection
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AppSort
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
@@ -88,5 +91,16 @@ class AppsContentTest {
     @Test fun a_search_without_matches_says_so() {
         show(AppsUiState(query = "zzz", apps = emptyList(), loaded = true))
         rule.onNodeWithText("No apps match \"zzz\".").assertIsDisplayed()
+    }
+
+    @Test fun range_chip_renders_its_label_in_one_node_matching_text_under_rtl() {
+        rule.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    AppsContent(state, onEvent = {}, onOpenApp = {}, onPromptAction = {})
+                }
+            }
+        }
+        rule.onNodeWithText("7 days").assertIsDisplayed()
     }
 }

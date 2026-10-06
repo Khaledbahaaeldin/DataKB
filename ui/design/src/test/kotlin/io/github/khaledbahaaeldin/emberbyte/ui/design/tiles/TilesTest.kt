@@ -1,5 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.tiles
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -8,6 +10,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.LayoutDirection
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
@@ -54,6 +57,19 @@ class TilesTest {
         }
         rule.onNodeWithText("Thu").assertIsDisplayed()
         rule.onNodeWithText("runs out (±1 day)").assertIsDisplayed()
+        rule.onNodeWithText("Medium confidence").assertIsDisplayed()
+    }
+
+    @Test fun forecastTile_renders_texts_in_one_node_matching_model_text_under_rtl() {
+        rule.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    ForecastTile(ForecastUi(headline = "Mon", detail = "runs out Mon (±1 day)", confidence = "Medium confidence"))
+                }
+            }
+        }
+        rule.onNodeWithText("Mon").assertIsDisplayed()
+        rule.onNodeWithText("runs out Mon (±1 day)").assertIsDisplayed()
         rule.onNodeWithText("Medium confidence").assertIsDisplayed()
     }
 

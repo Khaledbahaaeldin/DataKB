@@ -189,7 +189,7 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 Destination.Lens.route,
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),
             ) {
-                PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in milestone 5.")
+                PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in a later update.")
             }
             composable(Routes.HISTORY) {
                 val viewModel: HistoryViewModel = viewModel(factory = graph.historyViewModelFactory())

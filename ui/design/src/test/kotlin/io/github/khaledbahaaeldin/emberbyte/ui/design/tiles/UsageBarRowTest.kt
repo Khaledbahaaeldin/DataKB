@@ -2,12 +2,17 @@ package io.github.khaledbahaaeldin.emberbyte.ui.design.tiles
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
 import org.junit.Rule
@@ -53,5 +58,22 @@ class UsageBarRowTest {
             node.assertWidthIsAtLeast(48.dp)
             node.assertHeightIsAtLeast(48.dp)
         }
+    }
+
+    @Test
+    fun bar_labels_render_in_one_node_matching_text_under_rtl() {
+        val bars = listOf(
+            BarUi(bytes = 100L, label = "Mon", description = "Monday"),
+            BarUi(bytes = 200L, label = "7 days", description = "7 days"),
+        )
+        rule.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                Box(Modifier.size(360.dp, 200.dp)) {
+                    UsageBarRow(points = bars, selectedIndex = null, onSelect = {})
+                }
+            }
+        }
+        rule.onNodeWithText("Mon").assertIsDisplayed()
+        rule.onNodeWithText("7 days").assertIsDisplayed()
     }
 }
