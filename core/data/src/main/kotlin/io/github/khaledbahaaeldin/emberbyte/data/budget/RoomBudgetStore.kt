@@ -10,7 +10,7 @@ import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private fun AppBudget.toEntity() = AppBudgetEntity(
+internal fun AppBudget.toEntity() = AppBudgetEntity(
     id = id,
     packageName = packageName,
     limitBytes = limitBytes,
@@ -20,7 +20,7 @@ private fun AppBudget.toEntity() = AppBudgetEntity(
     enabled = enabled,
 )
 
-private fun AppBudgetEntity.toDomainOrNull(): AppBudget? = runCatching {
+internal fun AppBudgetEntity.toDomainOrNull(): AppBudget? = runCatching {
     AppBudget(
         id = id,
         packageName = packageName,

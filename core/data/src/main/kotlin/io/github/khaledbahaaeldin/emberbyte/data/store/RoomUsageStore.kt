@@ -17,16 +17,16 @@ import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private fun NetworkKind.code(): Int = if (this == NetworkKind.MOBILE) 0 else 1
-private fun networkOf(code: Int): NetworkKind = if (code == 0) NetworkKind.MOBILE else NetworkKind.WIFI
-private fun Instant.ms(): Long = toEpochMilli()
-private fun at(ms: Long): Instant = Instant.ofEpochMilli(ms)
+internal fun NetworkKind.code(): Int = if (this == NetworkKind.MOBILE) 0 else 1
+internal fun networkOf(code: Int): NetworkKind = if (code == 0) NetworkKind.MOBILE else NetworkKind.WIFI
+internal fun Instant.ms(): Long = toEpochMilli()
+internal fun at(ms: Long): Instant = Instant.ofEpochMilli(ms)
 
 private fun MinuteTotal.toEntity() = TotalMinuteEntity(minuteStart.ms(), network.code(), subscriptionId, rxBytes, txBytes)
 private fun TotalMinuteEntity.toDomain() = MinuteTotal(at(minuteStart), networkOf(network), subscriptionId, rxBytes, txBytes)
-private fun HourlyUsage.toEntity() = UsageHourlyEntity(hourStart.ms(), uid, network.code(), subscriptionId, rxBytes, txBytes)
-private fun UsageHourlyEntity.toDomain() = HourlyUsage(at(hourStart), uid, networkOf(network), subscriptionId, rxBytes, txBytes)
-private fun AppMetaEntity.toDomain() = AppMeta(uid, packageName, label)
+internal fun HourlyUsage.toEntity() = UsageHourlyEntity(hourStart.ms(), uid, network.code(), subscriptionId, rxBytes, txBytes)
+internal fun UsageHourlyEntity.toDomain() = HourlyUsage(at(hourStart), uid, networkOf(network), subscriptionId, rxBytes, txBytes)
+internal fun AppMetaEntity.toDomain() = AppMeta(uid, packageName, label)
 private fun CoverageGapEntity.toDomain() = CoverageGap(at(fromAt), at(toAt), GapReason.valueOf(reason))
 
 class RoomUsageStore(db: EmberbyteDatabase) : UsageStore {

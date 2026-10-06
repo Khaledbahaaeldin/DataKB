@@ -59,6 +59,9 @@ abstract class UsageDao {
     @Query("DELETE FROM usage_hourly WHERE hourStart < :before")
     abstract suspend fun pruneHourly(before: Long)
 
+    @Query("DELETE FROM usage_hourly")
+    abstract suspend fun deleteAllHourly()
+
     // ---- app_meta ----
     @Query("SELECT * FROM app_meta")
     abstract suspend fun appMeta(): List<AppMetaEntity>

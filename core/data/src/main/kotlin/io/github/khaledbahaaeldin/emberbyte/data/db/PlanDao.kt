@@ -35,4 +35,10 @@ abstract class PlanDao {
     @Query("DELETE FROM alert_rule WHERE planId = :planId AND thresholdPercent NOT IN (:keep)") abstract suspend fun deleteAlertRulesExcept(planId: Long, keep: List<Int>)
     @Query("UPDATE alert_rule SET enabled = 1 WHERE planId = :planId AND thresholdPercent IN (:wanted)") abstract suspend fun enableAlertRules(planId: Long, wanted: List<Int>)
     @Query("SELECT thresholdPercent FROM alert_rule WHERE planId = :planId") abstract suspend fun thresholds(planId: Long): List<Int>
+
+    @Query("DELETE FROM plan") abstract suspend fun deleteAllPlans()
+    @Query("DELETE FROM add_on") abstract suspend fun deleteAllAddOns()
+    @Query("DELETE FROM free_rule") abstract suspend fun deleteAllFreeRules()
+    @Query("DELETE FROM alert_rule") abstract suspend fun deleteAllAlertRules()
+    @Query("DELETE FROM alert_fired") abstract suspend fun deleteAllFired()
 }

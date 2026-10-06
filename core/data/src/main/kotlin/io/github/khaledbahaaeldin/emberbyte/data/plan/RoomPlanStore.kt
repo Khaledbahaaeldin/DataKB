@@ -10,18 +10,18 @@ import kotlinx.coroutines.flow.map
 
 import androidx.room.withTransaction
 
-private fun maskOf(days: Set<DayOfWeek>): Int = days.fold(0) { mask, day -> mask or (1 shl (day.value - 1)) }
-private fun daysOf(mask: Int): Set<DayOfWeek> = DayOfWeek.entries.filter { mask and (1 shl (it.value - 1)) != 0 }.toSet()
-private fun Plan.toEntity() = PlanEntity(id, name, subscriptionId, capBytes, PlanJson.cycleToJson(cycle), PlanJson.rolloverToJson(rollover), archived)
-private fun PlanEntity.toDomainOrNull(): Plan? = runCatching {
+internal fun maskOf(days: Set<DayOfWeek>): Int = days.fold(0) { mask, day -> mask or (1 shl (day.value - 1)) }
+internal fun daysOf(mask: Int): Set<DayOfWeek> = DayOfWeek.entries.filter { mask and (1 shl (it.value - 1)) != 0 }.toSet()
+internal fun Plan.toEntity() = PlanEntity(id, name, subscriptionId, capBytes, PlanJson.cycleToJson(cycle), PlanJson.rolloverToJson(rollover), archived)
+internal fun PlanEntity.toDomainOrNull(): Plan? = runCatching {
     Plan(id, name, subscriptionId, capBytes, PlanJson.cycleFromJson(cycleJson), PlanJson.rolloverFromJson(rolloverJson), archived)
 }.getOrNull()
-private fun AddOn.toEntity() = AddOnEntity(id, planId, label, bytes, validFrom.toEpochMilli(), validUntil.toEpochMilli())
-private fun AddOnEntity.toDomain() = AddOn(id, planId, label, bytes, Instant.ofEpochMilli(validFrom), Instant.ofEpochMilli(validUntil))
-private fun FreeRule.toEntity() = FreeRuleEntity(id, planId, label, maskOf(days), start.toSecondOfDay() / 60, end.toSecondOfDay() / 60, packageName)
-private fun FreeRuleEntity.toDomain() = FreeRule(id, planId, label, daysOf(daysMask), LocalTime.ofSecondOfDay(startMinute * 60L), LocalTime.ofSecondOfDay(endMinute * 60L), packageName)
-private fun AlertRule.toEntity() = AlertRuleEntity(id, planId, thresholdPercent, enabled)
-private fun AlertRuleEntity.toDomain() = AlertRule(id, planId, thresholdPercent, enabled)
+internal fun AddOn.toEntity() = AddOnEntity(id, planId, label, bytes, validFrom.toEpochMilli(), validUntil.toEpochMilli())
+internal fun AddOnEntity.toDomain() = AddOn(id, planId, label, bytes, Instant.ofEpochMilli(validFrom), Instant.ofEpochMilli(validUntil))
+internal fun FreeRule.toEntity() = FreeRuleEntity(id, planId, label, maskOf(days), start.toSecondOfDay() / 60, end.toSecondOfDay() / 60, packageName)
+internal fun FreeRuleEntity.toDomain() = FreeRule(id, planId, label, daysOf(daysMask), LocalTime.ofSecondOfDay(startMinute * 60L), LocalTime.ofSecondOfDay(endMinute * 60L), packageName)
+internal fun AlertRule.toEntity() = AlertRuleEntity(id, planId, thresholdPercent, enabled)
+internal fun AlertRuleEntity.toDomain() = AlertRule(id, planId, thresholdPercent, enabled)
 
 class RoomPlanStore(private val db: EmberbyteDatabase) : PlanStore {
     private val dao = db.planDao()

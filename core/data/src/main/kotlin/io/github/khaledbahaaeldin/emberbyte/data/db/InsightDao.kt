@@ -53,4 +53,9 @@ abstract class InsightDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun putNotice(entity: SpikeNoticeEntity)
+
+    @Query("DELETE FROM app_budget") abstract suspend fun deleteAllBudgets()
+    @Query("DELETE FROM budget_state") abstract suspend fun deleteAllBudgetStates()
+    @Query("DELETE FROM spike_event") abstract suspend fun deleteAllSpikes()
+    @Query("DELETE FROM spike_notice") abstract suspend fun deleteAllNotices()
 }
