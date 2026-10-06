@@ -113,8 +113,29 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     /** Deletes rows older than the retention windows (cheap; called from the service loop). */
     suspend fun prune() = store.prune(clock.instant())
 
+    fun appLabel(packageName: String): String {
+        if (packageName.startsWith("uid:")) return packageName
+        return try {
+            val pm = appContext.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+        } catch (_: Exception) {
+            packageName
+        }
+    }
+
     fun homeViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { HomeViewModel(usage, plans, settings, permissions, clock = clock, is24Hour = { DateFormat.is24HourFormat(appContext) }) }
+        initializer {
+            HomeViewModel(
+                usage = usage,
+                plans = plans,
+                settings = settings,
+                permissions = permissions,
+                spikes = spikes,
+                labelOf = ::appLabel,
+                clock = clock,
+                is24Hour = { DateFormat.is24HourFormat(appContext) },
+            )
+        }
     }
 
     fun appsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {

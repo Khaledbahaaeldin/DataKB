@@ -4,6 +4,8 @@ import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemorySpikeStore
+import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover
@@ -45,6 +47,7 @@ class HomeViewModelM3Test {
             plans = plans,
             settings = FakeSettingsRepository(),
             permissions = FakePermissionRepository(),
+            spikes = RoomSpikeRepository(InMemorySpikeStore()),
             clock = clock,
             locale = Locale.ENGLISH,
             dates = flowOf(LocalDate.of(2026, 10, 5)),

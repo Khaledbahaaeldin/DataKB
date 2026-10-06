@@ -145,6 +145,28 @@ internal fun HomeContent(
                 state.forecast?.let { ForecastTile(it, Modifier.weight(1f)) }
             }
         }
+        state.spike?.let { spike ->
+            item {
+                BentoTile(
+                    title = "Spike detected",
+                    modifier = Modifier.fillMaxWidth(),
+                    container = TileContainer.Tertiary,
+                    onClick = { onOpenApp(spike.packageName) },
+                ) {
+                    Text(spike.title, style = MaterialTheme.typography.titleMedium)
+                    ForceLtr {
+                        Text(
+                            spike.detail,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onEvent(HomeEvent.DismissSpike(spike.id)) }) {
+                        Text("Dismiss")
+                    }
+                }
+            }
+        }
         item {
             val mobile = formatBytes(state.mobileBytes, state.units)
             val wifi = formatBytes(state.wifiBytes, state.units)
