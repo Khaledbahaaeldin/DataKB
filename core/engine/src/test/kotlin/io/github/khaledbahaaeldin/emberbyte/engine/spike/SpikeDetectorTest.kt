@@ -26,6 +26,18 @@ class SpikeDetectorTest {
         assertEquals(1, detect(listOf(slice("a", 150_000_000L)), mapOf("a" to 30_000_000L)).size)
         assertTrue(detect(listOf(slice("a", 149_000_000L)), mapOf("a" to 30_000_000L)).isEmpty())
     }
+    @Test fun a_thousand_deterministic_pairs_at_five_times_baseline_are_spikes_and_one_byte_below_is_not() {
+        for (baseline in 1_000_000L..200_000_000L step 199_000L) {
+            val exact = 5L * baseline
+            val spikes = SpikeDetector.detect(listOf(slice("a", exact)), mapOf("a" to baseline), detectedAt, minBytes = 0L)
+            assertEquals("baseline=$baseline exact should spike", 1, spikes.size)
+            assertEquals(exact.toFloat() / baseline.toFloat(), spikes.single().multiple, 0.0001f)
+
+            val below = exact - 1L
+            val noSpikes = SpikeDetector.detect(listOf(slice("a", below)), mapOf("a" to baseline), detectedAt, minBytes = 0L)
+            assertTrue("baseline=$baseline below should not spike", noSpikes.isEmpty())
+        }
+    }
     @Test fun a_zero_baseline_is_floored_at_one_megabyte() {
         val e = detect(listOf(slice("a", 200_000_000L)), mapOf("a" to 0L)).single()
         assertEquals(200f, e.multiple, 0.001f)

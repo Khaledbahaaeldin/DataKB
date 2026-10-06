@@ -13,7 +13,7 @@ per-app data budgets, spike detection, "what if" planning, threshold alerts, enc
 - **Per-App Data Budgets**: Daily or plan-cycle mobile data budgets per app with configurable warning thresholds (50%, 80%, 90%) and alert notifications.
 - **Spike Detection**: Detects unusual mobile data consumption per 2-hour window against a 14-day median baseline and alerts you.
 - **"What If" Planner**: Scenario planning in the plan editor to project run-out dates under hypothetical extra daily usage.
-- **Personalized Forecast**: Predicts when your data cap will run out using a learned hour-of-day curve from your past week of usage, excluding free-window traffic.
+- **Personalized Forecast**: Predicts when your data cap will run out using a learned hour-of-day curve from your past week of usage on the plan's SIM, including free-window traffic.
 - **Threshold Alerts**: Notifies you when you reach specified usage percentages (e.g. 50%, 80%, 100%).
 - **CSV and JSON Streamed Export**: Streamed export of historical usage and plan data without loading entire datasets into memory.
 - **Encrypted Backup & Restore**: Secure `.emberbyte` backups protected by Argon2id key derivation and AES-256-GCM encryption.

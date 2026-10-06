@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.data.backup
 
 import io.github.khaledbahaaeldin.emberbyte.data.export.ExportService
 import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanValidation
+import io.github.khaledbahaaeldin.emberbyte.engine.model.BudgetPeriod
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.AppMeta
@@ -79,26 +80,59 @@ class DefaultBackupService(
                 return Outcome.Failure(EmberbyteError.Invalid("file", "This backup was made by a newer version of Emberbyte"))
             }
 
+            val planIds = HashSet<Long>()
             for (p in parsed.plans) {
+                if (!planIds.add(p.plan.id)) {
+                    return Outcome.Failure(EmberbyteError.Invalid("file", "Duplicate plan id: ${p.plan.id}"))
+                }
                 if (PlanValidation.plan(p.plan) != null) {
                     return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
                 }
+                for (rule in p.alertRules) {
+                    if (rule.thresholdPercent !in 1..100) {
+                        return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid alert threshold: ${rule.thresholdPercent}"))
+                    }
+                }
                 for (addOn in p.addOns) {
+                    if (addOn.planId != p.plan.id) {
+                        return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid add-on: planId mismatch"))
+                    }
                     if (PlanValidation.addOn(addOn) != null) {
                         return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
                     }
                 }
                 for (freeRule in p.freeRules) {
+                    if (freeRule.planId != p.plan.id) {
+                        return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid free rule: planId mismatch"))
+                    }
                     if (PlanValidation.freeRule(freeRule) != null) {
                         return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid plan: ${p.plan.name}"))
                     }
                 }
             }
 
+            val budgetPackages = HashSet<String>()
             for (b in parsed.budgets) {
-                if (b.packageName.isBlank() || b.limitBytes <= 0L || b.warnAtPercent !in 1..99) {
+                if (!budgetPackages.add(b.packageName)) {
+                    return Outcome.Failure(EmberbyteError.Invalid("file", "Duplicate budget for package: ${b.packageName}"))
+                }
+                if (b.packageName.isBlank() || b.limitBytes !in 1L..1_000_000_000_000_000L || b.warnAtPercent !in 1..99) {
                     return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains an invalid budget: ${b.packageName}"))
                 }
+                if (b.period == BudgetPeriod.CYCLE && b.planId != null && b.planId !in planIds) {
+                    return Outcome.Failure(EmberbyteError.Invalid("file", "The backup contains a budget referencing missing plan: ${b.planId}"))
+                }
+            }
+
+            val sanitizedPlans = parsed.plans.map { p ->
+                p.copy(
+                    addOns = p.addOns.map { it.copy(planId = p.plan.id) },
+                    freeRules = p.freeRules.map { it.copy(planId = p.plan.id) },
+                    alertRules = p.alertRules.map { it.copy(planId = p.plan.id) },
+                )
+            }
+            val sanitizedBudgets = parsed.budgets.map { b ->
+                if (b.period == BudgetPeriod.DAILY) b.copy(planId = null) else b
             }
 
             var insertedCount = 0
@@ -131,11 +165,11 @@ class DefaultBackupService(
                 }
             }
 
-            restore.replaceAll(parsed.plans, parsed.budgets, usageSequence) {
+            restore.replaceAll(sanitizedPlans, sanitizedBudgets, usageSequence) {
                 metaByUid.values.toList()
             }
 
-            Outcome.Success(RestoreSummary(parsed.plans.size, parsed.budgets.size, insertedCount, skippedCount))
+            Outcome.Success(RestoreSummary(sanitizedPlans.size, sanitizedBudgets.size, insertedCount, skippedCount))
         }
     } catch (e: CancellationException) {
         throw e

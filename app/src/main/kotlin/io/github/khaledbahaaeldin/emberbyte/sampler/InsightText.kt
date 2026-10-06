@@ -11,8 +11,7 @@ import java.util.Locale
 data class InsightText(val title: String, val text: String)
 
 fun budgetText(notice: BudgetNotice, units: ByteUnits): InsightText {
-    val period = if (notice.budget.period == BudgetPeriod.DAILY) "today" else "this cycle"
-    val amounts = "${plainBytes(notice.usedBytes, units)} of ${plainBytes(notice.budget.limitBytes, units)} used $period"
+    val amounts = "${plainBytes(notice.usedBytes, units)} of ${plainBytes(notice.budget.limitBytes, units)} used ${notice.periodLabel}"
     val title = when (notice.state) {
         BudgetState.EXCEEDED -> "${notice.label}: data budget exceeded"
         else -> "${notice.label}: nearly at its data budget"

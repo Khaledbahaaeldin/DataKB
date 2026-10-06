@@ -6,10 +6,12 @@ import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.engine.model.SpikeEvent
 import io.github.khaledbahaaeldin.emberbyte.home.toByteUnits
 
+import kotlinx.coroutines.flow.first
+
 class SpikeRunner(
     private val evaluate: suspend () -> List<SpikeEvent>,
     private val select: suspend (List<SpikeEvent>) -> List<SpikeEvent>,
-    private val alertsEnabled: () -> Boolean,
+    private val alertsEnabled: suspend () -> Boolean,
     private val post: (SpikeEvent) -> Unit,
 ) {
     /** Events are ALWAYS stored; they are only announced when the setting, the app notifications and the `spikes` channel allow it. */
@@ -20,13 +22,17 @@ class SpikeRunner(
     }
 
     companion object {
-        fun create(context: Context, graph: AppGraph): SpikeRunner {
+        fun create(
+            context: Context,
+            graph: AppGraph,
+            spikeAlertsEnabled: suspend () -> Boolean = { graph.settings.observe().first().spikeAlertsEnabled },
+        ): SpikeRunner {
             val app = context.applicationContext
             return SpikeRunner(
                 evaluate = { graph.spikeEvaluator.evaluate() },
                 select = { events -> graph.spikeEvaluator.selectForNotification(events) },
                 alertsEnabled = {
-                    (graph.settingsState.value?.spikeAlertsEnabled ?: true) &&
+                    spikeAlertsEnabled() &&
                         AlertGate.isEnabled(app, NotificationChannels.SPIKES)
                 },
                 post = { event ->

@@ -16,8 +16,10 @@ object SpikeDetector {
     ): List<SpikeEvent> = recent.mapNotNull { slice ->
         val pkg = slice.packageName ?: return@mapNotNull null
         val baseline = baselinePerWindowBytes[pkg] ?: return@mapNotNull null
-        val multiple = slice.bytes.toFloat() / maxOf(baseline, FLOOR_BYTES)
-        if (slice.bytes < minBytes || multiple < minMultiple) null
-        else SpikeEvent(0L, pkg, slice.start, detectedAt, windowMinutes, slice.bytes, baseline, multiple, false)
+        val effectiveBaseline = maxOf(baseline, FLOOR_BYTES)
+        val needed = Math.ceil(minMultiple.toDouble() * effectiveBaseline).toLong()
+        if (slice.bytes < minBytes || slice.bytes < needed) return@mapNotNull null
+        val multiple = slice.bytes.toFloat() / effectiveBaseline
+        SpikeEvent(0L, pkg, slice.start, detectedAt, windowMinutes, slice.bytes, baseline, multiple, false)
     }
 }

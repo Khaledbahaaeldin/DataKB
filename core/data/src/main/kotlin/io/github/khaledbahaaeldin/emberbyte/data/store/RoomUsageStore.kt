@@ -72,6 +72,11 @@ class RoomUsageStore(db: EmberbyteDatabase) : UsageStore {
 
     override fun observeLastSample(): Flow<Instant?> = dao.observeLastSample().map { it?.let(::at) }
 
+    override suspend fun oldestHourStart(uids: Set<Int>): Instant? {
+        if (uids.isEmpty()) return null
+        return dao.oldestHourStart(uids)?.let(::at)
+    }
+
     override suspend fun prune(now: Instant) {
         dao.pruneMinutes(now.minus(UsageRetention.MINUTES).ms())
         dao.pruneHourly(now.minus(UsageRetention.HOURLY).ms())

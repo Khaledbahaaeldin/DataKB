@@ -43,14 +43,14 @@ class BudgetEvaluatorTest {
         var currentStatuses = listOf(periodStatus(b, 850L, BudgetState.WARNING))
         val evaluator = BudgetEvaluator({ currentStatuses }, store)
 
-        val first = evaluator.evaluate()
+        val first = evaluator.evaluate().notices
         assertEquals(1, first.size)
         assertEquals(BudgetState.WARNING, first.single().state)
         assertEquals(850L, first.single().usedBytes)
         assertEquals("YouTube", first.single().label)
         assertEquals(b, first.single().budget)
 
-        val second = evaluator.evaluate()
+        val second = evaluator.evaluate().notices
         assertTrue(second.isEmpty())
     }
 
@@ -60,17 +60,17 @@ class BudgetEvaluatorTest {
         var currentStatuses = listOf(periodStatus(b, 850L, BudgetState.WARNING))
         val evaluator = BudgetEvaluator({ currentStatuses }, store)
 
-        val first = evaluator.evaluate()
+        val first = evaluator.evaluate().notices
         assertEquals(1, first.size)
         assertEquals(BudgetState.WARNING, first.single().state)
 
         currentStatuses = listOf(periodStatus(b, 1200L, BudgetState.EXCEEDED))
-        val second = evaluator.evaluate()
+        val second = evaluator.evaluate().notices
         assertEquals(1, second.size)
         assertEquals(BudgetState.EXCEEDED, second.single().state)
         assertEquals(1200L, second.single().usedBytes)
 
-        val third = evaluator.evaluate()
+        val third = evaluator.evaluate().notices
         assertTrue(third.isEmpty())
     }
 
@@ -80,12 +80,12 @@ class BudgetEvaluatorTest {
         val currentStatuses = listOf(periodStatus(b, 1200L, BudgetState.EXCEEDED))
         val evaluator = BudgetEvaluator({ currentStatuses }, store)
 
-        val notices = evaluator.evaluate()
+        val notices = evaluator.evaluate().notices
         assertEquals(1, notices.size)
         assertEquals(BudgetState.EXCEEDED, notices.single().state)
         assertEquals(1200L, notices.single().usedBytes)
 
-        assertTrue(evaluator.evaluate().isEmpty())
+        assertTrue(evaluator.evaluate().notices.isEmpty())
     }
 
     @Test
@@ -94,7 +94,7 @@ class BudgetEvaluatorTest {
         var currentStatuses = listOf(periodStatus(b, 1200L, BudgetState.EXCEEDED))
         val evaluator = BudgetEvaluator({ currentStatuses }, store)
 
-        val first = evaluator.evaluate()
+        val first = evaluator.evaluate().notices
         assertEquals(1, first.size)
         assertEquals(BudgetState.EXCEEDED, first.single().state)
 
@@ -102,12 +102,13 @@ class BudgetEvaluatorTest {
         val raised = b.copy(limitBytes = 2000L)
         currentStatuses = listOf(periodStatus(raised, 1200L, BudgetState.WARNING))
         val silent = evaluator.evaluate()
-        assertTrue(silent.isEmpty())
+        assertTrue(silent.notices.isEmpty())
+        assertEquals(listOf(b.id), silent.cleared)
         assertEquals(BudgetState.WARNING, store.lastState(b.id, periodStart))
 
         // Exceeded again -> notifies again
         currentStatuses = listOf(periodStatus(raised, 2500L, BudgetState.EXCEEDED))
-        val reExceeded = evaluator.evaluate()
+        val reExceeded = evaluator.evaluate().notices
         assertEquals(1, reExceeded.size)
         assertEquals(BudgetState.EXCEEDED, reExceeded.single().state)
     }
@@ -119,13 +120,13 @@ class BudgetEvaluatorTest {
         var currentStatuses = listOf(periodStatus(b, 850L, BudgetState.WARNING, start = periodStart))
         val evaluator = BudgetEvaluator({ currentStatuses }, store)
 
-        val first = evaluator.evaluate()
+        val first = evaluator.evaluate().notices
         assertEquals(1, first.size)
         assertEquals(BudgetState.WARNING, first.single().state)
-        assertTrue(evaluator.evaluate().isEmpty())
+        assertTrue(evaluator.evaluate().notices.isEmpty())
 
         currentStatuses = listOf(periodStatus(b, 850L, BudgetState.WARNING, start = nextDay))
-        val nextPeriod = evaluator.evaluate()
+        val nextPeriod = evaluator.evaluate().notices
         assertEquals(1, nextPeriod.size)
         assertEquals(BudgetState.WARNING, nextPeriod.single().state)
     }
@@ -140,7 +141,7 @@ class BudgetEvaluatorTest {
         )
         val evaluator = BudgetEvaluator({ currentStatuses }, store)
 
-        assertTrue(evaluator.evaluate().isEmpty())
+        assertTrue(evaluator.evaluate().notices.isEmpty())
     }
 
     @Test
@@ -151,9 +152,9 @@ class BudgetEvaluatorTest {
 
         val allNotices = coroutineScope {
             awaitAll(
-                async { evaluator.evaluate() },
-                async { evaluator.evaluate() },
-                async { evaluator.evaluate() },
+                async { evaluator.evaluate().notices },
+                async { evaluator.evaluate().notices },
+                async { evaluator.evaluate().notices },
             ).flatten()
         }
         assertEquals(1, allNotices.size)

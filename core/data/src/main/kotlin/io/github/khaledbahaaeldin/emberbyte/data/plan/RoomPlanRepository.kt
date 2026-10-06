@@ -9,6 +9,7 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.DayUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Forecast
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
+import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanPreview
@@ -66,11 +67,12 @@ class RoomPlanRepository(
                 else ticks.flatMapLatest { now ->
                     val zone = PlanCalculator.zoneOf(plan.cycle)
                     rows(plan, now).map { rows ->
+                        val matchingMinutes = rows.minutes.filter { it.network == NetworkKind.MOBILE && (plan.subscriptionId == null || it.subscriptionId == plan.subscriptionId) }
                         Snapshot(
                             PlanStateAssembler.state(plan, addOns, rules, now, rows),
                             PlanStateAssembler.history(plan, rules, now, rows),
                             now,
-                            HourCurves.personal(rows.minutes, now, zone),
+                            HourCurves.personal(matchingMinutes, now, zone),
                         )
                     }
                 }
@@ -148,11 +150,12 @@ class RoomPlanRepository(
             val now = clock.instant()
             val rows = rows(plan, now).first()
             val zone = PlanCalculator.zoneOf(plan.cycle)
+            val matchingMinutes = rows.minutes.filter { it.network == NetworkKind.MOBILE && (plan.subscriptionId == null || it.subscriptionId == plan.subscriptionId) }
             val snapshot = Snapshot(
                 PlanStateAssembler.state(plan, addOns, freeRules, now, rows),
                 PlanStateAssembler.history(plan, freeRules, now, rows),
                 now,
-                HourCurves.personal(rows.minutes, now, zone),
+                HourCurves.personal(matchingMinutes, now, zone),
             )
             PlanPreview(snapshot.state, forecastOf(snapshot))
         }

@@ -32,7 +32,7 @@ class InsightNotifierTest {
 
         val manager = app.getSystemService(NotificationManager::class.java)
         val shadowManager = shadowOf(manager)
-        val expectedId = "com.video".hashCode() and Int.MAX_VALUE
+        val expectedId = budget.id.toInt()
         val notification = shadowManager.getNotification(BudgetNotifier.TAG, expectedId)
         assertNotNull(notification)
         assertEquals(NotificationChannels.ALERTS, notification.channelId)

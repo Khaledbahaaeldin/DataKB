@@ -1,12 +1,26 @@
 package io.github.khaledbahaaeldin.emberbyte.sampler
 
+import android.app.Application
+import android.app.NotificationManager
+import androidx.test.core.app.ApplicationProvider
+import io.github.khaledbahaaeldin.emberbyte.AppGraph
+import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.SpikeEvent
+import io.github.khaledbahaaeldin.emberbyte.engine.usage.AppMeta
+import io.github.khaledbahaaeldin.emberbyte.engine.usage.HourlyUsage
+import io.github.khaledbahaaeldin.emberbyte.engine.usage.SeriesBuilder
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class SpikeRunnerTest {
     private fun spike(pkg: String, id: Long = 1) = SpikeEvent(
         id = id,
@@ -72,5 +86,25 @@ class SpikeRunnerTest {
 
         assertTrue(!selected)
         assertTrue(posted.isEmpty())
+    }
+
+    @Test
+    fun late_settings_flow_reads_real_value_and_false_suppresses_posting_when_settings_state_is_null() = runBlocking {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val graph = AppGraph(app)
+        val now = graph.clock.instant()
+        val winStart = SeriesBuilder.windowStart(now)
+        val store = io.github.khaledbahaaeldin.emberbyte.data.store.UsageStores.create(app)
+        store.upsertAppMeta(listOf(AppMeta(10001, "com.video", "Video")))
+        store.upsertHourly(listOf(
+            HourlyUsage(winStart.minusSeconds(4 * 86400), 10001, NetworkKind.MOBILE, 1, 10_000_000L, 0L),
+            HourlyUsage(winStart, 10001, NetworkKind.MOBILE, 1, 300_000_000L, 0L),
+        ))
+
+        val runner = SpikeRunner.create(app, graph, spikeAlertsEnabled = { false })
+        runner.run()
+
+        val manager = app.getSystemService(NotificationManager::class.java)
+        assertEquals(0, shadowOf(manager).allNotifications.size)
     }
 }

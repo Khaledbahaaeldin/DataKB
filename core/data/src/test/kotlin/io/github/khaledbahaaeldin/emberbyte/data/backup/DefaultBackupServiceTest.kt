@@ -500,5 +500,81 @@ class DefaultBackupServiceTest {
 
         assertEquals(listOf(oldPlan), planStoreB.observePlans().first())
     }
+
+    private fun sealJson(json: String): ByteArray {
+        val gzipped = gzip(json.toByteArray(Charsets.UTF_8))
+        return BackupCodec.seal(gzipped, "correct horse".toCharArray(), fast)
+    }
+
+    private suspend fun setupDbBWithOldPlan(): Plan {
+        val planStoreB = RoomPlanStore(dbB)
+        val oldPlan = Plan(99, "Old", null, 1_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None, false)
+        planStoreB.savePlanWithChildren(oldPlan, emptyList(), emptyList(), setOf(50))
+        return oldPlan
+    }
+
+    private suspend fun assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealed: ByteArray) {
+        val planStoreB = RoomPlanStore(dbB)
+        val oldPlan = setupDbBWithOldPlan()
+        val result = service(dbB).restoreBackup(ByteArrayInputStream(sealed), "correct horse".toCharArray())
+        assertTrue("Expected failure but got $result", result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error as EmberbyteError.Invalid
+        assertEquals("file", error.field)
+        assertEquals(listOf(oldPlan), planStoreB.observePlans().first())
+    }
+
+    @Test
+    fun restore_refuses_budget_limit_above_1e15() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[],"appBudgets":[{"id":1,"package":"com.video","limitBytes":1000000000000001,"period":"DAILY","planId":null,"warnAtPercent":80,"enabled":true}],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_budget_limit_non_positive() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[],"appBudgets":[{"id":1,"package":"com.video","limitBytes":0,"period":"DAILY","planId":null,"warnAtPercent":80,"enabled":true}],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_budget_warn_percent_outside_1_to_99() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[],"appBudgets":[{"id":1,"package":"com.video","limitBytes":1000,"period":"DAILY","planId":null,"warnAtPercent":100,"enabled":true}],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_duplicate_budget_packages() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[],"appBudgets":[{"id":1,"package":"com.video","limitBytes":1000,"period":"DAILY","planId":null,"warnAtPercent":80,"enabled":true},{"id":2,"package":"com.video","limitBytes":2000,"period":"DAILY","planId":null,"warnAtPercent":80,"enabled":true}],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_cycle_budget_with_missing_plan_id() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[],"appBudgets":[{"id":1,"package":"com.video","limitBytes":1000,"period":"CYCLE","planId":42,"warnAtPercent":80,"enabled":true}],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_addon_with_different_plan_id() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[{"id":1,"name":"Main","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[{"id":1,"planId":2,"label":"Boost","bytes":100,"validFrom":"2026-10-01T00:00:00Z","validUntil":"2026-10-20T00:00:00Z"}],"freeRules":[],"alertRules":[]}],"appBudgets":[],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_free_rule_with_different_plan_id() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[{"id":1,"name":"Main","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[],"freeRules":[{"id":1,"planId":2,"label":"Free","days":["MONDAY"],"start":"00:00","end":"06:00","package":null}],"alertRules":[]}],"appBudgets":[],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_alert_threshold_outside_1_to_100() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[{"id":1,"name":"Main","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[],"freeRules":[],"alertRules":[{"id":1,"planId":1,"thresholdPercent":101,"enabled":true}]}],"appBudgets":[],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
+
+    @Test
+    fun restore_refuses_duplicate_plan_ids() = runBlocking {
+        val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[{"id":1,"name":"Main","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[],"freeRules":[],"alertRules":[]},{"id":1,"name":"Second","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[],"freeRules":[],"alertRules":[]}],"appBudgets":[],"usageHourly":[]}"""
+        assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
+    }
 }
 

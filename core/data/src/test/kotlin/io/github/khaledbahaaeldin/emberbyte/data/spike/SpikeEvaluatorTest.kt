@@ -162,6 +162,24 @@ class SpikeEvaluatorTest {
     }
 
     @Test
+    fun an_app_with_rows_40_days_ago_and_gap_is_eligible_satisfying_history_rule() = runBlocking {
+        val uid = 10001
+        val pkg = "com.video"
+        registerApp(uid, pkg)
+
+        // Old row 40 days ago, nothing for 20 days, then 300 MB window now
+        val history = listOf(
+            HourlyUsage(currentWindow.minus(Duration.ofDays(40)), uid, NetworkKind.MOBILE, 1, 10_000_000L, 0L),
+            HourlyUsage(currentWindow, uid, NetworkKind.MOBILE, 1, 300_000_000L, 0L),
+        )
+        usage.upsertHourly(history)
+
+        val spikes = evaluator.evaluate()
+        assertEquals(1, spikes.size)
+        assertEquals(pkg, spikes.single().packageName)
+    }
+
+    @Test
     fun wifi_and_below_the_minimum_size_never_spike() = runBlocking {
         val uid = 10001
         val pkg = "com.video"

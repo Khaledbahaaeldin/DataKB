@@ -22,9 +22,16 @@ class InsightTextTest {
 
     @Test
     fun an_exceeded_cycle_budget_says_this_cycle() {
-        val t = budgetText(BudgetNotice(daily.copy(period = BudgetPeriod.CYCLE), "Video", 800_000_000L, BudgetState.EXCEEDED), ByteUnits.DECIMAL)
+        val t = budgetText(BudgetNotice(daily.copy(period = BudgetPeriod.CYCLE), "Video", 800_000_000L, BudgetState.EXCEEDED, periodLabel = "this cycle"), ByteUnits.DECIMAL)
         assertEquals("Video: data budget exceeded", t.title)
         assertEquals("800 MB of 750 MB used this cycle", t.text)
+    }
+
+    @Test
+    fun an_exceeded_cycle_budget_without_a_plan_says_this_month() {
+        val t = budgetText(BudgetNotice(daily.copy(period = BudgetPeriod.CYCLE), "Video", 800_000_000L, BudgetState.EXCEEDED, periodLabel = "this month"), ByteUnits.DECIMAL)
+        assertEquals("Video: data budget exceeded", t.title)
+        assertEquals("800 MB of 750 MB used this month", t.text)
     }
 
     @Test

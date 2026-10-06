@@ -34,6 +34,11 @@ class BudgetCalculatorTest {
         assertEquals(BudgetState.WARNING, BudgetCalculator.state(b, 990_000_000_000_000L))
         assertEquals(BudgetState.OK, BudgetCalculator.state(b, 989_999_999_999_999L))
     }
+    @Test fun max_long_limit_does_not_overflow() {
+        val b = budget(limit = Long.MAX_VALUE, warn = 80)
+        assertEquals(BudgetState.OK, BudgetCalculator.state(b, 1000L))
+        assertEquals(BudgetState.OK, BudgetCalculator.state(b, 0L))
+    }
     @Test fun a_zero_limit_never_warns() = assertEquals(BudgetState.OK, BudgetCalculator.state(budget(limit = 0), 5))
 
     @Test fun a_daily_period_is_the_local_day() {

@@ -15,7 +15,7 @@ object BudgetNotifier {
     fun post(context: Context, notice: BudgetNotice, units: ByteUnits) {
         NotificationChannels.ensure(context)
         val text = budgetText(notice, units)
-        val id = notice.budget.packageName.hashCode() and Int.MAX_VALUE
+        val id = notice.budget.id.toInt()
         val open = PendingIntent.getActivity(
             context,
             id,

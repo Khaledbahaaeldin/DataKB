@@ -8,10 +8,14 @@ import java.time.Instant
 import java.time.ZoneId
 
 object BudgetCalculator {
+    private const val MAX_SAFE_BYTES = 1_000_000_000_000_000L
+
     fun state(budget: AppBudget, usedBytes: Long): BudgetState {
         if (budget.limitBytes <= 0L) return BudgetState.OK
         if (usedBytes > budget.limitBytes) return BudgetState.EXCEEDED
-        return if (usedBytes * 100 >= budget.limitBytes * budget.warnAtPercent) BudgetState.WARNING else BudgetState.OK
+        val clampedUsed = minOf(usedBytes, MAX_SAFE_BYTES)
+        val clampedLimit = minOf(budget.limitBytes, MAX_SAFE_BYTES)
+        return if (clampedUsed * 100 >= clampedLimit * budget.warnAtPercent) BudgetState.WARNING else BudgetState.OK
     }
 
     fun period(budget: AppBudget, now: Instant, zone: ZoneId, planWindow: CycleWindow?): CycleWindow {

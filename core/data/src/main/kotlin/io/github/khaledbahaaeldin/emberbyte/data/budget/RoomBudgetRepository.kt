@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
-data class BudgetPeriodStatus(val status: BudgetStatus, val periodStart: Instant, val label: String)
+data class BudgetPeriodStatus(val status: BudgetStatus, val periodStart: Instant, val label: String, val periodLabel: String = "today")
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoomBudgetRepository(
@@ -38,12 +38,16 @@ class RoomBudgetRepository(
     private val clock: Clock,
     private val ticks: Flow<Instant> = minuteTicks(clock),
 ) : BudgetRepository {
-    private data class Period(val window: CycleWindow, val subscriptionId: Int?)
+    private data class Period(val window: CycleWindow, val subscriptionId: Int?, val periodLabel: String)
 
     private fun periodFor(budget: AppBudget, planList: List<Plan>, now: Instant): Period {
         val plan = if (budget.period == BudgetPeriod.CYCLE) planList.firstOrNull { it.id == budget.planId } else null
         val planWindow = plan?.let { CycleCalculator.windowAt(it.cycle, now) }
-        return Period(BudgetCalculator.period(budget, now, clock.zone, planWindow), plan?.subscriptionId)
+        val periodLabel = when (budget.period) {
+            BudgetPeriod.DAILY -> "today"
+            BudgetPeriod.CYCLE -> if (plan != null) "this cycle" else "this month"
+        }
+        return Period(BudgetCalculator.period(budget, now, clock.zone, planWindow), plan?.subscriptionId, periodLabel)
     }
 
     private fun uidsOf(packageName: String, meta: List<AppMeta>): Set<Int> {
@@ -71,6 +75,7 @@ class RoomBudgetRepository(
                                 BudgetStatus(budget, used, BudgetCalculator.state(budget, used)),
                                 period.window.start,
                                 meta.firstOrNull { it.packageName == budget.packageName }?.label ?: budget.packageName,
+                                period.periodLabel,
                             )
                         }
                     }

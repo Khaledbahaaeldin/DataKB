@@ -86,6 +86,11 @@ class InMemoryUsageStore : UsageStore {
     override fun observeLastSample(): Flow<Instant?> =
         minutes.map { map -> map.values.maxOfOrNull { it.minuteStart } }.distinctUntilChanged()
 
+    override suspend fun oldestHourStart(uids: Set<Int>): Instant? {
+        if (uids.isEmpty()) return null
+        return hours.value.values.asSequence().filter { it.uid in uids }.minOfOrNull { it.hourStart }
+    }
+
     override suspend fun prune(now: Instant) {
         val minuteCut = now.minus(UsageRetention.MINUTES)
         val hourCut = now.minus(UsageRetention.HOURLY)

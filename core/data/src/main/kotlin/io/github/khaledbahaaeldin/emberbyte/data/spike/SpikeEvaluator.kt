@@ -26,18 +26,24 @@ class SpikeEvaluator(
         val windows = listOf(current, current.minus(window), current.minus(window.multipliedBy(2)))
         val historyStart = windows.last().minus(Duration.ofDays(HISTORY_DAYS)).minus(window)
         val allRows = usage.hourlyRows(historyStart, current.plus(window))
-        val packageByUid = usage.appMeta().associate { it.uid to it.packageName }
-        val firstSeen = HashMap<String, Instant>()
+        val appMeta = usage.appMeta()
+        val packageByUid = appMeta.associate { it.uid to it.packageName }
+        val uidsByPackage = appMeta.groupBy({ it.packageName }, { it.uid }).mapValues { it.value.toSet() }
+        val oldestByPackage = HashMap<String, Instant?>()
         val mobileBytes = HashMap<Pair<String, Instant>, Long>()
         for (row in allRows) {
             val pkg = packageByUid[row.uid] ?: continue
-            firstSeen.merge(pkg, row.hourStart) { a, b -> minOf(a, b) }
             if (row.network == NetworkKind.MOBILE) mobileBytes.merge(pkg to row.hourStart, row.totalBytes) { a, b -> a + b }
         }
         val stored = ArrayList<SpikeEvent>()
         for (start in windows) {
             val candidates = mobileBytes.filterKeys { it.second == start }.map { (key, bytes) -> key.first to bytes }
-            val eligible = candidates.filter { (pkg, _) -> firstSeen.getValue(pkg) <= start.minus(Duration.ofDays(MIN_HISTORY_DAYS)) }
+            val eligible = candidates.filter { (pkg, _) ->
+                val oldest = oldestByPackage.getOrPut(pkg) {
+                    usage.oldestHourStart(uidsByPackage[pkg].orEmpty())
+                }
+                oldest != null && oldest <= start.minus(Duration.ofDays(MIN_HISTORY_DAYS))
+            }
             val slices = eligible.map { (pkg, bytes) -> UsageSlice(start, start.plus(window), pkg, bytes) }
             val baselines = eligible.associate { (pkg, _) -> pkg to median(pkg, start, mobileBytes) }
             for (event in SpikeDetector.detect(slices, baselines, now)) {

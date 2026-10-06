@@ -157,6 +157,17 @@ class RoomPlanRepositoryTest {
         assertEquals("2026-10-18", f.runOutExpected!!.toString().substring(0, 10))
     }
 
+    @Test fun minute_rows_of_another_subscription_do_not_shape_the_personal_curve() = runBlocking {
+        for (i in 8..14) {
+            mobile("2026-10-${i.toString().padStart(2, '0')}T20:00:00Z", 1_000_000_000L, sub = 1)
+            mobile("2026-10-${i.toString().padStart(2, '0')}T10:00:00Z", 1_000_000_000L, sub = 2)
+        }
+        val id = save(draft(sub = 2, cap = 7_200_000_000L))
+        val f = repo.observeForecast(id).first()!!
+        assertNotNull(f.runOutExpected)
+        assertEquals("2026-10-16", f.runOutExpected!!.toString().substring(0, 10))
+    }
+
     @Test fun preview_state_evaluates_an_unsaved_draft_and_rejects_an_invalid_one() = runBlocking {
         mobile("2026-10-10T10:00:00Z", 1_000_000_000L)
         val ok = repo.previewState(draft(), emptyList(), emptyList()) as Outcome.Success
