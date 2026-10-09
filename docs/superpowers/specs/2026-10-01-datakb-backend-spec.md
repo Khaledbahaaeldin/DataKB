@@ -145,8 +145,7 @@ App traffic ─► TUN interface ─► packet loop ─► per-flow table ─►
 - **Budgets.** `AlertWorker` computes each `AppBudget` against `usage_hourly` for its period. State:
   `OK` below `warnAtPercent`, `WARNING` from there to 100%, `EXCEEDED` above. Transitions post one
   notification each. The notification action opens that app's system data-usage settings.
-- **Spikes.** After each flush, `SpikeDetector` compares each app's last 20 minutes with its median 20-minute
-  usage over the previous 14 days. A spike needs at least 100 MB and 5× the baseline, and apps with fewer
+- **Spikes.** (Rule replaced in M4, see contract section 11.1: per-app data exists only in 2-hour platform windows.) After each catch-up, `SpikeDetector` compares each app's current and previous two 2-hour windows with its median 2-hour usage over the previous 14 days. A spike needs at least 100 MB and 5× the baseline, and apps with fewer
   than 3 days of history are skipped. A detected spike is stored once, and one app can alert at most once
   per hour.
 

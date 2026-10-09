@@ -672,3 +672,142 @@ class AlertEvaluator(plans: PlanRepository, store: PlanStore) { suspend fun eval
 - Deep links opened while the app is running are pushed onto the current back stack (`navigate(uri)`); the `emberbyte` filter is not `BROWSABLE` (web pages cannot open the app; notifications and widgets use explicit intents).
 - `AlertRunner` also stays quiet when only the `alerts` channel is blocked, and `AlertEvaluator.evaluate()` is serialised by a mutex.
 - `BentoWidgetModel.compactApps`: the 4x2 Bento widget shows the top two apps on one line.
+
+## 11. Milestone 4 additions (insight: budgets, spikes, what-if, export and backup, personal curve)
+
+These extend sections 1-10 and never contradict them, EXCEPT where they say so: **the spike rule of section 2 / backend section 8
+(20-minute windows) is replaced by 11.1**, because Android keeps per-app history in 2-hour buckets (section 9.4), so 20-minute per-app
+usage does not exist before Live Lens (M5). Package roots as before.
+
+### 11.1 Engine (`:core:engine`)
+
+```kotlin
+// …engine.model (replaces the SpikeEvent of section 2)
+data class SpikeEvent(
+    val id: Long, val packageName: String,
+    val windowStart: Instant,           // start of the 2-hour platform window that spiked
+    val detectedAt: Instant,
+    val windowMinutes: Int,             // 120
+    val bytes: Long,                    // mobile bytes of that app in that window, at detection time
+    val baselineBytes: Long,            // median mobile bytes of that app per 2-hour window over the 14 days before it
+    val multiple: Float,                // bytes / max(baselineBytes, 1 MB)
+    val dismissed: Boolean,
+)
+
+// …engine.budget
+object BudgetCalculator {
+    /** percent = used * 100 / limit (integer). OK below warnAtPercent; WARNING from warnAtPercent up to and including the limit; EXCEEDED above the limit. */
+    fun state(budget: AppBudget, usedBytes: Long): BudgetState
+    /** DAILY: the local day containing [now] in [zone]. CYCLE: [planWindow] when given, otherwise the calendar month containing [now]. */
+    fun period(budget: AppBudget, now: Instant, zone: ZoneId, planWindow: CycleWindow?): CycleWindow
+}
+
+// …engine.spike (replaces SpikeDetector of section 2)
+object SpikeDetector {
+    /** [recent]: one slice per (app, 2-hour window) with packageName != null and start/end = the window. [baselinePerWindowBytes]: package -> baseline;
+     *  a package WITHOUT an entry is skipped (not enough history). A slice is a spike when bytes >= minBytes AND bytes / max(baseline, 1 MB) >= minMultiple. */
+    fun detect(recent: List<UsageSlice>, baselinePerWindowBytes: Map<String, Long>, detectedAt: Instant,
+               windowMinutes: Int = 120, minBytes: Long = 100_000_000L, minMultiple: Float = 5f): List<SpikeEvent>   // id = 0, dismissed = false
+}
+
+// …engine.forecast
+object HourCurves {
+    /** 24 weights summing to 1. From the mobile minute rows of the last 7 complete local days before today: personal share per local hour p[h];
+     *  days = number of those days with traffic; fewer than 3 days -> [base]; otherwise w = min(days, 7) / 7 and result = w * p + (1 - w) * base. */
+    fun personal(minuteRows: List<MinuteTotal>, now: Instant, zone: ZoneId, base: DoubleArray = ForecastEngine.DEFAULT_HOUR_CURVE): DoubleArray
+}
+```
+
+- **`ForecastEngine` extra usage (`extraBytesPerDay` / `extraFrom`) is now exact to the instant** (the M3 audit's M-17): on the day containing `extraFrom`
+  only the part of the day after `extraFrom` (by the hour curve) is added; on today's segment the added part is also limited to what is still ahead
+  (`1 - cumulativeShare(max(now, extraFrom))`); earlier days get nothing, later days the full amount.
+- **`PlanCalculator.freeBytes(plan, usage, freeRules, window): Long`** is public (the existing free-window maths), so the data layer can remove free traffic
+  from the forecast history per day.
+- **Forecast history excludes free-window traffic** (removes the v1 limit of 10.1): each history day is its mobile bytes minus `freeBytes` of that day.
+
+### 11.2 Data layer (`:core:data`)
+
+Database **version 3** (`Migration(2, 3)`, exported `3.json`) adds:
+
+| Table | Key | Columns |
+|---|---|---|
+| `app_budget` | `id` (autoincrement) | `packageName`, `limitBytes`, `period` (`DAILY`/`CYCLE`), `planId?`, `warnAtPercent`, `enabled`; index on `packageName` |
+| `spike_event` | `id` (autoincrement) | `packageName`, `windowStart`, `detectedAt`, `windowMinutes`, `bytes`, `baselineBytes`, `multiple` (REAL), `dismissed`; UNIQUE (`packageName`, `windowStart`) |
+| `budget_state` | (`budgetId`, `periodStart`) | `state` (the last state a notification was posted for) |
+| `spike_notice` | `packageName` | `notifiedAt` (rate limit: at most one spike notification per app per hour) |
+
+```kotlin
+// …data.budget
+interface BudgetStore {
+    fun observeBudgets(): Flow<List<AppBudget>>
+    suspend fun budgets(): List<AppBudget>
+    suspend fun upsertBudget(budget: AppBudget): Long
+    suspend fun deleteBudget(id: Long)
+    suspend fun lastState(budgetId: Long, periodStart: Instant): BudgetState?
+    suspend fun setState(budgetId: Long, periodStart: Instant, state: BudgetState)
+}
+class RoomBudgetRepository(budgets: BudgetStore, plans: PlanStore, usage: UsageStore, clock: Clock, ticks: Flow<Instant>) : BudgetRepository {
+    suspend fun currentPeriodStatuses(): List<BudgetPeriodStatus>      // for the evaluator
+}
+data class BudgetPeriodStatus(val status: BudgetStatus, val periodStart: Instant, val label: String)
+data class BudgetNotice(val budget: AppBudget, val label: String, val usedBytes: Long, val state: BudgetState)
+class BudgetEvaluator(statuses: suspend () -> List<BudgetPeriodStatus>, store: BudgetStore) { suspend fun evaluate(): List<BudgetNotice> }
+
+// …data.spike
+interface SpikeStore {
+    fun observeSpikes(includeDismissed: Boolean): Flow<List<SpikeEvent>>          // newest first
+    suspend fun insertIfAbsent(event: SpikeEvent): Boolean                         // false when (package, windowStart) exists
+    suspend fun dismiss(id: Long): Boolean
+    suspend fun lastNoticeAt(packageName: String): Instant?
+    suspend fun markNotified(packageName: String, at: Instant)
+}
+class RoomSpikeRepository(store: SpikeStore) : SpikeRepository
+class SpikeEvaluator(usage: UsageStore, store: SpikeStore, clock: Clock) { suspend fun evaluate(): List<SpikeEvent> }   // newly stored events
+
+// PlanRepository / PlanStore: atomic save (replaces the step-by-step save of the editor)
+suspend fun PlanRepository.savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long>
+suspend fun PlanStore.savePlanWithChildren(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Long   // ONE database transaction
+```
+
+- **Budgets count MOBILE bytes** of the app (all its UIDs, via `app_meta`) in the period, taken from the 2-hour window rows by the window-start rule (the rule
+  of Apps and Home). `planId != null` also filters on the plan's subscription (`-1`/unknown rows are not counted). Validation (`Invalid(field, reason)`):
+  `packageName` (blank, or already has a budget: "Already set"), `limitBytes` (not positive), `warnAtPercent` (not 1..99), `planId` (a CYCLE budget naming a
+  missing plan -> `NotFound`; a DAILY budget stores `planId = null`). Budget notifications: a transition to a worse state than the one stored for the
+  period is posted once (OK to WARNING: warning, anything to EXCEEDED: exceeded); a better state is stored silently.
+- **Spikes**: evaluated after every catch-up (service loop 5 min, worker 15 min) for the current and the previous two 2-hour windows. Baseline = median of
+  the app's mobile bytes per window over the 14 days before the window (168 windows, missing windows count as 0); an app is skipped unless its oldest stored
+  window row is at least 3 days older than the window. An event is stored once per (package, window). A spike notification is posted only when
+  `Settings.spikeAlertsEnabled`, notifications are enabled, the `spikes` channel is not blocked and the app had no spike notification in the last hour.
+- **Export** (`ExportService`, streaming, formats of section 7): `exportCsv(range, out)` writes `hourStart,package,network,subscriptionId,rxBytes,txBytes`
+  for rows whose window start is in range (`package` is the package name, or `uid:<n>` when unknown). `exportJson(out)` writes the section 7 document
+  (`contractVersion`, `exportedAt`, `plans` with `archived`, `addOns`/`freeRules`/`alertRules`, `appBudgets`, `usageHourly`, in this order: the parser reads the usage rows last, as a stream). Both are streamed and never hold all rows in memory.
+- **Backup file** (`.emberbyte`): bytes `EMBBKP01` (8) | `salt` (16) | `memoryKiB` int32 | `iterations` int32 | `parallelism` int32 | `nonce` (12) | ciphertext+tag,
+  big-endian; ciphertext = AES-256-GCM(gzip(export JSON)) with the whole header as associated data; key = Argon2id(passphrase, salt, memory 65536 KiB,
+  iterations 3, parallelism 1) -> 32 bytes. On restore the header parameters are used but bounded (memory <= 65536 KiB, which is exactly what this version writes; iterations <= 10; parallelism <= 4)
+  so a hostile file cannot exhaust the phone (a larger memory cost needs a new magic/version byte). A key derivation that still runs out of memory (`OutOfMemoryError`) is reported as `Invalid("file", ...)`, never a crash. Backup creation and restore run OFF the main thread (`Dispatchers.Default`). Argon2id comes from Bouncy Castle's lightweight API (`org.bouncycastle:bcprov-jdk18on`, MIT licence, credited in
+  `NOTICE`); no other crypto library.
+```kotlin
+data class RestoreSummary(val plans: Int, val budgets: Int, val usageRows: Int, val skippedUsageRows: Int)
+interface BackupService {                       // replaces section 3's BackupService
+    suspend fun createBackup(out: OutputStream, passphrase: CharArray): Outcome<Unit>              // Invalid("passphrase", ...) under 8 characters
+    suspend fun restoreBackup(input: InputStream, passphrase: CharArray): Outcome<RestoreSummary>
+}
+```
+  Errors: wrong passphrase or a damaged ciphertext -> `Invalid("passphrase", "Wrong passphrase or damaged file")` (GCM tag failure; the two cannot be told
+  apart); bad magic, truncated header, parameters out of bounds, unknown `contractVersion` -> `Invalid("file", reason)`. **Restore replaces, in ONE database
+  transaction,** plans, add-ons, free rules, alert rules, budgets and `usage_hourly`, and clears `alert_fired`, `budget_state`, `spike_event` and `spike_notice`;
+  it never partially applies (any failure rolls everything back). `usage_hourly` rows are keyed by UID, which is device specific: a row is restored only when its
+  package resolves to a UID on this device (`uid:<n>` rows keep their UID); the others are counted in `skippedUsageRows`. The passphrase array is zeroed after use.
+- Channels: `spikes` (default importance, "Spike alerts") is created with `live`, `status` and `alerts`. Budget notifications use `alerts`.
+  Taps open `emberbyte://apps/{package}`; both add an action "Data settings" that opens the system screen for that app
+  (`Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS` with `package:<name>`, falling back to the app-details screen).
+
+### 11.3 UI-facing additions
+
+- App detail gains a **Budget** section (ring + used/limit + edit/remove, or "Set a budget"; dialog: limit + unit, period Daily / Plan cycle with the plan choice or
+  "Calendar month", warn-at 50/80/90) and a **Spikes** section for that app (window, bytes, "5.2x usual", Dismiss). Home shows a "Spike detected" tile for the
+  newest undismissed spike. Settings gets "Spike alerts" (existing setting) and a **Data** section: Export CSV (7 days / 30 days / all), Export JSON,
+  Create backup, Restore backup (passphrase dialogs; a confirmation says restore replaces plans, budgets and history on this device).
+- The plan editor of an EXISTING plan gets a **What if** section: an extra amount per day (+ unit) from now; it shows the current forecast sentence and the
+  what-if sentence (`PlanRepository.whatIf`) side by side.
+- Right-to-left fixes: numbers and their words stay together in `ForecastTile`, `GapBanner`, bar labels and the Apps range chips.
