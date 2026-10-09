@@ -811,3 +811,72 @@ interface BackupService {                       // replaces section 3's BackupSe
 - The plan editor of an EXISTING plan gets a **What if** section: an extra amount per day (+ unit) from now; it shows the current forecast sentence and the
   what-if sentence (`PlanRepository.whatIf`) side by side.
 - Right-to-left fixes: numbers and their words stay together in `ForecastTile`, `GapBanner`, bar labels and the Apps range chips.
+
+## 12. Milestone 5 additions (Live Lens)
+
+These extend sections 1-11 and never contradict them. Live Lens is the ONLY part of Emberbyte that touches `VpnService` and the only part that
+declares the `INTERNET` permission. It is opt-in, off by default, local only, and never stores or logs payload.
+
+### 12.1 What Lens is, and what it needs to be correct
+
+A local VPN (`LensVpnService`) routes all device traffic into a TUN interface; a userspace forwarder reads the IP packets, relays every TCP and UDP
+flow to the real network through sockets excluded from the VPN with `VpnService.protect()`, and meanwhile observes (never alters, blocks or stores
+payload of) each flow: its owner UID, byte counts, and the name the app asked for. Facts that shape the design:
+
+- **Per-flow owner:** `ConnectivityManager.getConnectionOwnerUid(protocol, local, remote)` (API 29, our minSdk). A result of `Process.INVALID_UID` (-1)
+  is shown as the pseudo app `uid:0` labelled "Unknown". Its reliability across vendor ROMs is an open verification item (backend section 13.4).
+- **Names:** (1) the TLS SNI of the first client record of a TCP flow, (2) the DNS answers (A/AAAA with their CNAME chain) observed in UDP/53 traffic,
+  kept per answer for max(TTL, 60 s) up to 10 minutes; a flow takes its SNI if present, else the name of its remote address from the DNS cache, else the
+  remote IP literal (shown as such). DNS over HTTPS/TLS/QUIC and Encrypted Client Hello hide names; the IP fallback is the documented behaviour.
+- **IPv6 is mandatory** (some carriers are IPv6-only with NAT64): the TUN has an IPv4 and an IPv6 address and routes `0.0.0.0/0` and `::/0`. ICMP is dropped
+  (ping does not work while Lens runs; documented).
+- **No double counting.** While Lens runs the sampler's total counter also counts the TUN interface, so Wi-Fi (derived as total minus mobile) would be
+  inflated (contract 9.4 limitation). Lens exposes its own TUN byte counters; the sampler subtracts them (12.3). The per-app history from
+  `NetworkStatsManager` is unaffected (the platform attributes VPN traffic to the original app UIDs).
+
+### 12.2 Engine and data (module `:feature:lens`, plus `:core:data` for storage)
+
+Pure-JVM forwarder core in package `…lens.core` (no Android classes, so it is unit-tested on the JVM against an in-process fake TUN and local sockets):
+
+```kotlin
+// …lens.core
+class PacketParser { fun parse(buffer: ByteBuffer, length: Int): ParsedPacket? }      // IPv4/IPv6, TCP, UDP; others -> null (dropped); validates lengths and checksums
+sealed interface ParsedPacket { val src: InetSocketAddress; val dst: InetSocketAddress; val protocol: Int /*6 or 17*/ }
+object DnsParser { fun answers(payload: ByteArray): List<DnsAnswer> }                  // compressed names, A/AAAA/CNAME chain, TTL; malformed -> empty
+data class DnsAnswer(val name: String, val address: InetAddress, val ttlSeconds: Long)
+object SniParser { fun serverName(firstRecord: ByteArray): String? }                   // TLS ClientHello server_name; GREASE/extension order tolerant; truncated -> null
+interface TunDevice { fun read(buffer: ByteBuffer): Int; fun write(buffer: ByteBuffer, length: Int); fun close() }
+interface SocketProtector { fun protect(socket: Socket): Boolean; fun protect(socket: DatagramSocket): Boolean }   // + channel variants
+class Forwarder(tun: TunDevice, protector: SocketProtector, owner: OwnerResolver, listener: FlowListener, clock: Clock) { fun run(); fun stop() }
+interface OwnerResolver { fun uidOf(protocol: Int, local: InetSocketAddress, remote: InetSocketAddress): Int }       // -1 unknown
+interface FlowListener { fun onFlowOpened(flow: FlowInfo); fun onBytes(flowId: Long, rxBytes: Long, txBytes: Long); fun onName(flowId: Long, name: String); fun onFlowClosed(flowId: Long) }
+```
+- **TCP:** the forwarder terminates the app's TCP connection locally (answers the SYN with a SYN-ACK from the TUN side after the real connection is established or
+  immediately, as the spike decides), keeps per-flow sequence/acknowledgement state, honours the window of the TUN leg, relays data both ways, handles FIN, RST and
+  half-close, and times out idle flows (TCP 5 min after the last packet, 30 s after FIN/RST). **UDP:** one protected `DatagramChannel` per flow, idle timeout 60 s (DNS 10 s).
+  Limits: at most 1024 concurrent flows (oldest idle first are closed), per-flow buffer at most 256 KiB. Packets that cannot be parsed are dropped, never crash the loop.
+- `LensEngine` (above the forwarder; still pure Kotlin): per-flow table keyed by 5-tuple, resolves the owner once per flow (cached), aggregates bytes per UID and per
+  (UID, name), produces `LensSnapshot` once per second (rate = bytes of the last second, EMA alpha 0.5 as in the sampler; apps with traffic in the last 30 s, sorted by
+  rx+tx rate descending; `topDomains` = the 5 names with the most bytes in the last 15 minutes) and hourly domain hits for storage.
+
+Storage: database **version 4** (`Migration(3, 4)`, exported `4.json`) adds `lens_domain_hit` with the columns of section 5 (`uid`, `domain`, `hourStart` primary key; `bytes`, `lastSeen`)
+and an index on `hourStart`. `LensHistoryStore { suspend fun add(hits: List<LensDomainHit>); suspend fun clear(); suspend fun prune(olderThan: Instant); fun observeTop(uid, since, limit) }`
+with `hourStart` a UTC hour; flushes every 60 s (aggregated, additive, atomic per row like `addMinute`). **Retention:** `Settings.lensHistoryHours` (allowed values 0, 1, 24, 72, 168; default 24;
+0 = keep nothing, only the live view): rows older than that are deleted hourly, on every change of the setting and on `clearHistory()`.
+
+### 12.3 Android components and behaviour
+
+| Component | Contract |
+|---|---|
+| `LensVpnService` | Extends `VpnService`; foreground service with type `specialUse` (property `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` explaining the local VPN) unless the M5 spike shows the platform needs another type; notification channel `lens` (low importance, ongoing), text "Lens is on", action Stop; manifest `BIND_VPN_SERVICE`, intent filter `android.net.VpnService`. Builder: session "Emberbyte Lens", MTU 1400, IPv4 `10.7.0.2/32` and IPv6 `fd7a:115c:a1e0::2/128`, routes `0.0.0.0/0` and `::/0`, no DNS server set (the system's resolver of the underlying network is used), `setBlocking(true)` handled by a dedicated thread, `setUnderlyingNetworks` follows the default non-VPN network. `onRevoke()` (another VPN or the user turned it off) tears down and publishes `LensState.Off`. |
+| `LensController` | Contract section 4, implemented by `AndroidLensController`: `prepareConsentIntent()` = `VpnService.prepare(context)`; `start()` -> `Starting` -> `Running(since)` when the TUN is up; **conflicts** detected before starting: another VPN network present (`ConnectivityManager` network with `TRANSPORT_VPN` that is not ours) -> `Conflict(OTHER_VPN_ACTIVE)`; Always-on VPN with lockdown set for another app (best effort: `Settings.Secure` `always_on_vpn_app` / `always_on_vpn_lockdown`) -> `Conflict(ALWAYS_ON_VPN_BLOCKING)`; any failure -> `Error(message)`. `stop()` returns only after the forwarder thread has ended, the TUN is closed and the service has stopped (guarantee of section 4). While `state != Running`, `observeSnapshot()` emits nothing. |
+| Permissions | `INTERNET` and `BIND_VPN_SERVICE` are declared (the ONLY use of `INTERNET` is relaying the user's own traffic through the forwarder; Emberbyte opens no connection of its own: a lint-style unit test greps the sources for `Socket`/`URL`/`HttpURLConnection` outside `…lens.core`). `PermissionState.vpnConsentGranted` becomes real (`VpnService.prepare(context) == null`). |
+| Sampler | `SamplerEngine` subtracts the TUN traffic of each tick from the TOTAL counter delta before the Wi-Fi derivation: `interface LensCounters { fun read(): TunCounters }`, `data class TunCounters(val sessionId: Long, val rxBytes: Long, val txBytes: Long)` (bytes of the IP packets Lens read from / wrote to the TUN since that session started; `sessionId` changes on every start; Lens off = `TunCounters(0, 0, 0)`). The sampler remembers the previous reading and uses the DIFFERENCE of the two readings (a different `sessionId`, or a decrease, counts the previous reading as zero); per direction `wifiDelta = max(0, totalDelta - tunDelta - mobileDelta)` while the default network is Wi-Fi. A cumulative subtraction is NOT allowed: the platform's total counter keeps the old TUN bytes after the interface is gone (section 9.4), so only per-tick differences stay continuous. The network kind while Lens runs comes from the underlying network, not from the VPN network. Mobile counters are unaffected. |
+| Notification | `lens` channel, ongoing, shows "Lens is on · <n> apps active" and a Stop action; Stop = `emberbyte://lens` plus `LensController.stop()`. |
+| Deep link | `emberbyte://lens` already exists. |
+
+### 12.4 UI (`:feature:lens`, with Compose and `:ui:design`) and Settings
+
+- The Lens tab shows the screen of frontend section 6.4 for the six `LensState`s. `Running`: header "Lens is on" with Stop, a list of `LensApp` rows sorted by current rate (spatial-spring reordering, reduced motion respected), each row expandable to its top domains (IP literals shown with the word "IP"), overflow menu "Clear history". `Off`: explainer ("Lens shows which app uses data right now and which servers it talks to. It runs a local VPN on this phone. Nothing leaves the device and nothing is blocked.") and "Turn on". `NeedsConsent`: launches the system VPN dialog through `prepareConsentIntent()` and returns. `Conflict`: names the other VPN or the always-on setting and what to change (button opens `Settings.ACTION_VPN_SETTINGS`). `Error`: message and "Try again".
+- Settings > Privacy: "Lens history" choice (0 / 1 hour / 24 hours / 3 days / 7 days), "Clear Lens history", and the privacy statement: "Lens only stores which app contacted which server name, how much data, and when. It never stores what was sent or received. Everything stays on this device."
+- README: Live Lens is documented as available; the limits (DNS over HTTPS/Encrypted Client Hello hide names, ping does not work while Lens runs, another VPN blocks Lens, extra battery use) are listed.
