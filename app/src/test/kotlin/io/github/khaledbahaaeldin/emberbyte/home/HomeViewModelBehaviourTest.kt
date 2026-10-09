@@ -5,6 +5,8 @@ import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemorySpikeStore
+import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -43,6 +45,7 @@ class HomeViewModelBehaviourTest {
             plans = FakePlanRepository(clock),
             settings = settings,
             permissions = FakePermissionRepository(),
+            spikes = RoomSpikeRepository(InMemorySpikeStore()),
             clock = clock,
             locale = Locale.ENGLISH,
             dates = flowOf(LocalDate.of(2026, 10, 5)),
@@ -68,6 +71,7 @@ class HomeViewModelBehaviourTest {
             plans = FakePlanRepository(clock),
             settings = FakeSettingsRepository(),
             permissions = FakePermissionRepository(),
+            spikes = RoomSpikeRepository(InMemorySpikeStore()),
             clock = clock,
             locale = Locale.ENGLISH,
             dates = flowOf(LocalDate.of(2026, 10, 5)),

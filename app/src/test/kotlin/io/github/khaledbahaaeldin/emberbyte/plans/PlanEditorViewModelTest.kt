@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.plans
 
 import androidx.lifecycle.SavedStateHandle
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
+import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
@@ -11,8 +12,11 @@ import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryPlanStore
 import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemoryUsageStore
 import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfo
+import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AlertRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
+import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
+import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.usage.MinuteTotal
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
@@ -39,6 +43,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -64,8 +69,8 @@ class PlanEditorViewModelTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun vm(planId: Long = 0L, handle: SavedStateHandle = SavedStateHandle()) =
-        PlanEditorViewModel(planId, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
+    private fun vm(planId: Long = 0L, handle: SavedStateHandle = SavedStateHandle(), planRepo: PlanRepository = plans) =
+        PlanEditorViewModel(planId, planRepo, alerts, settings, permissions, sims, clock, Locale.ENGLISH, previewDebounceMillis = 0L, savedStateHandle = handle)
 
     private fun TestScope.started(vm: PlanEditorViewModel): Job { val job = launch { vm.uiState.collect {} }; advanceUntilIdle(); return job }
     private fun PlanEditorViewModel.fill(name: String = "Main", cap: String = "10") {
@@ -326,5 +331,272 @@ class PlanEditorViewModelTest {
         vm.onEvent(PlanEditorEvent.ToggleThreshold(80)); assertEquals(setOf(100), vm.uiState.value.form.alertThresholds)
         vm.onEvent(PlanEditorEvent.ToggleThreshold(80)); assertEquals(setOf(80, 100), vm.uiState.value.form.alertThresholds)
         job.cancel()
+    }
+
+    @Test fun saving_stores_the_plan_its_children_and_thresholds_in_one_call() = runTest(dispatcher) {
+        val recording = RecordingPlanRepository(plans)
+        val vm = vm(planRepo = recording); val job = started(vm)
+        vm.fill()
+        vm.onEvent(PlanEditorEvent.AddAddOn)
+        vm.onEvent(PlanEditorEvent.UpdateAddOn(0, vm.uiState.value.form.addOns[0].copy(label = "Boost", amountText = "2")))
+        vm.onEvent(PlanEditorEvent.AddFreeRule)
+        vm.onEvent(PlanEditorEvent.UpdateFreeRule(0, vm.uiState.value.form.freeRules[0].copy(label = "Night")))
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+
+        assertEquals(1, recording.savePlanCalls)
+        assertEquals(0, recording.upsertPlanCalls)
+        assertEquals(0, recording.upsertAddOnCalls)
+        assertEquals(0, recording.upsertFreeRuleCalls)
+        assertTrue(vm.uiState.value.saved)
+        job.cancel()
+    }
+
+    @Test fun a_storage_failure_shows_a_form_error_and_does_not_mark_saved() = runTest(dispatcher) {
+        val recording = RecordingPlanRepository(plans).apply {
+            savePlanFailure = EmberbyteError.Storage("disk error")
+            failCount = 1
+        }
+        val vm = vm(planRepo = recording); val job = started(vm)
+        vm.fill()
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+
+        assertEquals(setOf("form"), vm.uiState.value.errors.keys)
+        assertFalse(vm.uiState.value.saved)
+        job.cancel()
+    }
+
+    @Test fun a_second_save_after_a_failure_does_not_create_a_second_plan() = runTest(dispatcher) {
+        val recording = RecordingPlanRepository(plans).apply {
+            savePlanFailure = EmberbyteError.Storage("disk error")
+            failCount = 1
+        }
+        val vm = vm(planRepo = recording); val job = started(vm)
+        vm.fill()
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertFalse(vm.uiState.value.saved)
+
+        // Second save should succeed and not create a second plan
+        vm.onEvent(PlanEditorEvent.Save); advanceUntilIdle()
+        assertTrue(vm.uiState.value.saved)
+        assertEquals(1, plans.observePlans(true).first().size)
+        job.cancel()
+    }
+
+    private suspend fun mobile(at: String, bytes: Long, sub: Int = 1) =
+        usage.addMinute(MinuteTotal(Instant.parse(at), NetworkKind.MOBILE, sub, bytes, 0))
+
+    private suspend fun fillHistory() {
+        var day = Instant.parse("2026-09-17T10:00:00Z")
+        repeat(28) { mobile(day.toString(), 1_000_000_000L); day = day.plusSeconds(86_400) }
+    }
+
+    private suspend fun savePlan(cap: Long = 20_000_000_000L): Long =
+        (plans.upsertPlan(Plan(0, "Main", 1, cap, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.None)) as Outcome.Success).value
+
+    @Test fun what_if_is_null_for_a_new_plan() = runTest(dispatcher) {
+        val vm = vm(0L)
+        val job = started(vm)
+        assertNull(vm.uiState.value.whatIf)
+        job.cancel()
+    }
+
+    @Test fun what_if_is_populated_for_an_existing_plan() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val expectedForecast = plans.observeForecast(id).first()!!
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val expectedSentence = whatIfSentence(expectedForecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH)
+
+        val vm = vm(id)
+        val job = started(vm)
+        val whatIf = vm.uiState.value.whatIf
+        assertNotNull(whatIf)
+        assertEquals(expectedSentence, whatIf!!.currentText)
+        assertEquals("", whatIf.amountText)
+        assertEquals(CapUnit.MB, whatIf.unit)
+        assertNull(whatIf.whatIfText)
+        assertNull(whatIf.error)
+        job.cancel()
+    }
+
+    @Test fun set_what_if_amount_computes_what_if_sentence_and_earlier_run_out() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val currentForecast = plans.observeForecast(id).first()!!
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val whatIfOutcome = plans.whatIf(id, 500_000_000L, now) as Outcome.Success
+        val expectedSentence = whatIfSentence(whatIfOutcome.value, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH)
+
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        advanceUntilIdle()
+
+        val whatIf = vm.uiState.value.whatIf!!
+        assertEquals("500", whatIf.amountText)
+        assertEquals(expectedSentence, whatIf.whatIfText)
+        assertNull(whatIf.error)
+        assertTrue(whatIfOutcome.value.runOutExpected!! <= currentForecast.runOutExpected!!)
+        job.cancel()
+    }
+
+    @Test fun clearing_what_if_amount_clears_what_if_text_without_error() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        advanceUntilIdle()
+        assertNotNull(vm.uiState.value.whatIf!!.whatIfText)
+
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount(""))
+        advanceUntilIdle()
+        val whatIf = vm.uiState.value.whatIf!!
+        assertEquals("", whatIf.amountText)
+        assertNull(whatIf.whatIfText)
+        assertNull(whatIf.error)
+        job.cancel()
+    }
+
+    @Test fun invalid_what_if_amount_sets_error_and_clears_what_if_text() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("abc"))
+        advanceUntilIdle()
+
+        val whatIf = vm.uiState.value.whatIf!!
+        assertEquals("abc", whatIf.amountText)
+        assertEquals("Enter a number", whatIf.error)
+        assertNull(whatIf.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_unit_change_recomputes_with_new_unit() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("1"))
+        advanceUntilIdle()
+        val mbForecast = (plans.whatIf(id, 1_000_000L, now) as Outcome.Success).value
+        assertEquals(whatIfSentence(mbForecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH), vm.uiState.value.whatIf!!.whatIfText)
+
+        vm.onEvent(PlanEditorEvent.SetWhatIfUnit(CapUnit.GB))
+        advanceUntilIdle()
+        val gbForecast = (plans.whatIf(id, 1_000_000_000L, now) as Outcome.Success).value
+        assertEquals(whatIfSentence(gbForecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH), vm.uiState.value.whatIf!!.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_honours_binary_unit_system() = runTest(dispatcher) {
+        settings.update { it.copy(unitSystem = UnitSystem.BINARY) }
+        fillHistory()
+        val id = savePlan()
+        val expectedRemaining = plans.observePlanState(id).first()!!.remainingBytes
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("1"))
+        vm.onEvent(PlanEditorEvent.SetWhatIfUnit(CapUnit.GB))
+        advanceUntilIdle()
+
+        val binaryGb = 1024L * 1024 * 1024
+        val forecast = (plans.whatIf(id, binaryGb, now) as Outcome.Success).value
+        assertEquals(whatIfSentence(forecast, expectedRemaining, now, ZoneOffset.UTC, Locale.ENGLISH), vm.uiState.value.whatIf!!.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_computation_is_debounced() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val vm = PlanEditorViewModel(
+            id, plans, alerts, settings, permissions, sims, clock, Locale.ENGLISH,
+            previewDebounceMillis = 300L, savedStateHandle = SavedStateHandle(),
+        )
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        testScheduler.advanceTimeBy(100L)
+        assertNull(vm.uiState.value.whatIf!!.whatIfText)
+
+        testScheduler.advanceTimeBy(250L)
+        advanceUntilIdle()
+        assertNotNull(vm.uiState.value.whatIf!!.whatIfText)
+        job.cancel()
+    }
+
+    @Test fun what_if_never_writes_to_plan_store() = runTest(dispatcher) {
+        fillHistory()
+        val id = savePlan()
+        val beforePlans = plans.observePlans(true).first()
+        val vm = vm(id)
+        val job = started(vm)
+        vm.onEvent(PlanEditorEvent.SetWhatIfAmount("500"))
+        vm.onEvent(PlanEditorEvent.SetWhatIfUnit(CapUnit.GB))
+        advanceUntilIdle()
+
+        val afterPlans = plans.observePlans(true).first()
+        assertEquals(beforePlans, afterPlans)
+        job.cancel()
+    }
+
+    @Test fun isDirty_is_false_right_after_loading_and_true_after_any_edit_false_again_after_successful_save() = runTest(dispatcher) {
+        val id = (plans.upsertPlan(Plan(0, "Existing", null, 5_000_000_000L, Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC), Rollover.Full)) as Outcome.Success).value
+        val vm = vm(id)
+        val job = started(vm)
+        assertFalse(vm.uiState.value.isDirty)
+
+        vm.onEvent(PlanEditorEvent.SetName("Edited Name"))
+        assertTrue(vm.uiState.value.isDirty)
+
+        vm.onEvent(PlanEditorEvent.Save)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.saved)
+        assertFalse(vm.uiState.value.isDirty)
+        job.cancel()
+    }
+
+    @Test fun restored_saved_state_form_counts_as_dirty() = runTest(dispatcher) {
+        val handle = SavedStateHandle().apply {
+            set("form", PlanEditorFormJson.encode(PlanEditorForm(name = "Restored Draft", capText = "20")))
+        }
+        val vm = vm(0L, handle = handle)
+        val job = started(vm)
+        assertTrue(vm.uiState.value.isDirty)
+        job.cancel()
+    }
+
+    private class RecordingPlanRepository(private val delegate: PlanRepository) : PlanRepository by delegate {
+        var savePlanCalls = 0
+        var upsertPlanCalls = 0
+        var upsertAddOnCalls = 0
+        var upsertFreeRuleCalls = 0
+        var savePlanFailure: EmberbyteError? = null
+        var failCount = 0
+
+        override suspend fun savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long> {
+            savePlanCalls++
+            if (failCount > 0) {
+                failCount--
+                return Outcome.Failure(savePlanFailure ?: EmberbyteError.Storage("error"))
+            }
+            return delegate.savePlan(plan, addOns, freeRules, alertThresholds)
+        }
+
+        override suspend fun upsertPlan(plan: Plan): Outcome<Long> {
+            upsertPlanCalls++
+            return delegate.upsertPlan(plan)
+        }
+
+        override suspend fun upsertAddOn(addOn: AddOn): Outcome<Long> {
+            upsertAddOnCalls++
+            return delegate.upsertAddOn(addOn)
+        }
+
+        override suspend fun upsertFreeRule(rule: FreeRule): Outcome<Long> {
+            upsertFreeRuleCalls++
+            return delegate.upsertFreeRule(rule)
+        }
     }
 }

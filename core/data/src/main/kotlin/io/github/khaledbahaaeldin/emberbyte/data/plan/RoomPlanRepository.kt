@@ -3,11 +3,13 @@ package io.github.khaledbahaaeldin.emberbyte.data.plan
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.store.UsageStore
 import io.github.khaledbahaaeldin.emberbyte.engine.forecast.ForecastEngine
+import io.github.khaledbahaaeldin.emberbyte.engine.forecast.HourCurves
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.DayUsage
 import io.github.khaledbahaaeldin.emberbyte.engine.model.EmberbyteError
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Forecast
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
+import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanPreview
@@ -45,7 +47,7 @@ class RoomPlanRepository(
 ) : PlanRepository {
 
     private data class Inputs(val plan: Plan?, val addOns: List<AddOn>, val rules: List<FreeRule>)
-    private data class Snapshot(val state: PlanState, val history: List<DayUsage>, val now: Instant)
+    private data class Snapshot(val state: PlanState, val history: List<DayUsage>, val now: Instant, val hourCurve: DoubleArray)
 
     private fun rows(plan: Plan, now: Instant): Flow<PlanRows> {
         val window = CycleCalculator.windowAt(plan.cycle, now)
@@ -63,8 +65,15 @@ class RoomPlanRepository(
             .flatMapLatest { (plan, addOns, rules) ->
                 if (plan == null) flowOf(null)
                 else ticks.flatMapLatest { now ->
+                    val zone = PlanCalculator.zoneOf(plan.cycle)
                     rows(plan, now).map { rows ->
-                        Snapshot(PlanStateAssembler.state(plan, addOns, rules, now, rows), PlanStateAssembler.history(plan, now, rows), now)
+                        val matchingMinutes = rows.minutes.filter { it.network == NetworkKind.MOBILE && (plan.subscriptionId == null || it.subscriptionId == plan.subscriptionId) }
+                        Snapshot(
+                            PlanStateAssembler.state(plan, addOns, rules, now, rows),
+                            PlanStateAssembler.history(plan, rules, now, rows),
+                            now,
+                            HourCurves.personal(matchingMinutes, now, zone),
+                        )
                     }
                 }
             }
@@ -73,6 +82,7 @@ class RoomPlanRepository(
         ForecastEngine.forecast(
             snapshot.state, snapshot.history, snapshot.now, PlanCalculator.zoneOf(snapshot.state.plan.cycle),
             extraBytesPerDay = extra, extraFrom = extraFrom,
+            hourCurve = snapshot.hourCurve,
         )
 
     override fun observePlans(includeArchived: Boolean): Flow<List<Plan>> =
@@ -139,7 +149,14 @@ class RoomPlanRepository(
         return guarded {
             val now = clock.instant()
             val rows = rows(plan, now).first()
-            val snapshot = Snapshot(PlanStateAssembler.state(plan, addOns, freeRules, now, rows), PlanStateAssembler.history(plan, now, rows), now)
+            val zone = PlanCalculator.zoneOf(plan.cycle)
+            val matchingMinutes = rows.minutes.filter { it.network == NetworkKind.MOBILE && (plan.subscriptionId == null || it.subscriptionId == plan.subscriptionId) }
+            val snapshot = Snapshot(
+                PlanStateAssembler.state(plan, addOns, freeRules, now, rows),
+                PlanStateAssembler.history(plan, freeRules, now, rows),
+                now,
+                HourCurves.personal(matchingMinutes, now, zone),
+            )
             PlanPreview(snapshot.state, forecastOf(snapshot))
         }
     }
@@ -154,5 +171,23 @@ class RoomPlanRepository(
             PlanValidation.freeRule(r)?.let { errors["freeRule.$i.${it.field}"] = it.reason }
         }
         return errors
+    }
+
+    override suspend fun savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long> {
+        val errors = validateDraft(plan, addOns, freeRules)
+        if (errors.isNotEmpty()) {
+            val (field, reason) = errors.entries.first()
+            return Outcome.Failure(EmberbyteError.Invalid(field, reason))
+        }
+        if (alertThresholds.any { it !in 1..100 }) {
+            return Outcome.Failure(EmberbyteError.Invalid("thresholdPercent", "Must be 1..100"))
+        }
+        if (plan.id != 0L && plans.plan(plan.id) == null) {
+            return Outcome.Failure(EmberbyteError.NotFound)
+        }
+        val trimmedPlan = plan.copy(name = plan.name.trim())
+        val trimmedAddOns = addOns.map { it.copy(label = it.label.trim()) }
+        val trimmedFreeRules = freeRules.map { it.copy(label = it.label.trim()) }
+        return guarded { plans.savePlanWithChildren(trimmedPlan, trimmedAddOns, trimmedFreeRules, alertThresholds) }
     }
 }

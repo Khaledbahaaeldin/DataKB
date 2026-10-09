@@ -103,6 +103,24 @@ class FakePlanRepository(private val clock: Clock = Clock.systemUTC()) : PlanRep
     override fun validateDraft(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>): Map<String, String> =
         emptyMap()
 
+    override suspend fun savePlan(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Outcome<Long> {
+        val id = if (plan.id == 0L) nextId++ else plan.id
+        plans.update { list -> list.filter { it.id != id } + plan.copy(id = id) }
+        this.addOns.update { list ->
+            list.filter { it.planId != id } + addOns.map { a ->
+                val aid = if (a.id == 0L) nextId++ else a.id
+                a.copy(id = aid, planId = id)
+            }
+        }
+        this.freeRules.update { list ->
+            list.filter { it.planId != id } + freeRules.map { r ->
+                val rid = if (r.id == 0L) nextId++ else r.id
+                r.copy(id = rid, planId = id)
+            }
+        }
+        return Outcome.Success(id)
+    }
+
     private fun stateFor(plan: Plan): PlanState {
         val now = clock.instant()
         val used = 6_200_000_000L

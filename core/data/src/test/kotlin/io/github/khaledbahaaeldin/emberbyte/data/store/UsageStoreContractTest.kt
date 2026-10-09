@@ -185,4 +185,22 @@ abstract class UsageStoreContractTest {
         store.replaceHourly(t, emptyList())
         assertTrue(store.hourlyRows(wide.first, wide.second).isEmpty())
     }
+
+    @Test fun oldestHourStart_returns_minimum_over_given_uids_or_null_for_empty_or_none() = runBlocking {
+        val store = createStore()
+        assertNull(store.oldestHourStart(emptySet()))
+        assertNull(store.oldestHourStart(setOf(1, 2)))
+
+        store.upsertHourly(listOf(
+            h(0, 1, 100),
+            h(-5, 1, 200),
+            h(-10, 2, 300),
+            h(-2, 3, 400),
+        ))
+
+        assertEquals(t.plusSeconds(-5 * 3600), store.oldestHourStart(setOf(1)))
+        assertEquals(t.plusSeconds(-10 * 3600), store.oldestHourStart(setOf(1, 2)))
+        assertEquals(t.plusSeconds(-2 * 3600), store.oldestHourStart(setOf(3)))
+        assertNull(store.oldestHourStart(setOf(4)))
+    }
 }

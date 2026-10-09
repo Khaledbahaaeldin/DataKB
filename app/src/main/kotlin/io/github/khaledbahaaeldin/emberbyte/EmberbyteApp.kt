@@ -52,8 +52,11 @@ import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
 import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
+import io.github.khaledbahaaeldin.emberbyte.settings.ContentResolverStreamOpener
+import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.FloatingPillNavBar
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.glassSource
@@ -77,12 +80,23 @@ fun EmberbyteApp(graph: AppGraph, hapticsEnabled: Boolean = true) {
 @Composable
 private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnabled: Boolean) {
     val context = LocalContext.current
+    val activity = remember(context) { context.findComponentActivity() }
+    if (activity != null && activity.intent != null) {
+        activity.intent = launchIntentFor(activity.intent, onboardingCompleted = !startOnboarding)
+    }
     val navController = rememberNavController()
 
-    DisposableEffect(navController, context) {
+    DisposableEffect(navController, context, startOnboarding) {
         val activity = context.findComponentActivity()
         val listener = Consumer<Intent> { intent ->
-            navController.openDeepLink(intent)
+            activity?.let {
+                handleNewIntent(
+                    activity = it,
+                    navController = navController,
+                    onboardingCompleted = !startOnboarding,
+                    intent = intent,
+                )
+            }
         }
         activity?.addOnNewIntentListener(listener)
         onDispose {
@@ -187,7 +201,9 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 Destination.Lens.route,
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),
             ) {
-                PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in milestone 5.")
+                ForceLtr {
+                    PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in a later update.")
+                }
             }
             composable(Routes.HISTORY) {
                 val viewModel: HistoryViewModel = viewModel(factory = graph.historyViewModelFactory())
@@ -198,7 +214,10 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
             ) {
                 val viewModel: SettingsViewModel = viewModel(factory = graph.settingsViewModelFactory())
-                SettingsScreen(viewModel, onBack = { navController.popBackStack() })
+                val dataViewModel: DataViewModel = viewModel(
+                    factory = graph.dataViewModelFactory(ContentResolverStreamOpener(context.contentResolver)),
+                )
+                SettingsScreen(viewModel, dataViewModel, onBack = { navController.popBackStack() })
             }
         }
         if (route != Routes.ONBOARDING) {

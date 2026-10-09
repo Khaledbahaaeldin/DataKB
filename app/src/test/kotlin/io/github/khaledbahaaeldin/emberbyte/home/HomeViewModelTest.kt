@@ -1,11 +1,14 @@
 package io.github.khaledbahaaeldin.emberbyte.home
 
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionState
+import io.github.khaledbahaaeldin.emberbyte.data.SpikeRepository
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakePlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeSettingsRepository
 import io.github.khaledbahaaeldin.emberbyte.data.fake.FakeUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.fake.InMemorySpikeStore
+import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -40,11 +43,13 @@ class HomeViewModelTest {
         tick: MutableSharedFlow<Unit> = MutableSharedFlow(),
         settings: FakeSettingsRepository = FakeSettingsRepository(),
         permissions: FakePermissionRepository = FakePermissionRepository(),
+        spikes: SpikeRepository = RoomSpikeRepository(InMemorySpikeStore()),
     ) = HomeViewModel(
         usage = FakeUsageRepository(clock, tick),
         plans = FakePlanRepository(clock),
         settings = settings,
         permissions = permissions,
+        spikes = spikes,
         clock = clock,
         locale = Locale.ENGLISH,
         dates = flowOf(LocalDate.of(2026, 10, 5)),
@@ -103,7 +108,16 @@ class HomeViewModelTest {
 
     @Test fun missing_permissions_become_prompts() = runTest(dispatcher) {
         val permissions = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
-        val vm = HomeViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakePlanRepository(clock), FakeSettingsRepository(), permissions, clock, Locale.ENGLISH, flowOf(LocalDate.of(2026, 10, 5)))
+        val vm = HomeViewModel(
+            usage = FakeUsageRepository(clock, MutableSharedFlow()),
+            plans = FakePlanRepository(clock),
+            settings = FakeSettingsRepository(),
+            permissions = permissions,
+            spikes = RoomSpikeRepository(InMemorySpikeStore()),
+            clock = clock,
+            locale = Locale.ENGLISH,
+            dates = flowOf(LocalDate.of(2026, 10, 5)),
+        )
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
         assertEquals(listOf("usage_access"), vm.uiState.value.prompts.map { it.id })

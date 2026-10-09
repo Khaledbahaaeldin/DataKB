@@ -37,4 +37,13 @@ class NotificationChannelsTest {
         assertNotNull(channel)
         assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
     }
+
+    @Test fun ensure_creates_the_spikes_channel_with_default_importance() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        NotificationChannels.ensure(app)
+        val channel = app.getSystemService(NotificationManager::class.java).getNotificationChannel(NotificationChannels.SPIKES)
+        assertNotNull(channel)
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
+    }
 }
+

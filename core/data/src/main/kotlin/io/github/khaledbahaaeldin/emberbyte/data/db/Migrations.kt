@@ -15,3 +15,15 @@ val MIGRATION_1_2: Migration = object : Migration(1, 2) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `alert_fired` (`planId` INTEGER NOT NULL, `windowStart` INTEGER NOT NULL, `percent` INTEGER NOT NULL, PRIMARY KEY(`planId`, `windowStart`))")
     }
 }
+
+val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `app_budget` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `packageName` TEXT NOT NULL, `limitBytes` INTEGER NOT NULL, `period` TEXT NOT NULL, `planId` INTEGER, `warnAtPercent` INTEGER NOT NULL, `enabled` INTEGER NOT NULL)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_budget_packageName` ON `app_budget` (`packageName`)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `spike_event` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `packageName` TEXT NOT NULL, `windowStart` INTEGER NOT NULL, `detectedAt` INTEGER NOT NULL, `windowMinutes` INTEGER NOT NULL, `bytes` INTEGER NOT NULL, `baselineBytes` INTEGER NOT NULL, `multiple` REAL NOT NULL, `dismissed` INTEGER NOT NULL)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_spike_event_packageName_windowStart` ON `spike_event` (`packageName`, `windowStart`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_spike_event_detectedAt` ON `spike_event` (`detectedAt`)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `budget_state` (`budgetId` INTEGER NOT NULL, `periodStart` INTEGER NOT NULL, `state` TEXT NOT NULL, PRIMARY KEY(`budgetId`, `periodStart`))")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `spike_notice` (`packageName` TEXT NOT NULL, `notifiedAt` INTEGER NOT NULL, PRIMARY KEY(`packageName`))")
+    }
+}

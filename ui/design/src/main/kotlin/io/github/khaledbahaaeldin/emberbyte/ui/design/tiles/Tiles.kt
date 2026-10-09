@@ -48,13 +48,15 @@ fun SpeedTile(
 @Composable
 fun ForecastTile(model: ForecastUi, modifier: Modifier = Modifier) {
     BentoTile(title = "Forecast", modifier = modifier.fillMaxHeight(), container = TileContainer.Tertiary) {
-        Text(model.headline, style = MaterialTheme.typography.headlineLarge)
-        Text(model.detail, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            model.confidence,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        ForceLtr {
+            Text(model.headline, style = MaterialTheme.typography.headlineLarge)
+            Text(model.detail, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                model.confidence,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
 

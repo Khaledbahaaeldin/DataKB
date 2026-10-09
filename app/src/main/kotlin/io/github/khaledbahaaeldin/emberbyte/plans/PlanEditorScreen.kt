@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.plans
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
@@ -16,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -33,6 +35,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -41,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.plan.PlanCard
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.PermissionPrompt
@@ -75,6 +81,42 @@ internal fun PlanEditorContent(
     onPrompt: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+
+    val handleBack = {
+        if (state.isDirty) {
+            showDiscardDialog = true
+        } else {
+            onBack()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleBack()
+    }
+
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text("Discard changes?") },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text("Keep editing")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardDialog = false
+                        onBack()
+                    },
+                ) {
+                    Text("Discard")
+                }
+            },
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -82,7 +124,7 @@ internal fun PlanEditorContent(
             .padding(start = 16.dp, end = 16.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        ScreenHeader(if (state.isNew) "New plan" else "Edit plan", onBack)
+        ScreenHeader(if (state.isNew) "New plan" else "Edit plan", handleBack)
 
         when {
             state.loading -> {
@@ -98,6 +140,37 @@ internal fun PlanEditorContent(
                 if (state.preview != null) {
                     Text("Preview", style = MaterialTheme.typography.titleMedium)
                     PlanCard(model = state.preview, onClick = {})
+                }
+
+                if (state.whatIf != null) {
+                    Text("What if I use more?", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = state.whatIf.amountText,
+                        onValueChange = { onEvent(PlanEditorEvent.SetWhatIfAmount(it)) },
+                        label = { Text("Extra per day") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        isError = state.whatIf.error != null,
+                        supportingText = state.whatIf.error?.let { { Text(it) } },
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (unit in listOf(CapUnit.MB, CapUnit.GB)) {
+                            FilterChip(
+                                selected = state.whatIf.unit == unit,
+                                onClick = { onEvent(PlanEditorEvent.SetWhatIfUnit(unit)) },
+                                label = { Text(unit.label, softWrap = false) },
+                            )
+                        }
+                    }
+                    ForceLtr {
+                        Text("Now: ${state.whatIf.currentText}")
+                    }
+                    if (state.whatIf.whatIfText != null) {
+                        ForceLtr {
+                            Text("With extra: ${state.whatIf.whatIfText}")
+                        }
+                    }
                 }
 
                 OutlinedTextField(

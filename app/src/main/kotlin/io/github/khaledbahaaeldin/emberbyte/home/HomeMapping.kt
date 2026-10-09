@@ -17,7 +17,9 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.GapReason
 import io.github.khaledbahaaeldin.emberbyte.engine.model.LiveSpeed
 import io.github.khaledbahaaeldin.emberbyte.engine.model.NetworkKind
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
+import io.github.khaledbahaaeldin.emberbyte.engine.model.SpikeEvent
 import io.github.khaledbahaaeldin.emberbyte.engine.model.UsagePoint
+import io.github.khaledbahaaeldin.emberbyte.sampler.spikeText
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.AppRowUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.ForecastKind
@@ -97,6 +99,16 @@ internal fun forecastToUi(forecast: Forecast, now: Instant, zone: ZoneId, locale
     return ForecastUi(headline, detail, confidenceLabel(forecast.confidence))
 }
 
+internal fun spikeTile(event: SpikeEvent, label: String, units: ByteUnits): SpikeTileUi {
+    val text = spikeText(event, label, units)
+    return SpikeTileUi(
+        id = event.id,
+        packageName = event.packageName,
+        title = text.title,
+        detail = text.text,
+    )
+}
+
 internal fun buildHomeUiState(
     today: DayUsage,
     live: LiveSpeed?,
@@ -113,6 +125,7 @@ internal fun buildHomeUiState(
     permissions: PermissionState? = null,
     planChips: List<PlanChipUi> = emptyList(),
     is24Hour: Boolean = true,
+    spike: SpikeTileUi? = null,
 ): HomeUiState {
     val byteUnits = units.toByteUnits()
     val validSelection = selectedDay?.takeIf { it in week.indices }
@@ -177,6 +190,7 @@ internal fun buildHomeUiState(
         hasPlan = planState != null,
         units = byteUnits,
         planChips = if (planChips.size >= 2) planChips else emptyList(),
+        spike = spike,
     )
 }
 

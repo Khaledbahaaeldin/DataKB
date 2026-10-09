@@ -9,6 +9,13 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.model.NetworkKindUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanChipUi
 
+data class SpikeTileUi(
+    val id: Long,
+    val packageName: String,
+    val title: String,
+    val detail: String,
+)
+
 data class HomeUiState(
     val heroLabel: String = "Today",
     val heroBytes: Long = 0L,
@@ -32,10 +39,12 @@ data class HomeUiState(
     val hasPlan: Boolean = false,
     val units: ByteUnits = ByteUnits.DECIMAL,
     val planChips: List<PlanChipUi> = emptyList(),
+    val spike: SpikeTileUi? = null,
 )
 
 sealed interface HomeEvent {
     /** Tapping the selected bar again returns to "Today". */
     data class SelectDay(val index: Int) : HomeEvent
     data class SelectPlan(val planId: Long) : HomeEvent
+    data class DismissSpike(val id: Long) : HomeEvent
 }

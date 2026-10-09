@@ -51,12 +51,28 @@ class MigrationTest {
         val name = "migration-test.db"
         context.deleteDatabase(name)
         createVersion1(name)
-        val room = Room.databaseBuilder(context, EmberbyteDatabase::class.java, name).addMigrations(MIGRATION_1_2).build()
+        val room = Room.databaseBuilder(context, EmberbyteDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
         assertEquals(1, room.usageDao().minuteRows(0L, Long.MAX_VALUE).size)
         val id = room.planDao().putPlan(PlanEntity(name = "Main", subscriptionId = null, capBytes = 1, cycleJson = "{}", rolloverJson = "{}", archived = false))
         assertEquals(1L, id)
         room.planDao().putFired(AlertFiredEntity(planId = id, windowStart = 5L, percent = 80))
         assertEquals(80, room.planDao().firedPercent(id, 5L))
+        room.close()
+        context.deleteDatabase(name)
+    }
+
+    @Test fun migrating_from_1_all_the_way_to_3_works(): Unit = runBlocking {
+        val name = "migration-1-3-test.db"
+        context.deleteDatabase(name)
+        createVersion1(name)
+        val room = Room.databaseBuilder(context, EmberbyteDatabase::class.java, name)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .build()
+        assertEquals(1, room.usageDao().minuteRows(0L, Long.MAX_VALUE).size)
+        val planId = room.planDao().putPlan(PlanEntity(name = "Main", subscriptionId = null, capBytes = 1, cycleJson = "{}", rolloverJson = "{}", archived = false))
+        assertEquals(1L, planId)
+        val budgetId = room.insightDao().putBudget(AppBudgetEntity(packageName = "com.video", limitBytes = 5, period = "DAILY", planId = null, warnAtPercent = 80, enabled = true))
+        assertEquals(1L, budgetId)
         room.close()
         context.deleteDatabase(name)
     }
@@ -67,6 +83,17 @@ class MigrationTest {
         val back = room.planDao().plan(id)!!
         assertEquals(3, back.subscriptionId)
         assertEquals(5L, back.capBytes)
+        room.close()
+    }
+
+    @Test fun a_fresh_install_creates_version_3_directly() = runBlocking {
+        val room = Room.inMemoryDatabaseBuilder(context, EmberbyteDatabase::class.java).allowMainThreadQueries().build()
+        val id = room.planDao().putPlan(PlanEntity(name = "Main", subscriptionId = 3, capBytes = 5, cycleJson = "{}", rolloverJson = "{}", archived = false))
+        val back = room.planDao().plan(id)!!
+        assertEquals(3, back.subscriptionId)
+        assertEquals(5L, back.capBytes)
+        val budgetId = room.insightDao().putBudget(AppBudgetEntity(packageName = "com.video", limitBytes = 5, period = "DAILY", planId = null, warnAtPercent = 80, enabled = true))
+        assertEquals(1L, budgetId)
         room.close()
     }
 }

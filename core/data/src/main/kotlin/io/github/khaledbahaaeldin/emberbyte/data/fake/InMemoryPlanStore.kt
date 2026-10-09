@@ -47,4 +47,39 @@ class InMemoryPlanStore : PlanStore {
     override suspend fun deleteAlertRule(id: Long) = alertRules.update { list -> list.filter { it.id != id } }
     override suspend fun lastFiredPercent(planId: Long, windowStart: Instant): Int? = fired.value[planId to windowStart]
     override suspend fun setFiredPercent(planId: Long, windowStart: Instant, percent: Int) = fired.update { it + ((planId to windowStart) to percent) }
+
+    override suspend fun savePlanWithChildren(plan: Plan, addOns: List<AddOn>, freeRules: List<FreeRule>, alertThresholds: Set<Int>): Long = synchronized(this) {
+        val id = if (plan.id == 0L) planIds.incrementAndGet() else plan.id
+        plans.update { list -> list.filter { it.id != id } + plan.copy(id = id) }
+
+        val savedAddOns = addOns.map { a ->
+            val aid = if (a.id == 0L) addOnIds.incrementAndGet() else a.id
+            a.copy(id = aid, planId = id)
+        }
+        this.addOns.update { list ->
+            list.filter { it.planId != id } + savedAddOns
+        }
+
+        val savedRules = freeRules.map { r ->
+            val rid = if (r.id == 0L) freeRuleIds.incrementAndGet() else r.id
+            r.copy(id = rid, planId = id)
+        }
+        this.freeRules.update { list ->
+            list.filter { it.planId != id } + savedRules
+        }
+
+        val wanted = alertThresholds.toSet()
+        this.alertRules.update { list ->
+            val otherRules = list.filter { it.planId != id }
+            val thisPlanRules = list.filter { it.planId == id }
+            val keptAndEnabled = thisPlanRules.filter { it.thresholdPercent in wanted }.map { it.copy(enabled = true) }
+            val existingThresholds = keptAndEnabled.map { it.thresholdPercent }.toSet()
+            val newRules = (wanted - existingThresholds).map {
+                AlertRule(alertRuleIds.incrementAndGet(), id, it, enabled = true)
+            }
+            otherRules + keptAndEnabled + newRules
+        }
+
+        id
+    }
 }

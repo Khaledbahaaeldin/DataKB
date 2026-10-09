@@ -130,7 +130,7 @@ private fun ChipRow(content: @Composable () -> Unit) {
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+    FilterChip(selected = selected, onClick = onClick, label = { ForceLtr { Text(label) } })
 }
 
 @Composable

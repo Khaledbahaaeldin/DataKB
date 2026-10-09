@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -143,6 +144,31 @@ internal fun HomeContent(
                     modifier = Modifier.weight(1f),
                 )
                 state.forecast?.let { ForecastTile(it, Modifier.weight(1f)) }
+            }
+        }
+        state.spike?.let { spike ->
+            item {
+                BentoTile(
+                    title = "Spike detected",
+                    modifier = Modifier.fillMaxWidth(),
+                    container = TileContainer.Tertiary,
+                    onClick = { onOpenApp(spike.packageName) },
+                ) {
+                    Text(spike.title, style = MaterialTheme.typography.titleMedium)
+                    ForceLtr {
+                        Text(
+                            spike.detail,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(
+                        onClick = { onEvent(HomeEvent.DismissSpike(spike.id)) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+                    ) {
+                        Text("Dismiss")
+                    }
+                }
             }
         }
         item {

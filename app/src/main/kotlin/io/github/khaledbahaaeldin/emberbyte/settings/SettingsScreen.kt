@@ -1,6 +1,10 @@
 package io.github.khaledbahaaeldin.emberbyte.settings
 
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,28 +22,67 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.data.UnitSystem
+import java.time.LocalDate
 
 private const val SOURCE_URL = "https://github.com/Khaledbahaaeldin/DataKB"
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    dataViewModel: DataViewModel,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val settings by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataUiState by dataViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val versionName = remember(context) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
+
+    val pendingState = rememberSaveable(saver = SettingsPendingState.Saver) { SettingsPendingState() }
+
+    val createCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let { dataViewModel.exportCsv(pendingState.pendingRange, it) }
+    }
+    val createJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let(dataViewModel::exportJson)
+    }
+    val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri == null) {
+            dataViewModel.discardHeldPassphrase()
+        } else {
+            when (val action = backupPickerResult(uri, dataViewModel.takeHeldPassphrase())) {
+                is BackupPickerAction.Create -> dataViewModel.createBackup(action.uri, action.passphrase)
+                is BackupPickerAction.DeleteAndRetry -> {
+                    runCatching { DocumentsContract.deleteDocument(context.contentResolver, action.uri) }
+                    dataViewModel.showMessage("The backup was cancelled because the screen was recreated. Please try again.", isError = true)
+                }
+                BackupPickerAction.Ignore -> {}
+            }
+        }
+    }
+    val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        pendingState.pendingRestoreUri = uri
+    }
+
     SettingsContent(
         settings = settings,
         onUpdate = viewModel::update,
@@ -53,8 +96,65 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, modifier: M
                 )
             }
         },
+        dataUiState = dataUiState,
+        onExportCsv = { range ->
+            pendingState.pendingRange = range
+            val date = LocalDate.now(dataViewModel.clock)
+            createCsv.launch("emberbyte-usage-$date.csv")
+        },
+        onExportJson = {
+            val date = LocalDate.now(dataViewModel.clock)
+            createJson.launch("emberbyte-export-$date.json")
+        },
+        onCreateBackup = { passphrase ->
+            dataViewModel.holdPassphrase(passphrase)
+            val date = LocalDate.now(dataViewModel.clock)
+            createBackup.launch("emberbyte-backup-$date.emberbyte")
+        },
+        onRestoreChosen = {
+            openBackup.launch(arrayOf("application/octet-stream", "*/*"))
+        },
+        onRestoreBackup = { passphrase ->
+            val uri = pendingState.pendingRestoreUri
+            if (uri != null) {
+                dataViewModel.restoreBackup(uri, passphrase)
+                pendingState.pendingRestoreUri = null
+            }
+        },
+        onClearDataMessage = dataViewModel::clearMessage,
+        restoreFileChosen = pendingState.pendingRestoreUri != null,
+        onDismissRestorePassphrase = {
+            pendingState.pendingRestoreUri = null
+        },
         modifier = modifier,
     )
+}
+
+class SettingsPendingState(
+    initialRange: ExportRange = ExportRange.LAST_7_DAYS,
+    initialRestoreUri: Uri? = null,
+) {
+    var pendingRange: ExportRange by mutableStateOf(initialRange)
+    var pendingRestoreUri: Uri? by mutableStateOf(initialRestoreUri)
+    var pendingCreatePassphrase: CharArray? by mutableStateOf(null)
+
+    companion object {
+        val Saver: Saver<SettingsPendingState, Map<String, Any?>> = Saver(
+            save = { state ->
+                mapOf(
+                    "range" to state.pendingRange.name,
+                    "restoreUri" to state.pendingRestoreUri?.toString(),
+                )
+            },
+            restore = { map ->
+                val rangeName = map["range"] as? String
+                val range = rangeName?.let { runCatching { ExportRange.valueOf(it) }.getOrNull() } ?: ExportRange.LAST_7_DAYS
+                val uriStr = map["restoreUri"] as? String
+                val uri = uriStr?.toUri()
+                SettingsPendingState(range, uri)
+            },
+        )
+    }
 }
 
 @Composable
@@ -66,6 +166,15 @@ internal fun SettingsContent(
     onOpenSource: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     modifier: Modifier = Modifier,
+    dataUiState: DataUiState = DataUiState(),
+    onExportCsv: (ExportRange) -> Unit = {},
+    onExportJson: () -> Unit = {},
+    onCreateBackup: (CharArray) -> Unit = {},
+    onRestoreChosen: () -> Unit = {},
+    onRestoreBackup: (CharArray) -> Unit = {},
+    onClearDataMessage: () -> Unit = {},
+    restoreFileChosen: Boolean = false,
+    onDismissRestorePassphrase: () -> Unit = {},
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -83,6 +192,15 @@ internal fun SettingsContent(
             SwitchRow("Show speed", "Add your current speed to the notification", settings.notificationShowsSpeed,
                 enabled = settings.liveNotificationEnabled) {
                 onUpdate { s -> s.copy(notificationShowsSpeed = it) }
+            }
+        }
+        item {
+            SwitchRow(
+                "Spike alerts",
+                "Tell me when an app suddenly uses a lot of mobile data",
+                settings.spikeAlertsEnabled,
+            ) {
+                onUpdate { s -> s.copy(spikeAlertsEnabled = it) }
             }
         }
         item { SectionTitle("Background") }
@@ -124,6 +242,20 @@ internal fun SettingsContent(
                     label = { Text("Binary (GiB)") },
                 )
             }
+        }
+        item { SectionTitle("Data") }
+        item {
+            DataSection(
+                uiState = dataUiState,
+                onExportCsv = onExportCsv,
+                onExportJson = onExportJson,
+                onCreateBackup = onCreateBackup,
+                onRestoreChosen = onRestoreChosen,
+                onRestoreBackup = onRestoreBackup,
+                onClearMessage = onClearDataMessage,
+                restoreFileChosen = restoreFileChosen,
+                onDismissRestorePassphrase = onDismissRestorePassphrase,
+            )
         }
         item { SectionTitle("About") }
         item { Text("Emberbyte $versionName", style = MaterialTheme.typography.bodyLarge) }
@@ -172,4 +304,19 @@ private fun SwitchRow(
         }
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
+}
+
+internal sealed interface BackupPickerAction {
+    data object Ignore : BackupPickerAction
+    data class Create(val uri: Uri, val passphrase: CharArray) : BackupPickerAction
+    data class DeleteAndRetry(val uri: Uri) : BackupPickerAction
+}
+
+internal fun backupPickerResult(uri: Uri?, held: CharArray?): BackupPickerAction = when {
+    uri == null -> {
+        held?.fill('\u0000')
+        BackupPickerAction.Ignore
+    }
+    held == null -> BackupPickerAction.DeleteAndRetry(uri)
+    else -> BackupPickerAction.Create(uri, held)
 }

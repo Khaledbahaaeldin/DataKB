@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.GapUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PermissionPromptUi
 
@@ -43,7 +44,9 @@ fun GapBanner(model: GapUi, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Rounded.Info, contentDescription = null)
-            Text(model.message, style = MaterialTheme.typography.bodyMedium)
+            ForceLtr {
+                Text(model.message, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

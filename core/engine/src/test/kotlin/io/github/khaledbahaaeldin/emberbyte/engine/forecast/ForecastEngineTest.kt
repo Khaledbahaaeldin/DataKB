@@ -131,4 +131,27 @@ class ForecastEngineTest {
         assertEquals(24, ForecastEngine.DEFAULT_HOUR_CURVE.size)
         assertEquals(1.0, ForecastEngine.DEFAULT_HOUR_CURVE.sum(), 1e-9)
     }
+
+    @Test fun extra_usage_that_starts_later_today_only_adds_the_rest_of_the_day_after_that_moment() {
+        val noon = Instant.parse("2026-10-10T12:00:00Z")
+        val f = ForecastEngine.forecast(stateOf(1_250_000_000L), history(28), noon, utc,
+            extraBytesPerDay = 1_000_000_000L, extraFrom = Instant.parse("2026-10-10T18:00:00Z"), hourCurve = uniform)
+        // today: base 0.5 GB + extra 0.25 GB (18:00 to midnight) = 0.75 GB; tomorrow base 1 + extra 1 = 2 GB; 0.5 GB of those 2 GB are needed
+        assertEquals(Instant.parse("2026-10-11T06:00:00Z"), f.runOutExpected)
+    }
+
+    @Test fun extra_usage_that_started_earlier_today_adds_what_is_still_ahead() {
+        val noon = Instant.parse("2026-10-10T12:00:00Z")
+        val f = ForecastEngine.forecast(stateOf(1_000_000_000L), history(28), noon, utc,
+            extraBytesPerDay = 1_000_000_000L, extraFrom = Instant.parse("2026-10-10T06:00:00Z"), hourCurve = uniform)
+        // today: base 0.5 + extra 0.5 = 1.0 GB, exactly the remaining 1 GB at midnight
+        assertEquals(Instant.parse("2026-10-11T00:00:00Z"), f.runOutExpected)
+    }
+
+    @Test fun extra_usage_that_starts_before_today_counts_the_whole_rest_of_today() {
+        val noon = Instant.parse("2026-10-10T12:00:00Z")
+        val a = ForecastEngine.forecast(stateOf(1_000_000_000L), history(28), noon, utc,
+            extraBytesPerDay = 1_000_000_000L, extraFrom = Instant.parse("2026-10-08T00:00:00Z"), hourCurve = uniform)
+        assertEquals(Instant.parse("2026-10-11T00:00:00Z"), a.runOutExpected)
+    }
 }

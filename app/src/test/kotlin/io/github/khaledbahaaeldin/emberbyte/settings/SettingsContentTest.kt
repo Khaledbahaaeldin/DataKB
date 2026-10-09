@@ -40,12 +40,31 @@ class SettingsContentTest {
                     versionName = "0.2.0",
                     onOpenSource = {},
                     onOpenBatterySettings = onOpenBatterySettings,
+                    dataUiState = DataUiState(),
+                    onExportCsv = {},
+                    onExportJson = {},
+                    onCreateBackup = {},
+                    onRestoreChosen = {},
+                    onRestoreBackup = {},
+                    onClearDataMessage = {},
+                    restoreFileChosen = false,
+                    onDismissRestorePassphrase = {},
                 )
             }
         }
 
     private fun scrollTo(text: String) {
         rule.onNode(hasScrollAction()).performScrollToNode(hasText(text))
+    }
+
+    @Test fun toggling_spike_alerts_updates_spike_alerts_enabled() {
+        var transform: ((Settings) -> Settings)? = null
+        show(onUpdate = { transform = it })
+        rule.onNodeWithText("Spike alerts").performClick()
+        val result = transform!!(Settings())
+        assertFalse(result.spikeAlertsEnabled)
+        assertEquals(Settings().copy(spikeAlertsEnabled = false), result)
+        rule.onNodeWithText("Tell me when an app suddenly uses a lot of mobile data").assertIsDisplayed()
     }
 
     @Test fun toggling_the_live_notification_updates_only_that_field() {

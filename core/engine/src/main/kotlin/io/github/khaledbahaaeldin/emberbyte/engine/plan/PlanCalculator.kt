@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.engine.plan
 
 import io.github.khaledbahaaeldin.emberbyte.engine.model.AddOn
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Cycle
+import io.github.khaledbahaaeldin.emberbyte.engine.model.CycleWindow
 import io.github.khaledbahaaeldin.emberbyte.engine.model.FreeRule
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
@@ -48,6 +49,9 @@ object PlanCalculator {
             isApproximate = isApproximate,
         )
     }
+
+    fun freeBytes(plan: Plan, usage: List<UsageSlice>, freeRules: List<FreeRule>, window: CycleWindow): Long =
+        FreeWindows.freeBytes(usage.filter { it.packageName == null }, usage.filter { it.packageName != null }, freeRules, window, zoneOf(plan.cycle))
 
     fun zoneOf(cycle: Cycle): ZoneId = when (cycle) {
         is Cycle.MonthlyOnDay -> cycle.zone

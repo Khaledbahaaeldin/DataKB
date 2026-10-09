@@ -145,7 +145,30 @@ class RoomPlanRepositoryTest {
         fillHistory()
         val id = save(draft(cap = 20_000_000_000L))       // 14 GB used in October, 6 GB left at 1 GB/day
         val f = repo.observeForecast(id).first()!!
-        assertEquals("2026-10-21", f.runOutExpected!!.toString().substring(0, 10))
+        assertEquals("2026-10-22", f.runOutExpected!!.toString().substring(0, 10))
+        val expected = Instant.parse("2026-10-22T00:00:00Z")
+        val diffSeconds = Math.abs(f.runOutExpected!!.epochSecond - expected.epochSecond)
+        assertTrue("runOutExpected was ${f.runOutExpected}, expected within 1s of $expected", diffSeconds <= 1)
+    }
+
+    @Test fun two_days_of_history_keep_the_default_curve() = runBlocking {
+        mobile("2026-10-13T10:00:00Z", 1_000_000_000L)
+        mobile("2026-10-14T10:00:00Z", 1_000_000_000L)
+        val id = save(draft(cap = 5_000_000_000L))
+        val f = repo.observeForecast(id).first()!!
+        assertNotNull(f.runOutExpected)
+        assertEquals("2026-10-18", f.runOutExpected!!.toString().substring(0, 10))
+    }
+
+    @Test fun minute_rows_of_another_subscription_do_not_shape_the_personal_curve() = runBlocking {
+        for (i in 8..14) {
+            mobile("2026-10-${i.toString().padStart(2, '0')}T20:00:00Z", 1_000_000_000L, sub = 1)
+            mobile("2026-10-${i.toString().padStart(2, '0')}T10:00:00Z", 1_000_000_000L, sub = 2)
+        }
+        val id = save(draft(sub = 2, cap = 7_200_000_000L))
+        val f = repo.observeForecast(id).first()!!
+        assertNotNull(f.runOutExpected)
+        assertEquals("2026-10-16", f.runOutExpected!!.toString().substring(0, 10))
     }
 
     @Test fun preview_state_evaluates_an_unsaved_draft_and_rejects_an_invalid_one() = runBlocking {
@@ -188,5 +211,44 @@ class RoomPlanRepositoryTest {
         ).copy(cycle = Cycle.MonthlyOnDay(0, LocalTime.MIDNIGHT, ZoneOffset.UTC))
         val errors = repo.validateDraft(badPlan, emptyList(), emptyList())
         assertEquals(setOf("name", "capBytes", "cycle.dayOfMonth"), errors.keys)
+    }
+
+    @Test fun saving_an_invalid_draft_writes_nothing() = runBlocking {
+        val badPlan = draft(name = " ")
+        val from = Instant.parse("2026-10-05T00:00:00Z")
+        val badAddOn = AddOn(0, 0, "Boost", 0L, from, from.plusSeconds(60))
+        val res = repo.savePlan(badPlan, listOf(badAddOn), emptyList(), setOf(80))
+        assertTrue(res is Outcome.Failure)
+        assertTrue(repo.observePlans(includeArchived = true).first().isEmpty())
+    }
+
+    @Test fun saving_a_valid_draft_returns_the_id_and_the_state_reflects_the_children() = runBlocking {
+        val from = Instant.parse("2026-10-05T00:00:00Z")
+        val until = Instant.parse("2026-10-25T00:00:00Z")
+        val addOn = AddOn(0, 0, "Boost", 2_000_000_000L, from, until)
+        val rule = FreeRule(0, 0, "AllWeek", DayOfWeek.entries.toSet(), LocalTime.MIN, LocalTime.MAX, null)
+        val outcome = repo.savePlan(draft(cap = 10_000_000_000L), listOf(addOn), listOf(rule), setOf(80, 100))
+        assertTrue(outcome is Outcome.Success)
+        val id = (outcome as Outcome.Success).value
+        assertTrue(id > 0)
+
+        val state = repo.observePlanState(id).first()!!
+        assertEquals(2_000_000_000L, state.addOnBytes)
+        assertEquals(12_000_000_000L, state.effectiveCapBytes)
+    }
+
+    @Test fun saving_for_a_missing_plan_id_is_not_found() = runBlocking {
+        val outcome = repo.savePlan(draft().copy(id = 999L), emptyList(), emptyList(), setOf(80))
+        assertEquals(Outcome.Failure(EmberbyteError.NotFound), outcome)
+    }
+
+    @Test fun thresholds_outside_1_to_100_are_invalid() = runBlocking {
+        val res0 = repo.savePlan(draft(), emptyList(), emptyList(), setOf(0))
+        assertTrue(res0 is Outcome.Failure)
+        assertEquals("thresholdPercent", ((res0 as Outcome.Failure).error as EmberbyteError.Invalid).field)
+
+        val res101 = repo.savePlan(draft(), emptyList(), emptyList(), setOf(101))
+        assertTrue(res101 is Outcome.Failure)
+        assertEquals("thresholdPercent", ((res101 as Outcome.Failure).error as EmberbyteError.Invalid).field)
     }
 }

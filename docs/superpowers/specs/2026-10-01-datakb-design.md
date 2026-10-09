@@ -62,7 +62,7 @@ notification; CSV/JSON export and encrypted local backup.
 2. **M2 Real usage:** samplers, Room, daily/weekly/monthly views, per-app list, live notification.
    Starts with the dual-SIM and foreground-service-type spikes (backend §13).
 3. **M3 Plans:** plan editor, dual-SIM handling, alerts, forecast v1, widgets, plus the cheap carry-over minors of M2.
-4. **M4 Insight:** budgets, spike detective, "what if" planner, export and backup.
+4. **M4 Insight:** budgets, spike detective (per 2-hour window), "what if" planner, export and encrypted backup, personal hour-of-day curve.
 5. **M5 Live Lens:** forwarder spike, then the opt-in VPN engine and Lens screen.
 6. **M6 Polish:** accessibility pass, Android 16 live updates, F-Droid submission.
 

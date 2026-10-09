@@ -34,6 +34,8 @@ interface UsageStore {
     fun observeGaps(from: Instant, to: Instant): Flow<List<CoverageGap>>
     /** Newest `total_minute.minuteStart`, or null when there is none. */
     fun observeLastSample(): Flow<Instant?>
+    /** Earliest `usage_hourly.hourStart` among [uids], or null when empty or none exist. */
+    suspend fun oldestHourStart(uids: Set<Int>): Instant?
     /** Deletes rows strictly older than the retention of contract section 5. */
     suspend fun prune(now: Instant)
 }

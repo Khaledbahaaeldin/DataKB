@@ -51,20 +51,22 @@ class PlanEditorViewModel(
     private val previewDebounceMillis: Long = 300L,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val hasRestored = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) } != null
+    private var isRestoredDirty = hasRestored
+    private var loadedForm: PlanEditorForm? = null
+
     private val _state = MutableStateFlow(
         PlanEditorUiState(
             planId = planId,
             isNew = planId == 0L,
             form = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) }
                 ?: PlanEditorForm(anchor = LocalDate.now(clock)),
+            isDirty = hasRestored,
         ),
     )
     val uiState: StateFlow<PlanEditorUiState> = _state.asStateFlow()
 
     private var zone: ZoneId = clock.zone
-    private var loadedAddOnIds = emptySet<Long>()
-    private var loadedFreeRuleIds = emptySet<Long>()
-    private var loadedAlertRules = emptyList<AlertRule>()
 
     init {
         viewModelScope.launch { load() }
@@ -73,13 +75,29 @@ class PlanEditorViewModel(
             _state.map { it.form to it.unitSystem }.distinctUntilChanged().debounce(previewDebounceMillis)
                 .collectLatest { (form, system) -> _state.update { it.copy(preview = preview(form, system)) } }
         }
+        if (planId != 0L) {
+            viewModelScope.launch {
+                _state.map { Triple(it.whatIf?.amountText, it.whatIf?.unit, it.unitSystem) }
+                    .distinctUntilChanged()
+                    .debounce(previewDebounceMillis)
+                    .collectLatest { (amountText, unit, unitSystem) ->
+                        if (amountText == null || unit == null) return@collectLatest
+                        recomputeWhatIf(amountText, unit, unitSystem)
+                    }
+            }
+        }
     }
 
     private suspend fun load() {
         val system = settings.observe().first().unitSystem
         _state.update { it.copy(unitSystem = system) }
         if (planId == 0L) {
-            _state.update { it.copy(loading = false) }
+            if (!hasRestored) {
+                loadedForm = _state.value.form
+                _state.update { it.copy(loading = false, isDirty = false) }
+            } else {
+                _state.update { it.copy(loading = false, isDirty = true) }
+            }
             return
         }
         val allPlans = plans.observePlans(includeArchived = true).first()
@@ -121,9 +139,20 @@ class PlanEditorViewModel(
         val alertRules = alerts.observeRules(planId).first()
         val thresholds = alertRules.map { it.thresholdPercent }.toSet()
 
-        loadedAddOnIds = addOns.map { it.id }.toSet()
-        loadedFreeRuleIds = freeRules.map { it.id }.toSet()
-        loadedAlertRules = alertRules
+        val currentForecast = plans.observeForecast(planId).first()
+        val remainingBytes = plans.observePlanState(planId).first()?.remainingBytes ?: 0L
+        val currentText = if (currentForecast != null) {
+            whatIfSentence(currentForecast, remainingBytes, clock.instant(), zone, locale)
+        } else {
+            "Not enough data yet"
+        }
+        val initialWhatIf = WhatIfUi(
+            amountText = "",
+            unit = CapUnit.MB,
+            currentText = currentText,
+            whatIfText = null,
+            error = null,
+        )
 
         val hasRestored = savedStateHandle.get<String>(KEY_FORM)?.let { PlanEditorFormJson.decode(it) } != null
         if (!hasRestored) {
@@ -144,9 +173,10 @@ class PlanEditorViewModel(
                 freeRules = freeRuleDrafts,
                 alertThresholds = thresholds,
             )
-            _state.update { it.copy(form = form, loading = false) }
+            loadedForm = form
+            _state.update { it.copy(form = form, loading = false, whatIf = initialWhatIf, isDirty = false) }
         } else {
-            _state.update { it.copy(loading = false) }
+            _state.update { it.copy(loading = false, whatIf = initialWhatIf, isDirty = true) }
         }
     }
 
@@ -187,7 +217,8 @@ class PlanEditorViewModel(
         _state.update { current ->
             val nextForm = transform(current.form)
             savedStateHandle[KEY_FORM] = PlanEditorFormJson.encode(nextForm)
-            current.copy(form = nextForm, errors = emptyMap())
+            val dirty = if (isRestoredDirty) true else (loadedForm == null || nextForm != loadedForm)
+            current.copy(form = nextForm, errors = emptyMap(), isDirty = dirty)
         }
     }
 
@@ -197,6 +228,16 @@ class PlanEditorViewModel(
             is PlanEditorEvent.SetSim -> updateForm { it.copy(subscriptionId = event.subscriptionId) }
             is PlanEditorEvent.SetCap -> updateForm { it.copy(capText = event.text) }
             is PlanEditorEvent.SetCapUnit -> updateForm { it.copy(capUnit = event.unit) }
+            is PlanEditorEvent.SetWhatIfAmount -> {
+                _state.update { s ->
+                    s.copy(whatIf = s.whatIf?.copy(amountText = event.text))
+                }
+            }
+            is PlanEditorEvent.SetWhatIfUnit -> {
+                _state.update { s ->
+                    s.copy(whatIf = s.whatIf?.copy(unit = event.unit))
+                }
+            }
             is PlanEditorEvent.SetCycleKind -> updateForm { it.copy(cycleKind = event.kind) }
             is PlanEditorEvent.SetDayOfMonth -> updateForm { it.copy(dayOfMonth = event.day) }
             is PlanEditorEvent.SetEveryDays -> updateForm { it.copy(everyDays = event.days) }
@@ -297,8 +338,7 @@ class PlanEditorViewModel(
         }
         val ok = domainResult as FormResult.Ok
 
-        // Validate the entire draft first before writing anything. Saving is validated first
-        // and then written step by step; it is NOT a database transaction.
+        // Validate the entire draft first before writing anything.
         val draftErrors = plans.validateDraft(ok.plan, ok.addOns, ok.freeRules)
         if (draftErrors.isNotEmpty()) {
             _state.update { it.copy(errors = draftErrors) }
@@ -307,122 +347,21 @@ class PlanEditorViewModel(
 
         _state.update { it.copy(saving = true) }
 
-        when (val planOutcome = plans.upsertPlan(ok.plan)) {
+        when (val res = plans.savePlan(ok.plan, ok.addOns, ok.freeRules, _state.value.form.alertThresholds)) {
+            is Outcome.Success -> {
+                savedStateHandle.remove<String>(KEY_FORM)
+                isRestoredDirty = false
+                loadedForm = _state.value.form
+                _state.update { it.copy(planId = res.value, isNew = false, saved = true, saving = false, isDirty = false) }
+            }
             is Outcome.Failure -> {
-                val err = when (val e = planOutcome.error) {
+                val err = when (val e = res.error) {
                     is EmberbyteError.Invalid -> mapOf(e.field to e.reason)
                     else -> mapOf("form" to "Could not save. Try again.")
                 }
                 _state.update { it.copy(errors = err, saving = false) }
-                return
-            }
-            is Outcome.Success -> {
-                val newPlanId = planOutcome.value
-                _state.update { it.copy(planId = newPlanId, isNew = false) }
             }
         }
-        val effectivePlanId = _state.value.planId
-
-        // Delete add-ons whose id was loaded but is no longer in the form
-        val currentFormAddOnIds = _state.value.form.addOns.map { it.id }.filter { it != 0L }.toSet()
-        val toDeleteAddOns = loadedAddOnIds - currentFormAddOnIds
-        for (delId in toDeleteAddOns) {
-            when (plans.deleteAddOn(delId)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {}
-            }
-        }
-
-        // Upsert each add-on draft and store the returned id back into the draft
-        for (i in ok.addOns.indices) {
-            val domainAddOn = ok.addOns[i].copy(planId = effectivePlanId)
-            when (val res = plans.upsertAddOn(domainAddOn)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {
-                    val newAddOnId = res.value
-                    _state.update { s ->
-                        val updatedAddOns = s.form.addOns.toMutableList()
-                        if (i in updatedAddOns.indices) {
-                            updatedAddOns[i] = updatedAddOns[i].copy(id = newAddOnId)
-                        }
-                        s.copy(form = s.form.copy(addOns = updatedAddOns))
-                    }
-                }
-            }
-        }
-
-        // Delete free rules whose id was loaded but is no longer in the form
-        val currentFormFreeRuleIds = _state.value.form.freeRules.map { it.id }.filter { it != 0L }.toSet()
-        val toDeleteFreeRules = loadedFreeRuleIds - currentFormFreeRuleIds
-        for (delId in toDeleteFreeRules) {
-            when (plans.deleteFreeRule(delId)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {}
-            }
-        }
-
-        // Upsert each free rule draft and store the returned id back into the draft
-        for (i in ok.freeRules.indices) {
-            val domainRule = ok.freeRules[i].copy(planId = effectivePlanId)
-            when (val res = plans.upsertFreeRule(domainRule)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {
-                    val newRuleId = res.value
-                    _state.update { s ->
-                        val updatedRules = s.form.freeRules.toMutableList()
-                        if (i in updatedRules.indices) {
-                            updatedRules[i] = updatedRules[i].copy(id = newRuleId)
-                        }
-                        s.copy(form = s.form.copy(freeRules = updatedRules))
-                    }
-                }
-            }
-        }
-
-        // Thresholds: delete loaded rules whose threshold is no longer wanted, upsertRule(AlertRule(existingId or 0, id, threshold, true))
-        val wantedThresholds = _state.value.form.alertThresholds
-        val toDeleteAlerts = loadedAlertRules.filter { it.thresholdPercent !in wantedThresholds }
-        for (rule in toDeleteAlerts) {
-            when (alerts.deleteRule(rule.id)) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {}
-            }
-        }
-        val updatedAlertRules = mutableListOf<AlertRule>()
-        for (threshold in wantedThresholds) {
-            val existing = loadedAlertRules.firstOrNull { it.thresholdPercent == threshold }
-            val ruleId = existing?.id ?: 0L
-            when (val res = alerts.upsertRule(AlertRule(ruleId, effectivePlanId, threshold, true))) {
-                is Outcome.Failure -> {
-                    _state.update { it.copy(errors = mapOf("form" to "Could not save. Try again."), saving = false) }
-                    return
-                }
-                is Outcome.Success -> {
-                    updatedAlertRules.add(AlertRule(res.value, effectivePlanId, threshold, true))
-                }
-            }
-        }
-
-        loadedAddOnIds = _state.value.form.addOns.map { it.id }.toSet()
-        loadedFreeRuleIds = _state.value.form.freeRules.map { it.id }.toSet()
-        loadedAlertRules = updatedAlertRules
-        savedStateHandle.remove<String>(KEY_FORM)
-        _state.update { it.copy(saving = false, saved = true) }
     }
 
     private suspend fun archive() {
@@ -431,9 +370,65 @@ class PlanEditorViewModel(
         when (plans.archivePlan(currentPlanId)) {
             is Outcome.Success -> {
                 savedStateHandle.remove<String>(KEY_FORM)
-                _state.update { it.copy(saved = true) }
+                isRestoredDirty = false
+                loadedForm = _state.value.form
+                _state.update { it.copy(saved = true, isDirty = false) }
             }
             is Outcome.Failure -> _state.update { it.copy(errors = mapOf("form" to "Could not archive. Try again.")) }
+        }
+    }
+
+    private suspend fun recomputeWhatIf(amountText: String, unit: CapUnit, system: UnitSystem) {
+        val currentForecast = plans.observeForecast(planId).first()
+        val remainingBytes = plans.observePlanState(planId).first()?.remainingBytes ?: 0L
+        val currentText = if (currentForecast != null) {
+            whatIfSentence(currentForecast, remainingBytes, clock.instant(), zone, locale)
+        } else {
+            "Not enough data yet"
+        }
+
+        if (amountText.isBlank()) {
+            _state.update { s ->
+                s.copy(
+                    whatIf = s.whatIf?.copy(
+                        currentText = currentText,
+                        whatIfText = null,
+                        error = null,
+                    ),
+                )
+            }
+            return
+        }
+
+        val bytes = bytesOf(amountText, unit, system)
+        if (bytes == null) {
+            _state.update { s ->
+                s.copy(
+                    whatIf = s.whatIf?.copy(
+                        currentText = currentText,
+                        whatIfText = null,
+                        error = "Enter a number",
+                    ),
+                )
+            }
+            return
+        }
+
+        val outcome = plans.whatIf(planId, bytes, clock.instant())
+        val sentence = if (outcome is Outcome.Success) {
+            whatIfSentence(outcome.value, remainingBytes, clock.instant(), zone, locale)
+        } else {
+            null
+        }
+
+        _state.update { s ->
+            s.copy(
+                whatIf = s.whatIf?.copy(
+                    currentText = currentText,
+                    whatIfText = sentence,
+                    error = null,
+                ),
+            )
         }
     }
 

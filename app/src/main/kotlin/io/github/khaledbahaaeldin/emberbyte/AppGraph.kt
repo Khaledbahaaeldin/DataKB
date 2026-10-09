@@ -8,18 +8,35 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.khaledbahaaeldin.emberbyte.data.AndroidPermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.AppPreferences
+import io.github.khaledbahaaeldin.emberbyte.data.BudgetRepository
 import io.github.khaledbahaaeldin.emberbyte.data.OnboardingRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PermissionRepository
 import io.github.khaledbahaaeldin.emberbyte.data.PlanRepository
 import io.github.khaledbahaaeldin.emberbyte.data.RoomUsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.Settings
+import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
+import io.github.khaledbahaaeldin.emberbyte.data.SpikeRepository
+import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
 import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertEvaluator
 import io.github.khaledbahaaeldin.emberbyte.data.alert.AlertRepository
 import io.github.khaledbahaaeldin.emberbyte.data.alert.RoomAlertRepository
+import io.github.khaledbahaaeldin.emberbyte.data.budget.BudgetEvaluator
+import io.github.khaledbahaaeldin.emberbyte.data.budget.BudgetStores
+import io.github.khaledbahaaeldin.emberbyte.data.budget.RoomBudgetRepository
 import io.github.khaledbahaaeldin.emberbyte.data.plan.PlanStores
 import io.github.khaledbahaaeldin.emberbyte.data.plan.RoomPlanRepository
-import io.github.khaledbahaaeldin.emberbyte.data.Settings
-import io.github.khaledbahaaeldin.emberbyte.data.SettingsRepository
-import io.github.khaledbahaaeldin.emberbyte.data.UsageRepository
+import io.github.khaledbahaaeldin.emberbyte.data.backup.BackupService
+import io.github.khaledbahaaeldin.emberbyte.data.backup.DefaultBackupService
+import io.github.khaledbahaaeldin.emberbyte.data.backup.PackageResolver
+import io.github.khaledbahaaeldin.emberbyte.data.backup.RestoreStore
+import io.github.khaledbahaaeldin.emberbyte.data.backup.RoomRestoreStore
+import io.github.khaledbahaaeldin.emberbyte.data.db.EmberbyteDatabases
+import io.github.khaledbahaaeldin.emberbyte.data.export.ExportService
+import io.github.khaledbahaaeldin.emberbyte.data.export.StreamingExportService
+import io.github.khaledbahaaeldin.emberbyte.data.spike.RoomSpikeRepository
+import io.github.khaledbahaaeldin.emberbyte.data.spike.SpikeEvaluator
+import io.github.khaledbahaaeldin.emberbyte.data.spike.SpikeStores
+import io.github.khaledbahaaeldin.emberbyte.data.android.PackageManagerPackageResolver
 import io.github.khaledbahaaeldin.emberbyte.data.android.AndroidSimInfoSource
 import io.github.khaledbahaaeldin.emberbyte.data.android.AppOpsUsageAccess
 import io.github.khaledbahaaeldin.emberbyte.data.source.SimInfoSource
@@ -41,7 +58,9 @@ import io.github.khaledbahaaeldin.emberbyte.home.HomeViewModel
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlansViewModel
+import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
+import io.github.khaledbahaaeldin.emberbyte.settings.StreamOpener
 import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +87,19 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     val plans: PlanRepository = RoomPlanRepository(planStore, store, clock)
     val alerts: AlertRepository = RoomAlertRepository(planStore)
     val alertEvaluator = AlertEvaluator(plans, planStore)
+
+    val budgetStore = BudgetStores.create(appContext)
+    val spikeStore = SpikeStores.create(appContext)
+    private val budgetsImpl = RoomBudgetRepository(budgetStore, planStore, store, clock)
+    val budgets: BudgetRepository = budgetsImpl
+    val spikes: SpikeRepository = RoomSpikeRepository(spikeStore)
+    val budgetEvaluator = BudgetEvaluator({ budgetsImpl.currentPeriodStatuses() }, budgetStore)
+    val spikeEvaluator = SpikeEvaluator(store, spikeStore, clock)
+
+    val exportService: ExportService = StreamingExportService(store, planStore, budgetStore, clock)
+    val restoreStore: RestoreStore = RoomRestoreStore(EmberbyteDatabases.get(appContext))
+    val packageResolver: PackageResolver = PackageManagerPackageResolver(appContext)
+    val backupService: BackupService = DefaultBackupService(exportService, restoreStore, packageResolver)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -97,8 +129,29 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     /** Deletes rows older than the retention windows (cheap; called from the service loop). */
     suspend fun prune() = store.prune(clock.instant())
 
+    fun appLabel(packageName: String): String {
+        if (packageName.startsWith("uid:")) return packageName
+        return try {
+            val pm = appContext.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+        } catch (_: Exception) {
+            packageName
+        }
+    }
+
     fun homeViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
-        initializer { HomeViewModel(usage, plans, settings, permissions, clock = clock, is24Hour = { DateFormat.is24HourFormat(appContext) }) }
+        initializer {
+            HomeViewModel(
+                usage = usage,
+                plans = plans,
+                settings = settings,
+                permissions = permissions,
+                spikes = spikes,
+                labelOf = ::appLabel,
+                clock = clock,
+                is24Hour = { DateFormat.is24HourFormat(appContext) },
+            )
+        }
     }
 
     fun appsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
@@ -106,7 +159,18 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
     }
 
     fun appDetailViewModelFactory(packageName: String): ViewModelProvider.Factory = viewModelFactory {
-        initializer { AppDetailViewModel(packageName, usage, settings) }
+        initializer {
+            AppDetailViewModel(
+                packageName = packageName,
+                usage = usage,
+                settings = settings,
+                budgets = budgets,
+                spikes = spikes,
+                plans = plans,
+                is24Hour = { DateFormat.is24HourFormat(appContext) },
+                clock = clock,
+            )
+        }
     }
 
     fun historyViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
@@ -115,6 +179,10 @@ class AppGraph(context: Context, val clock: Clock = SystemZoneClock()) {
 
     fun settingsViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
         initializer { SettingsViewModel(settings) }
+    }
+
+    fun dataViewModelFactory(opener: StreamOpener): ViewModelProvider.Factory = viewModelFactory {
+        initializer { DataViewModel(exportService, backupService, opener, clock) }
     }
 
     fun onboardingViewModelFactory(): ViewModelProvider.Factory = viewModelFactory {
