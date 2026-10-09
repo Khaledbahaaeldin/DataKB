@@ -16,6 +16,13 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.junit4.createComposeRule
+import io.github.khaledbahaaeldin.emberbyte.handleNewIntent
+import org.junit.Assert.assertTrue
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -76,4 +83,148 @@ class ColdStartLinkTest {
             assertFalse(nav.popBackStack())
         }
     }
+
+    @Test
+    fun onNewIntent_link_during_onboarding_drops_data_and_finishing_onboarding_lands_on_home() {
+        val composeActivity = ComponentActivity()
+        composeActivity.intent = Intent()
+
+        var startOnboarding by mutableStateOf(true)
+        var navController: NavHostController? = null
+
+        composeRule.setContent {
+            val nav = rememberNavController()
+            navController = nav
+            NavHost(
+                navController = nav,
+                startDestination = if (startOnboarding) Routes.ONBOARDING else Destination.Home.route,
+            ) {
+                composable(Routes.ONBOARDING) { Box {} }
+                composable(
+                    Destination.Home.route,
+                    deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.HOME }),
+                ) { Box {} }
+                composable(
+                    Routes.SETTINGS,
+                    deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
+                ) { Box {} }
+            }
+        }
+
+        composeRule.runOnIdle {
+            val nav = checkNotNull(navController)
+            assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
+
+            val intent = Intent(Intent.ACTION_VIEW, "emberbyte://settings".toUri())
+            handleNewIntent(
+                activity = composeActivity,
+                navController = nav,
+                onboardingCompleted = false,
+                intent = intent,
+            )
+        }
+
+        composeRule.runOnUiThread {
+            val nav = checkNotNull(navController)
+            startOnboarding = false
+            nav.navigate(Destination.Home.route) {
+                popUpTo(Routes.ONBOARDING) { inclusive = true }
+            }
+        }
+
+        composeRule.runOnIdle {
+            val nav = checkNotNull(navController)
+            assertEquals(Destination.Home.route, nav.currentDestination?.route)
+            assertNull(composeActivity.intent?.data)
+        }
+    }
+
+    @Test
+    fun control_without_link_finishing_onboarding_lands_on_home() {
+        val composeActivity = ComponentActivity()
+        composeActivity.intent = Intent()
+
+        var startOnboarding by mutableStateOf(true)
+        var navController: NavHostController? = null
+
+        composeRule.setContent {
+            val nav = rememberNavController()
+            navController = nav
+            NavHost(
+                navController = nav,
+                startDestination = if (startOnboarding) Routes.ONBOARDING else Destination.Home.route,
+            ) {
+                composable(Routes.ONBOARDING) { Box {} }
+                composable(
+                    Destination.Home.route,
+                    deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.HOME }),
+                ) { Box {} }
+                composable(
+                    Routes.SETTINGS,
+                    deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
+                ) { Box {} }
+            }
+        }
+
+        composeRule.runOnUiThread {
+            val nav = checkNotNull(navController)
+            startOnboarding = false
+            nav.navigate(Destination.Home.route) {
+                popUpTo(Routes.ONBOARDING) { inclusive = true }
+            }
+        }
+
+        composeRule.runOnIdle {
+            val nav = checkNotNull(navController)
+            assertEquals(Destination.Home.route, nav.currentDestination?.route)
+            assertNull(composeActivity.intent?.data)
+        }
+    }
+
+    @Test
+    fun handleNewIntent_when_onboarding_completed_opens_settings_with_home_on_back_stack() {
+        val composeActivity = ComponentActivity()
+        composeActivity.intent = Intent()
+
+        var navController: NavHostController? = null
+
+        composeRule.setContent {
+            val nav = rememberNavController()
+            navController = nav
+            NavHost(
+                navController = nav,
+                startDestination = Destination.Home.route,
+            ) {
+                composable(
+                    Destination.Home.route,
+                    deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.HOME }),
+                ) { Box {} }
+                composable(
+                    Routes.SETTINGS,
+                    deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.SETTINGS }),
+                ) { Box {} }
+            }
+        }
+
+        composeRule.runOnIdle {
+            val nav = checkNotNull(navController)
+            assertEquals(Destination.Home.route, nav.currentDestination?.route)
+
+            val intent = Intent(Intent.ACTION_VIEW, "emberbyte://settings".toUri())
+            handleNewIntent(
+                activity = composeActivity,
+                navController = nav,
+                onboardingCompleted = true,
+                intent = intent,
+            )
+        }
+
+        composeRule.runOnIdle {
+            val nav = checkNotNull(navController)
+            assertEquals(Routes.SETTINGS, nav.currentDestination?.route)
+            assertTrue(nav.popBackStack())
+            assertEquals(Destination.Home.route, nav.currentDestination?.route)
+        }
+    }
 }
+

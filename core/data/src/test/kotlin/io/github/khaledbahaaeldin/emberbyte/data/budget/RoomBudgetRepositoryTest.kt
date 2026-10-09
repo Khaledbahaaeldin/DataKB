@@ -187,4 +187,27 @@ class RoomBudgetRepositoryTest {
         val missingSuccess = repo.delete(999L)
         assertTrue(missingSuccess is Outcome.Success<*>)
     }
+
+    @Test
+    fun period_label_reports_this_month_this_cycle_or_today() = runBlocking {
+        val plan = Plan(
+            id = 1L,
+            name = "Main",
+            subscriptionId = null,
+            capBytes = 10_000_000_000L,
+            cycle = Cycle.MonthlyOnDay(1, LocalTime.MIDNIGHT, ZoneOffset.UTC),
+            rollover = Rollover.None,
+        )
+        planStore.upsertPlan(plan)
+
+        budgetStore.upsertBudget(budget(id = 1L, pkg = "com.daily", period = BudgetPeriod.DAILY))
+        budgetStore.upsertBudget(budget(id = 2L, pkg = "com.cycle.plan", period = BudgetPeriod.CYCLE, planId = 1L))
+        budgetStore.upsertBudget(budget(id = 3L, pkg = "com.cycle.noplan", period = BudgetPeriod.CYCLE, planId = null))
+
+        val statuses = repo.currentPeriodStatuses().associateBy { it.status.budget.packageName }
+        assertEquals("today", statuses["com.daily"]?.periodLabel)
+        assertEquals("this cycle", statuses["com.cycle.plan"]?.periodLabel)
+        assertEquals("this month", statuses["com.cycle.noplan"]?.periodLabel)
+    }
 }
+

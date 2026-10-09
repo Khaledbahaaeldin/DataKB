@@ -39,6 +39,12 @@ class BudgetCalculatorTest {
         assertEquals(BudgetState.OK, BudgetCalculator.state(b, 1000L))
         assertEquals(BudgetState.OK, BudgetCalculator.state(b, 0L))
     }
+    @Test fun max_long_limit_exact_comparisons_with_large_used() {
+        val b = budget(limit = Long.MAX_VALUE, warn = 80)
+        assertEquals(BudgetState.OK, BudgetCalculator.state(b, 2_000_000_000_000_000L))
+        assertEquals(BudgetState.WARNING, BudgetCalculator.state(b, (Long.MAX_VALUE / 10) * 9))
+        assertEquals(BudgetState.WARNING, BudgetCalculator.state(b, Long.MAX_VALUE))
+    }
     @Test fun a_zero_limit_never_warns() = assertEquals(BudgetState.OK, BudgetCalculator.state(budget(limit = 0), 5))
 
     @Test fun a_daily_period_is_the_local_day() {

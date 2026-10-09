@@ -148,25 +148,35 @@ class BudgetEvaluatorTest {
     fun parallel_evaluations_post_a_transition_once() = runBlocking(Dispatchers.Default) {
         val b = budget()
         val currentStatuses = listOf(periodStatus(b, 850L, BudgetState.WARNING))
-        val firstCalled = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val firstStarted = kotlinx.coroutines.CompletableDeferred<Unit>()
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
-        var count = 0
+        val concurrent = java.util.concurrent.atomic.AtomicInteger(0)
+        val maxConcurrent = java.util.concurrent.atomic.AtomicInteger(0)
         val interceptingStore = object : BudgetStore by store {
             override suspend fun lastState(budgetId: Long, periodStart: Instant): BudgetState? {
-                if (count++ == 0) {
-                    firstCalled.complete(Unit)
-                    gate.await()
+                val current = concurrent.incrementAndGet()
+                maxConcurrent.updateAndGet { maxOf(it, current) }
+                try {
+                    if (current == 1 && !firstStarted.isCompleted) {
+                        firstStarted.complete(Unit)
+                        gate.await()
+                    }
+                    return store.lastState(budgetId, periodStart)
+                } finally {
+                    concurrent.decrementAndGet()
                 }
-                return store.lastState(budgetId, periodStart)
             }
         }
         val evaluator = BudgetEvaluator({ currentStatuses }, interceptingStore)
 
         val first = async { evaluator.evaluate().notices }
-        firstCalled.await()
+        firstStarted.await()
         val second = async { evaluator.evaluate().notices }
+        repeat(10) { kotlinx.coroutines.yield() }
+        assertEquals(1, maxConcurrent.get())
         gate.complete(Unit)
         val allNotices = first.await() + second.await()
+        assertEquals(1, maxConcurrent.get())
         assertEquals(1, allNotices.size)
         assertEquals(BudgetState.WARNING, allNotices.single().state)
     }

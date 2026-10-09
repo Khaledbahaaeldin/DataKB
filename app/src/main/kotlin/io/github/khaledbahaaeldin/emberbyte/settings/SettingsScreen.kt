@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -65,13 +66,18 @@ fun SettingsScreen(
         uri?.let(dataViewModel::exportJson)
     }
     val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        val pass = pendingState.pendingCreatePassphrase
-        if (uri != null && pass != null) {
-            dataViewModel.createBackup(uri, pass)
+        if (uri == null) {
+            dataViewModel.discardHeldPassphrase()
         } else {
-            pass?.fill('\u0000')
+            when (val action = backupPickerResult(uri, dataViewModel.takeHeldPassphrase())) {
+                is BackupPickerAction.Create -> dataViewModel.createBackup(action.uri, action.passphrase)
+                is BackupPickerAction.DeleteAndRetry -> {
+                    runCatching { DocumentsContract.deleteDocument(context.contentResolver, action.uri) }
+                    dataViewModel.showMessage("The backup was cancelled because the screen was recreated. Please try again.", isError = true)
+                }
+                BackupPickerAction.Ignore -> {}
+            }
         }
-        pendingState.pendingCreatePassphrase = null
     }
     val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         pendingState.pendingRestoreUri = uri
@@ -101,7 +107,7 @@ fun SettingsScreen(
             createJson.launch("emberbyte-export-$date.json")
         },
         onCreateBackup = { passphrase ->
-            pendingState.pendingCreatePassphrase = passphrase.copyOf()
+            dataViewModel.holdPassphrase(passphrase)
             val date = LocalDate.now(dataViewModel.clock)
             createBackup.launch("emberbyte-backup-$date.emberbyte")
         },
@@ -298,4 +304,19 @@ private fun SwitchRow(
         }
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
+}
+
+internal sealed interface BackupPickerAction {
+    data object Ignore : BackupPickerAction
+    data class Create(val uri: Uri, val passphrase: CharArray) : BackupPickerAction
+    data class DeleteAndRetry(val uri: Uri) : BackupPickerAction
+}
+
+internal fun backupPickerResult(uri: Uri?, held: CharArray?): BackupPickerAction = when {
+    uri == null -> {
+        held?.fill('\u0000')
+        BackupPickerAction.Ignore
+    }
+    held == null -> BackupPickerAction.DeleteAndRetry(uri)
+    else -> BackupPickerAction.Create(uri, held)
 }

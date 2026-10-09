@@ -45,9 +45,46 @@ class DataViewModel(
     private val _uiState = MutableStateFlow(DataUiState())
     val uiState: StateFlow<DataUiState> = _uiState.asStateFlow()
 
+    private var heldPassphrase: CharArray? = null
+
+    private fun tryStart(): Boolean {
+        var started = false
+        _uiState.update { current ->
+            if (current.busy) {
+                started = false
+                current
+            } else {
+                started = true
+                current.copy(busy = true, message = null, isError = false)
+            }
+        }
+        return started
+    }
+
+    fun holdPassphrase(passphrase: CharArray) {
+        heldPassphrase?.fill('\u0000')
+        heldPassphrase = passphrase
+    }
+
+    fun takeHeldPassphrase(): CharArray? {
+        val held = heldPassphrase
+        heldPassphrase = null
+        return held
+    }
+
+    fun discardHeldPassphrase() {
+        heldPassphrase?.fill('\u0000')
+        heldPassphrase = null
+    }
+
+    public override fun onCleared() {
+        heldPassphrase?.fill('\u0000')
+        heldPassphrase = null
+    }
+
     fun exportCsv(range: ExportRange, uri: Uri) {
+        if (!tryStart()) return
         viewModelScope.launch(workContext) {
-            _uiState.update { it.copy(busy = true, message = null, isError = false) }
             val zone = clock.zone
             val now = clock.instant()
             val today = now.atZone(zone).toLocalDate()
@@ -79,6 +116,7 @@ class DataViewModel(
                     }
                 }
             } catch (e: CancellationException) {
+                _uiState.update { it.copy(busy = false) }
                 throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(busy = false, message = "Could not open the file", isError = true) }
@@ -87,8 +125,8 @@ class DataViewModel(
     }
 
     fun exportJson(uri: Uri) {
+        if (!tryStart()) return
         viewModelScope.launch(workContext) {
-            _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
                 val stream = opener.output(uri)
                 stream.use { out ->
@@ -102,6 +140,7 @@ class DataViewModel(
                     }
                 }
             } catch (e: CancellationException) {
+                _uiState.update { it.copy(busy = false) }
                 throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(busy = false, message = "Could not open the file", isError = true) }
@@ -110,8 +149,11 @@ class DataViewModel(
     }
 
     fun createBackup(uri: Uri, passphrase: CharArray) {
+        if (!tryStart()) {
+            passphrase.fill('\u0000')
+            return
+        }
         viewModelScope.launch(workContext) {
-            _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
                 val stream = opener.output(uri)
                 stream.use { out ->
@@ -131,18 +173,22 @@ class DataViewModel(
                     }
                 }
             } catch (e: CancellationException) {
-                passphrase.fill('\u0000')
+                _uiState.update { it.copy(busy = false) }
                 throw e
             } catch (_: Exception) {
-                passphrase.fill('\u0000')
                 _uiState.update { it.copy(busy = false, message = "Could not open the file", isError = true) }
+            } finally {
+                passphrase.fill('\u0000')
             }
         }
     }
 
     fun restoreBackup(uri: Uri, passphrase: CharArray) {
+        if (!tryStart()) {
+            passphrase.fill('\u0000')
+            return
+        }
         viewModelScope.launch(workContext) {
-            _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
                 val stream = opener.input(uri)
                 stream.use { input ->
@@ -172,17 +218,22 @@ class DataViewModel(
                     }
                 }
             } catch (e: CancellationException) {
-                passphrase.fill('\u0000')
+                _uiState.update { it.copy(busy = false) }
                 throw e
             } catch (_: Exception) {
-                passphrase.fill('\u0000')
                 _uiState.update { it.copy(busy = false, message = "Could not open the file", isError = true) }
+            } finally {
+                passphrase.fill('\u0000')
             }
         }
     }
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null, isError = false) }
+    }
+
+    fun showMessage(message: String, isError: Boolean = false) {
+        _uiState.update { it.copy(message = message, isError = isError) }
     }
 
     private fun mapExportError(error: EmberbyteError): String = when (error) {

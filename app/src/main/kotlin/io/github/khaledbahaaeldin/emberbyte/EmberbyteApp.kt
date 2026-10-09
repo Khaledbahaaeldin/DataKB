@@ -86,13 +86,17 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
     }
     val navController = rememberNavController()
 
-    DisposableEffect(navController, context) {
+    DisposableEffect(navController, context, startOnboarding) {
         val activity = context.findComponentActivity()
         val listener = Consumer<Intent> { intent ->
-            navController.openDeepLink(
-                intent = intent,
-                allowed = { navController.currentDestination?.route != Routes.ONBOARDING },
-            )
+            activity?.let {
+                handleNewIntent(
+                    activity = it,
+                    navController = navController,
+                    onboardingCompleted = !startOnboarding,
+                    intent = intent,
+                )
+            }
         }
         activity?.addOnNewIntentListener(listener)
         onDispose {

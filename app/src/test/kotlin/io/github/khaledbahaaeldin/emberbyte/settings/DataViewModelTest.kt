@@ -282,6 +282,69 @@ class DataViewModelTest {
         assertFalse(backup.lastInterceptor == dispatcher)
     }
 
+    @Test
+    fun holdPassphrase_keeps_passphrase_and_takeHeldPassphrase_returns_it_once() {
+        val vm = createViewModel()
+        val chars = "secret123".toCharArray()
+        vm.holdPassphrase(chars)
+        val taken = vm.takeHeldPassphrase()
+        org.junit.Assert.assertArrayEquals("secret123".toCharArray(), taken)
+        assertNull(vm.takeHeldPassphrase())
+    }
+
+    @Test
+    fun holdPassphrase_holding_second_passphrase_zeroes_the_first() {
+        val vm = createViewModel()
+        val first = "firstsecret".toCharArray()
+        val second = "secondsecret".toCharArray()
+        vm.holdPassphrase(first)
+        vm.holdPassphrase(second)
+        assertTrue(first.all { it == '\u0000' })
+        val taken = vm.takeHeldPassphrase()
+        org.junit.Assert.assertArrayEquals("secondsecret".toCharArray(), taken)
+    }
+
+    @Test
+    fun discardHeldPassphrase_zeroes_the_held_passphrase() {
+        val vm = createViewModel()
+        val chars = "secret123".toCharArray()
+        vm.holdPassphrase(chars)
+        vm.discardHeldPassphrase()
+        assertTrue(chars.all { it == '\u0000' })
+        assertNull(vm.takeHeldPassphrase())
+    }
+
+    @Test
+    fun onCleared_zeroes_whatever_passphrase_is_held() {
+        val vm = createViewModel()
+        val chars = "secret123".toCharArray()
+        vm.holdPassphrase(chars)
+        vm.onCleared()
+        assertTrue(chars.all { it == '\u0000' })
+        assertNull(vm.takeHeldPassphrase())
+    }
+
+    @Test
+    fun while_operation_is_running_second_call_is_ignored_and_passphrase_is_zeroed() = runTest(dispatcher) {
+        val vm = createViewModel()
+        val deferred = CompletableDeferred<Outcome<Unit>>()
+        backup.deferredBackup = deferred
+
+        val pass1 = "firstpass123".toCharArray()
+        val pass2 = "secondpass456".toCharArray()
+
+        vm.createBackup(Uri.parse("content://fake/backup1"), pass1)
+        // Immediately try second backup while first is in flight
+        vm.createBackup(Uri.parse("content://fake/backup2"), pass2)
+
+        assertTrue("Second passphrase must be zeroed immediately when ignored", pass2.all { it == '\u0000' })
+
+        deferred.complete(Outcome.Success(Unit))
+        advanceUntilIdle()
+
+        assertEquals(1, backup.createBackupCallCount)
+    }
+
     private class FakeExportService : ExportService {
         var lastCsvRange: DateRange? = null
         var deferredCsv: CompletableDeferred<Outcome<Unit>>? = null
@@ -309,13 +372,17 @@ class DataViewModelTest {
         var restoreBackupOutcome: Outcome<RestoreSummary> = Outcome.Success(RestoreSummary(0, 0, 0, 0))
         var capturedPassphrase: CharArray? = null
         var createBackupCalled = false
+        var createBackupCallCount = 0
         var restoreBackupCalled = false
         var lastInterceptor: ContinuationInterceptor? = null
+        var deferredBackup: CompletableDeferred<Outcome<Unit>>? = null
 
         override suspend fun createBackup(out: OutputStream, passphrase: CharArray): Outcome<Unit> {
             lastInterceptor = coroutineContext[ContinuationInterceptor]
             createBackupCalled = true
+            createBackupCallCount++
             capturedPassphrase = passphrase
+            deferredBackup?.await()
             val res = createBackupOutcome
             passphrase.fill('\u0000')
             return res

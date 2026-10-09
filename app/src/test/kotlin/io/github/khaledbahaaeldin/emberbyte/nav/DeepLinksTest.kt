@@ -13,7 +13,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import androidx.test.core.app.ApplicationProvider
+import io.github.khaledbahaaeldin.emberbyte.EmberbyteApplication
 import io.github.khaledbahaaeldin.emberbyte.MainActivity
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -105,6 +108,11 @@ class DeepLinksTest {
     }
 
     @Test fun on_new_intent_updates_intent_and_notifies_listener() {
+        val app = ApplicationProvider.getApplicationContext<Application>() as EmberbyteApplication
+        runBlocking {
+            app.graph.onboarding.complete()
+            app.graph.onboardingCompleted.first { it == true }
+        }
         val controller = Robolectric.buildActivity(MainActivity::class.java).create()
         val activity = controller.get()
         var delivered: Intent? = null

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import android.net.Uri
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -194,4 +195,30 @@ class DataSectionTest {
         rule.onNodeWithText("Dismiss").performClick()
         assertTrue(dismissed)
     }
+
+    @Test
+    fun backupPickerResult_returns_ignore_when_uri_is_null() {
+        val chars = "pass123".toCharArray()
+        assertEquals(BackupPickerAction.Ignore, backupPickerResult(null, null))
+        assertEquals(BackupPickerAction.Ignore, backupPickerResult(null, chars))
+    }
+
+    @Test
+    fun backupPickerResult_returns_delete_and_retry_when_uri_present_but_passphrase_null() {
+        val uri = Uri.parse("content://fake/backup")
+        val action = backupPickerResult(uri, null)
+        assertEquals(BackupPickerAction.DeleteAndRetry(uri), action)
+    }
+
+    @Test
+    fun backupPickerResult_returns_create_when_both_uri_and_passphrase_present() {
+        val uri = Uri.parse("content://fake/backup")
+        val chars = "pass123".toCharArray()
+        val action = backupPickerResult(uri, chars)
+        assertTrue(action is BackupPickerAction.Create)
+        val create = action as BackupPickerAction.Create
+        assertEquals(uri, create.uri)
+        assertArrayEquals(chars, create.passphrase)
+    }
 }
+

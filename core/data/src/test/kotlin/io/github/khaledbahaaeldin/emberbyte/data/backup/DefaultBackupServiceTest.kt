@@ -576,5 +576,21 @@ class DefaultBackupServiceTest {
         val json = """{"contractVersion":1,"exportedAt":"2026-10-15T12:00:00Z","plans":[{"id":1,"name":"Main","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[],"freeRules":[],"alertRules":[]},{"id":1,"name":"Second","subscriptionId":null,"capBytes":1000,"cycle":{"type":"monthlyOnDay","dayOfMonth":1,"time":"00:00","zone":"UTC"},"rollover":{"type":"none"},"archived":false,"addOns":[],"freeRules":[],"alertRules":[]}],"appBudgets":[],"usageHourly":[]}"""
         assertRestoreRefusedAsInvalidFileAndDbBUnchanged(sealJson(json))
     }
+
+    @Test
+    fun restore_stream_throwing_out_of_memory_error_yields_invalid_file_and_database_unchanged() = runBlocking {
+        val throwOnReadStream = object : java.io.InputStream() {
+            override fun read(): Int = throw OutOfMemoryError("fake OOM during read")
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw OutOfMemoryError("fake OOM during read")
+        }
+        val result = service(dbB).restoreBackup(throwOnReadStream, "passphrase123".toCharArray())
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is EmberbyteError.Invalid)
+        assertEquals("file", (error as EmberbyteError.Invalid).field)
+        assertEquals("The file is too large for this device", error.reason)
+        assertEquals(0, RoomPlanStore(dbB).observePlans().first().size)
+    }
 }
+
 

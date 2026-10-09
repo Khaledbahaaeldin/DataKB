@@ -173,6 +173,8 @@ class DefaultBackupService(
         }
     } catch (e: CancellationException) {
         throw e
+    } catch (e: OutOfMemoryError) {
+        Outcome.Failure(EmberbyteError.Invalid("file", "The file is too large for this device"))
     } catch (e: BackupFormatException) {
         Outcome.Failure(EmberbyteError.Invalid(e.field, e.message ?: "The backup is damaged"))
     } catch (e: ZipException) {
