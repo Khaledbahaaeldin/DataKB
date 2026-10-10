@@ -17,4 +17,5 @@ kotlin { jvmToolchain(17) }
 dependencies {
     implementation(project(":core:engine"))
     implementation(project(":core:data"))
+    testImplementation(libs.junit)
 }
