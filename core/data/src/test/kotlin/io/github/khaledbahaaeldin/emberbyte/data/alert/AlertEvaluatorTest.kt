@@ -113,10 +113,28 @@ class AlertEvaluatorTest {
         val e = AlertEvaluator(repo(october), interceptingStore)
         val first = async { e.evaluate() }
         firstStarted.await()
-        val second = async { e.evaluate() }
-        repeat(10) { kotlinx.coroutines.yield() }
-        assertEquals(1, maxConcurrent.get())
-        gate.complete(Unit)
+
+        val secondStarted = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val second = async {
+            secondStarted.complete(Unit)
+            e.evaluate()
+        }
+        secondStarted.await()
+
+        val settleWindowMs = 200L
+        val settleStart = System.currentTimeMillis()
+        kotlinx.coroutines.withTimeout(2_000) {
+            while (System.currentTimeMillis() - settleStart < settleWindowMs) {
+                if (maxConcurrent.get() > 1) break
+                kotlinx.coroutines.delay(5)
+            }
+        }
+
+        try {
+            assertEquals(1, maxConcurrent.get())
+        } finally {
+            gate.complete(Unit)
+        }
         val allNotices = first.await() + second.await()
         assertEquals(1, maxConcurrent.get())
         assertEquals(1, allNotices.size)

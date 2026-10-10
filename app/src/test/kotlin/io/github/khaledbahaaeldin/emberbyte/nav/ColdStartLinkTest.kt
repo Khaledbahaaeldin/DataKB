@@ -73,6 +73,10 @@ class ColdStartLinkTest {
             // Onboarding destination is active
             assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
 
+            // Feeding sanitized launch intent does not navigate to Settings because data was stripped
+            assertFalse(nav.handleDeepLink(sanitizedIntent))
+            assertEquals(Routes.ONBOARDING, nav.currentDestination?.route)
+
             // When onboarding finishes, navigate to Home
             nav.navigate(Destination.Home.route) {
                 popUpTo(Routes.ONBOARDING) { inclusive = true }
