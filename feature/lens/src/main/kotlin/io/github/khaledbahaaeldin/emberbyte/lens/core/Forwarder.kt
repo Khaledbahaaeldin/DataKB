@@ -28,6 +28,8 @@ class Forwarder(
     private val selector = Selector.open()
     private val flowTable = FlowTable(maxFlows, clock, evictedFlows)
 
+    val openFlows: Int get() = flowTable.size()
+
     // Uid cache per 5-tuple / connection
     private val uidCache = ConcurrentHashMap<FlowKey, Int>()
 
