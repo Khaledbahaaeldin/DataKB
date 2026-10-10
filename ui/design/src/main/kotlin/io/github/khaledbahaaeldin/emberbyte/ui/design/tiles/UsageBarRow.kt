@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -32,16 +33,24 @@ fun UsageBarRow(
     selectedIndex: Int?,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    scrollKey: Any? = null,
 ) {
     val max = (points.maxOfOrNull { it.bytes } ?: 0L).coerceAtLeast(1L)
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val count = points.size
         val totalNeeded = (count * 48).dp + ((count - 1).coerceAtLeast(0) * 8).dp
         val scrollable = totalNeeded > maxWidth
+        val scrollState = rememberScrollState()
+
+        if (scrollable) {
+            LaunchedEffect(points.size, scrollKey) {
+                scrollState.scrollTo(scrollState.maxValue)
+            }
+        }
 
         Row(
             modifier = if (scrollable) {
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                Modifier.fillMaxWidth().horizontalScroll(scrollState)
             } else {
                 Modifier.fillMaxWidth()
             },

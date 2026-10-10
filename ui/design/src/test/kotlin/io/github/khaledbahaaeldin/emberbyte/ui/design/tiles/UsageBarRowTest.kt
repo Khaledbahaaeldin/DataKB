@@ -3,10 +3,13 @@ package io.github.khaledbahaaeldin.emberbyte.ui.design.tiles
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -76,4 +79,62 @@ class UsageBarRowTest {
         rule.onNodeWithText("Mon").assertIsDisplayed()
         rule.onNodeWithText("7 days").assertIsDisplayed()
     }
+
+    @Test
+    fun row_with_many_bars_opens_scrolled_to_end() {
+        val bars = (1..60).map { BarUi(bytes = 100L * it, label = "$it", description = "Bar $it") }
+        rule.setContent {
+            Box(Modifier.size(360.dp, 200.dp)) {
+                UsageBarRow(points = bars, selectedIndex = null, onSelect = {})
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Bar 60").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Bar 1").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun switching_key_or_granularity_rescrolls_to_end() {
+        val barsDay = (1..60).map { BarUi(bytes = 100L * it, label = "D$it", description = "Day $it") }
+        val barsWeek = (1..20).map { BarUi(bytes = 100L * it, label = "W$it", description = "Week $it") }
+        var currentBars by androidx.compose.runtime.mutableStateOf(barsDay)
+        var scrollKey by androidx.compose.runtime.mutableStateOf("DAY")
+
+        rule.setContent {
+            Box(Modifier.size(360.dp, 200.dp)) {
+                UsageBarRow(points = currentBars, selectedIndex = null, onSelect = {}, scrollKey = scrollKey)
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Day 60").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Day 1").assertIsNotDisplayed()
+
+        currentBars = barsWeek
+        scrollKey = "WEEK"
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Week 20").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Week 1").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun selecting_a_bar_does_not_jump_scroll_position() {
+        val bars = (1..60).map { BarUi(bytes = 100L * it, label = "$it", description = "Bar $it") }
+        var selected by androidx.compose.runtime.mutableStateOf<Int?>(null)
+
+        rule.setContent {
+            Box(Modifier.size(360.dp, 200.dp)) {
+                UsageBarRow(points = bars, selectedIndex = selected, onSelect = { selected = it })
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Bar 60").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Bar 1").assertIsNotDisplayed()
+
+        // Select the last bar
+        selected = 59
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Bar 60").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Bar 1").assertIsNotDisplayed()
+    }
 }
+
