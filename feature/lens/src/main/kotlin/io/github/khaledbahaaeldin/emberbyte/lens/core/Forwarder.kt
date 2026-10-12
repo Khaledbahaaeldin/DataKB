@@ -22,6 +22,8 @@ class Forwarder(
 ) {
     val evictedFlows = AtomicLong(0)
     val errors = AtomicLong(0)
+    val selectorWakeups = AtomicLong(0)
+    val droppedSegments = AtomicLong(0)
 
     private val running = AtomicBoolean(false)
     private val tunWriteLock = Any()
@@ -155,7 +157,8 @@ class Forwarder(
                     clock = clock,
                     mtu = mtu,
                     selector = selector,
-                    tunWriteLock = tunWriteLock
+                    tunWriteLock = tunWriteLock,
+                    droppedSegmentsCounter = droppedSegments
                 )
                 flowTable.putTcp(key, newFlow)
                 newFlow.startConnect(tcp.mss, tcp.seq)
@@ -235,6 +238,7 @@ class Forwarder(
                 } catch (e: ClosedSelectorException) {
                     break
                 }
+                selectorWakeups.incrementAndGet()
 
                 drainNetworkTasks()
 

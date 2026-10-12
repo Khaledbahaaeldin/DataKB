@@ -12,6 +12,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.ArrayDeque
 import java.util.TreeMap
+import java.util.concurrent.atomic.AtomicLong
 
 class TcpFlow(
     val flowId: Long,
@@ -24,7 +25,8 @@ class TcpFlow(
     val clock: Clock,
     val mtu: Int,
     val selector: Selector,
-    val tunWriteLock: Any
+    val tunWriteLock: Any,
+    val droppedSegmentsCounter: AtomicLong? = null
 ) {
     enum class State {
         SYN_RECEIVED,
@@ -54,12 +56,13 @@ class TcpFlow(
     var mySeq: Long = 100000L
     var myAck: Long = 0L
 
-    // Client receive window
+    // Client receive window (advertised by client / app)
     var clientWindow: Int = 65535
+    var sndWnd: Int = 65535
 
     // Buffers:
     // 1) App to socket (Upstream / TX):
-    // Client sends data -> we buffer up to 256 KiB -> write to SocketChannel
+    // Client sends data -> buffer up to 256 KiB -> write to SocketChannel
     private val upstreamQueue = ArrayDeque<ByteArray>()
     private var upstreamBufferedBytes = 0
     private val maxBufferSize = 256 * 1024
@@ -67,29 +70,43 @@ class TcpFlow(
     // Out-of-order queue for segments from client
     // key = seq, value = data
     private val outOfOrderSegments = TreeMap<Long, ByteArray> { a, b ->
-        val diff = (a - b).toInt()
-        diff
+        (a - b).toInt()
     }
+    // Out-of-order FIN sequence number if received ahead of time
+    private var pendingClientFinSeq: Long? = null
+
+    // Last advertised rcvWnd to client
+    private var lastAdvertisedRcvWnd: Int = 65535
 
     // 2) Socket to app (Downstream / RX):
-    // SocketChannel read -> chunk into MSS segments -> in-flight queue waiting for client ACK
-    // Retransmission queue
+    // Downstream buffer holding data read from server socket not yet sent to TUN
+    private val downstreamQueue = ArrayDeque<ByteArray>()
+    private var downstreamQueueOffset = 0 // offset within first chunk of downstreamQueue
+    private var downstreamBufferedBytes = 0
+
+    // Retransmission queue (in flight packets sent to TUN, unacknowledged by client)
     data class InFlightSegment(
         val seq: Long,
         val payload: ByteArray,
         val isFin: Boolean,
         var sendTimeMs: Long = System.currentTimeMillis(),
-        var rtoMs: Long = 1000L,
+        var rtoMs: Long = 200L,
         var attempts: Int = 1
     )
     private val inFlightSegments = ArrayDeque<InFlightSegment>()
     private var inFlightBytes = 0
+
+    // Zero-window probe tracking
+    private var zeroWindowProbeSentTimeMs: Long = 0L
+    private var zeroWindowRtoMs: Long = 1000L
 
     var channel: SocketChannel? = null
     var selectionKey: SelectionKey? = null
 
     private var parsedSni = false
     private val writeBuffer = ByteBuffer.allocate(mtu + 200)
+
+    private var serverEofProcessed = false
 
     init {
         listener.onFlowOpened(FlowInfo(flowId, ownerUid, 6, src, dst, openedAt))
@@ -123,7 +140,7 @@ class TcpFlow(
         try {
             if (channel?.finishConnect() == true) {
                 state = State.ESTABLISHED
-                selectionKey?.interestOps(SelectionKey.OP_READ)
+                updateSelectionInterest()
                 sendSynAck()
             } else {
                 sendRstAck()
@@ -159,6 +176,7 @@ class TcpFlow(
 
         // Update client window
         clientWindow = tcp.window
+        sndWnd = tcp.window
 
         // Handle ACK
         if ((tcp.flags and TcpFlags.ACK) != 0) {
@@ -187,11 +205,28 @@ class TcpFlow(
             handleFinFromClient(tcp.seq, tcp.payloadLength)
         }
 
-        // Try pumping downstream data if window opened
-        pumpSocketToTun()
+        // Send any pending downstream data or update interest ops
+        sendPendingDownstreamData()
+        updateSelectionInterest()
     }
 
+    private var lastAckNum: Long = -1L
+    private var dupAckCount: Int = 0
+
     private fun handleAckFromClient(ackNum: Long) {
+        if (ackNum == lastAckNum && inFlightSegments.isNotEmpty()) {
+            dupAckCount++
+            if (dupAckCount == 3) {
+                // Fast retransmit the head unacknowledged segment immediately
+                val headSeg = inFlightSegments.first()
+                sendSegmentToTun(headSeg)
+                headSeg.sendTimeMs = System.currentTimeMillis()
+            }
+        } else if (lastAckNum == -1L || (ackNum - lastAckNum).toInt() > 0) {
+            lastAckNum = ackNum
+            dupAckCount = 0
+        }
+
         // Remove acknowledged segments from inFlightSegments
         while (inFlightSegments.isNotEmpty()) {
             val seg = inFlightSegments.first()
@@ -210,36 +245,38 @@ class TcpFlow(
         } else if (state == State.CLOSING && inFlightSegments.none { it.isFin }) {
             enterTimeWait()
         }
+
+        // Space in inFlightBytes might have opened up, try sending queued downstream data
+        sendPendingDownstreamData()
     }
 
     private fun processClientData(seq: Long, data: ByteArray) {
         val diff = (seq - myAck).toInt()
         if (diff == 0) {
             // In order
-            if (acceptClientPayload(data)) {
-                myAck = (myAck + data.size) and 0xFFFFFFFFL
+            acceptClientPayload(data)
+            myAck = (myAck + data.size) and 0xFFFFFFFFL
 
-                // Drain out-of-order queue if contiguous
-                while (outOfOrderSegments.isNotEmpty()) {
-                    val nextEntry = outOfOrderSegments.firstEntry() ?: break
-                    val nextDiff = (nextEntry.key - myAck).toInt()
-                    if (nextDiff == 0) {
-                        if (acceptClientPayload(nextEntry.value)) {
-                            outOfOrderSegments.pollFirstEntry()
-                            myAck = (myAck + nextEntry.value.size) and 0xFFFFFFFFL
-                        } else {
-                            break
-                        }
-                    } else if (nextDiff < 0) {
-                        outOfOrderSegments.pollFirstEntry()
-                    } else {
-                        break
-                    }
+            // Drain out-of-order queue if contiguous
+            while (outOfOrderSegments.isNotEmpty()) {
+                val nextEntry = outOfOrderSegments.firstEntry() ?: break
+                val nextDiff = (nextEntry.key - myAck).toInt()
+                if (nextDiff == 0) {
+                    acceptClientPayload(nextEntry.value)
+                    outOfOrderSegments.pollFirstEntry()
+                    myAck = (myAck + nextEntry.value.size) and 0xFFFFFFFFL
+                } else if (nextDiff < 0) {
+                    outOfOrderSegments.pollFirstEntry()
+                } else {
+                    break
                 }
-                // Send ACK back to client
-                sendAck()
             }
-            // If buffer full, do not advance myAck and do not ACK, app TCP will pause
+
+            // Check if pending client FIN can now be accepted
+            checkPendingClientFin()
+
+            // Send ACK back to client
+            sendAck()
         } else if (diff < 0) {
             // Duplicate segment: re-acknowledge and ignore
             sendAck()
@@ -253,20 +290,29 @@ class TcpFlow(
         }
     }
 
-    private fun acceptClientPayload(data: ByteArray): Boolean {
+    private fun acceptClientPayload(data: ByteArray) {
+        upstreamQueue.addLast(data)
+        upstreamBufferedBytes += data.size
+        listener.onBytes(flowId, rxBytes = 0, txBytes = data.size.toLong())
         flushUpstreamToSocket()
-        if (upstreamBufferedBytes + data.size <= maxBufferSize) {
-            upstreamQueue.addLast(data)
-            upstreamBufferedBytes += data.size
-            listener.onBytes(flowId, rxBytes = 0, txBytes = data.size.toLong())
-            flushUpstreamToSocket()
-            return true
+    }
+
+    private fun calculateRcvWnd(): Int {
+        val freeSpace = maxBufferSize - upstreamBufferedBytes
+        return minOf(65535, maxOf(0, freeSpace))
+    }
+
+    private fun checkWindowUpdateAfterDrain(oldRcvWnd: Int) {
+        val newRcvWnd = calculateRcvWnd()
+        val mss = minOf(localMss, peerMss)
+        if ((oldRcvWnd < mss && newRcvWnd >= mss) || (oldRcvWnd > 0 && newRcvWnd >= oldRcvWnd * 2)) {
+            sendAck()
         }
-        return false
     }
 
     fun flushUpstreamToSocket() {
         val ch = channel ?: return
+        val oldRcvWnd = calculateRcvWnd()
         try {
             while (upstreamQueue.isNotEmpty()) {
                 val chunk = upstreamQueue.first()
@@ -288,17 +334,17 @@ class TcpFlow(
                 }
             }
 
-            if (upstreamQueue.isNotEmpty()) {
-                selectionKey?.interestOps((selectionKey?.interestOps() ?: 0) or SelectionKey.OP_WRITE)
-            } else {
-                selectionKey?.interestOps((selectionKey?.interestOps() ?: 0) and SelectionKey.OP_WRITE.inv())
+            checkWindowUpdateAfterDrain(oldRcvWnd)
+
+            if (upstreamQueue.isEmpty()) {
+                checkPendingClientFin()
                 if (state == State.CLOSE_WAIT) {
-                    // Client had sent FIN and we finished writing client data to socket
                     try {
                         ch.shutdownOutput()
                     } catch (_: Exception) {}
                 }
             }
+            updateSelectionInterest()
         } catch (e: Exception) {
             sendRst()
             close()
@@ -306,9 +352,39 @@ class TcpFlow(
     }
 
     private fun handleFinFromClient(seq: Long, payloadLen: Int) {
-        myAck = (seq + payloadLen + 1) and 0xFFFFFFFFL
-        sendAck()
+        val finSeq = (seq + payloadLen) and 0xFFFFFFFFL
+        val diff = (finSeq - myAck).toInt()
+        if (diff == 0) {
+            if (upstreamQueue.isEmpty()) {
+                applyClientFin()
+                sendAck()
+            } else {
+                pendingClientFinSeq = finSeq
+                // Do not ACK FIN yet: unrelayed data is still in upstreamQueue!
+                sendAck()
+            }
+        } else if (diff > 0) {
+            // Out-of-order FIN: missing data before it. Hold it until gap filled.
+            pendingClientFinSeq = finSeq
+            sendAck()
+        } else {
+            // Duplicate FIN: re-ACK
+            sendAck()
+        }
+    }
 
+    private fun checkPendingClientFin() {
+        val finSeq = pendingClientFinSeq ?: return
+        val diff = (finSeq - myAck).toInt()
+        if (diff == 0 && upstreamQueue.isEmpty()) {
+            pendingClientFinSeq = null
+            applyClientFin()
+            sendAck()
+        }
+    }
+
+    private fun applyClientFin() {
+        myAck = (myAck + 1) and 0xFFFFFFFFL
         when (state) {
             State.ESTABLISHED -> {
                 state = State.CLOSE_WAIT
@@ -326,6 +402,7 @@ class TcpFlow(
             }
             else -> {}
         }
+        updateSelectionInterest()
     }
 
     fun onSocketReadable() {
@@ -342,7 +419,7 @@ class TcpFlow(
         }
 
         if (readBytes == -1) {
-            // EOF from server -> send FIN to client
+            // EOF from server -> clear OP_READ, send FIN to client
             onServerEof()
             return
         }
@@ -352,33 +429,65 @@ class TcpFlow(
             val data = ByteArray(readBytes)
             readBuf.get(data)
             listener.onBytes(flowId, rxBytes = readBytes.toLong(), txBytes = 0)
-            queueDownstreamData(data)
+            downstreamQueue.addLast(data)
+            downstreamBufferedBytes += readBytes
+            sendPendingDownstreamData()
+            updateSelectionInterest()
         }
     }
 
-    private fun queueDownstreamData(data: ByteArray) {
-        var offset = 0
+    private fun sendPendingDownstreamData() {
+        val effectiveWindow = minOf(sndWnd, 256 * 1024)
         val mss = minOf(localMss, peerMss)
-        while (offset < data.size) {
-            val len = minOf(mss, data.size - offset)
-            val chunk = ByteArray(len)
-            System.arraycopy(data, offset, chunk, 0, len)
+
+        while (downstreamQueue.isNotEmpty()) {
+            val allowedInFlight = effectiveWindow - inFlightBytes
+            if (allowedInFlight <= 0) break
+
+            val firstChunk = downstreamQueue.first()
+            val chunkRemaining = firstChunk.size - downstreamQueueOffset
+            val toSend = minOf(mss, minOf(allowedInFlight, chunkRemaining))
+            if (toSend <= 0) break
+
+            val payload = ByteArray(toSend)
+            System.arraycopy(firstChunk, downstreamQueueOffset, payload, 0, toSend)
+            downstreamQueueOffset += toSend
+            downstreamBufferedBytes -= toSend
+
+            if (downstreamQueueOffset >= firstChunk.size) {
+                downstreamQueue.removeFirst()
+                downstreamQueueOffset = 0
+            }
+
             val seg = InFlightSegment(
                 seq = mySeq,
-                payload = chunk,
+                payload = payload,
                 isFin = false
             )
             inFlightSegments.addLast(seg)
-            inFlightBytes += len
-            mySeq = (mySeq + len) and 0xFFFFFFFFL
-            offset += len
+            inFlightBytes += toSend
+            mySeq = (mySeq + toSend) and 0xFFFFFFFFL
 
-            // Send segment immediately if window permits
             sendSegmentToTun(seg)
+        }
+
+        // If downstream buffer has emptied and server gave EOF, emit FIN if not yet emitted
+        if (serverEofProcessed && downstreamQueue.isEmpty() && state == State.ESTABLISHED) {
+            emitServerFin()
         }
     }
 
     private fun onServerEof() {
+        if (serverEofProcessed) return
+        serverEofProcessed = true
+        updateSelectionInterest()
+
+        if (downstreamQueue.isEmpty()) {
+            emitServerFin()
+        }
+    }
+
+    private fun emitServerFin() {
         val seg = InFlightSegment(
             seq = mySeq,
             payload = ByteArray(0),
@@ -394,11 +503,13 @@ class TcpFlow(
             State.CLOSE_WAIT -> enterTimeWait()
             else -> {}
         }
+        updateSelectionInterest()
     }
 
     private fun enterTimeWait() {
         state = State.TIME_WAIT
         closedAt = clock.instant()
+        updateSelectionInterest()
     }
 
     private fun sendSegmentToTun(seg: InFlightSegment) {
@@ -407,21 +518,46 @@ class TcpFlow(
     }
 
     fun pumpSocketToTun() {
-        // Can pause or unpause selector reading if inFlightBytes is too high
-        val ch = channel ?: return
-        if (inFlightBytes >= maxBufferSize || clientWindow == 0) {
-            selectionKey?.interestOps((selectionKey?.interestOps() ?: 0) and SelectionKey.OP_READ.inv())
-        } else {
-            selectionKey?.interestOps((selectionKey?.interestOps() ?: 0) or SelectionKey.OP_READ)
+        sendPendingDownstreamData()
+        updateSelectionInterest()
+    }
+
+    fun updateSelectionInterest() {
+        val key = selectionKey ?: return
+        if (!key.isValid) return
+
+        var ops = 0
+        if (upstreamQueue.isNotEmpty()) {
+            ops = ops or SelectionKey.OP_WRITE
         }
+
+        val effectiveWindow = minOf(sndWnd, 256 * 1024)
+        val canReadDownlink = !serverEofProcessed &&
+                state != State.CLOSED &&
+                state != State.TIME_WAIT &&
+                state != State.FIN_WAIT_1 &&
+                state != State.FIN_WAIT_2 &&
+                state != State.CLOSING &&
+                (downstreamBufferedBytes + inFlightBytes < 256 * 1024) &&
+                (effectiveWindow > inFlightBytes || (sndWnd == 0 && downstreamBufferedBytes < 64 * 1024))
+
+        if (canReadDownlink) {
+            ops = ops or SelectionKey.OP_READ
+        }
+
+        try {
+            key.interestOps(ops)
+        } catch (_: Exception) {}
     }
 
     fun checkRetransmissions() {
         val nowMs = System.currentTimeMillis()
+
+        // 1. Regular retransmissions of unacknowledged in-flight segments
         for (seg in inFlightSegments) {
             val elapsed = nowMs - seg.sendTimeMs
             if (elapsed >= seg.rtoMs) {
-                if (seg.attempts >= 5) {
+                if (seg.attempts >= 10) {
                     sendRst()
                     close()
                     return
@@ -431,6 +567,32 @@ class TcpFlow(
                 seg.sendTimeMs = nowMs
                 sendSegmentToTun(seg)
             }
+        }
+
+        // 2. Zero-window probing:
+        // When client advertised window is 0 and we have buffered downstream data waiting to be sent
+        if (sndWnd == 0 && downstreamQueue.isNotEmpty()) {
+            if (zeroWindowProbeSentTimeMs == 0L) {
+                zeroWindowProbeSentTimeMs = nowMs
+            }
+            val elapsed = nowMs - zeroWindowProbeSentTimeMs
+            if (elapsed >= zeroWindowRtoMs) {
+                // Send 1-byte probe from downstream buffer without removing from queue
+                val firstChunk = downstreamQueue.first()
+                val probeByte = byteArrayOf(firstChunk[downstreamQueueOffset])
+                // Sequence number is mySeq
+                sendTcpPacket(
+                    flags = TcpFlags.ACK or TcpFlags.PSH,
+                    seq = mySeq,
+                    ack = myAck,
+                    payload = probeByte
+                )
+                zeroWindowProbeSentTimeMs = nowMs
+                zeroWindowRtoMs = minOf(30000L, zeroWindowRtoMs * 2)
+            }
+        } else {
+            zeroWindowProbeSentTimeMs = 0L
+            zeroWindowRtoMs = 1000L
         }
     }
 
@@ -445,6 +607,9 @@ class TcpFlow(
         payload: ByteArray = ByteArray(0),
         options: ByteArray = ByteArray(0)
     ) {
+        val rcvWnd = calculateRcvWnd()
+        lastAdvertisedRcvWnd = rcvWnd
+
         synchronized(tunWriteLock) {
             writeBuffer.clear()
             val totalLen = PacketWriter.writeTcp(
@@ -454,7 +619,7 @@ class TcpFlow(
                 seq = seq,
                 ack = ack,
                 flags = flags,
-                window = 65535,
+                window = rcvWnd,
                 payload = payload,
                 options = options
             )
