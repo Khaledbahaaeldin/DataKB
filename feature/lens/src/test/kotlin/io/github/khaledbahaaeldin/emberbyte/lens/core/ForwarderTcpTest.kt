@@ -1214,9 +1214,11 @@ class ForwarderTcpTest {
         val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
         val serverPort = server.localPort
 
+        val serverStartedWritingLatch = CountDownLatch(1)
         val serverThread = Thread {
             val client = server.accept()
             val output = client.getOutputStream()
+            serverStartedWritingLatch.await(5, TimeUnit.SECONDS)
             val chunk = ByteArray(8192) { 0x5A }
             for (i in 0 until 10) {
                 output.write(chunk)
@@ -1238,8 +1240,9 @@ class ForwarderTcpTest {
         try {
             assertTrue(sim.connect())
 
-            // Unsubscribe Sim's automatic ACKing so unacknowledged bytes can build up
-            fakeTun.unsubscribe(sim::class.java.getDeclaredField("packetSubscriber").apply { isAccessible = true }.get(sim) as (ByteArray) -> Unit)
+            // Disable Sim's automatic ACKing before server writes, so in-flight bytes build up without being ACKed
+            sim.autoAck = false
+            serverStartedWritingLatch.countDown()
 
             // Let server write chunks
             Thread.sleep(300)
@@ -1309,8 +1312,8 @@ class ForwarderTcpTest {
             sim.updateWindow(0)
             Thread.sleep(100)
 
-            // Unsubscribe sim automatic responses so window stays 0 and client doesn't ACK probes
-            fakeTun.unsubscribe(sim::class.java.getDeclaredField("packetSubscriber").apply { isAccessible = true }.get(sim) as (ByteArray) -> Unit)
+            // Disable sim automatic responses so window stays 0 and client doesn't ACK probes
+            sim.autoAck = false
 
             // Signal server to write now that window is 0
             windowZeroLatch.countDown()
@@ -1393,16 +1396,34 @@ class ForwarderTcpTest {
             }
 
             // Check advertised window in packets received from forwarder
-            val advertisedWindows = fakeTun.fromForwarder.mapNotNull { pkt ->
+            val forwarderPackets = fakeTun.fromForwarder.mapNotNull { pkt ->
                 val buf = ByteBuffer.wrap(pkt)
                 val parsed = PacketParser().parse(buf, pkt.size)
                 if (parsed is ParsedPacket.Tcp && parsed.src == sim.dst && parsed.dst == sim.src) {
-                    parsed.window
+                    parsed
                 } else null
             }
+            val advertisedWindows = forwarderPackets.map { it.window }
             // In unfixed code, advertised window is hardcoded to 65535 on all packets
             val hasVaryingWindow = advertisedWindows.any { it < 65535 }
             assertTrue("Advertised window should reflect upload buffer free space and be < 65535 when buffer fills", hasVaryingWindow)
+
+            // Assert a pure-ACK window update was sent (payloadLength == 0 with reopened window after throttling)
+            val pureAckWindowUpdates = forwarderPackets.filter { it.payloadLength == 0 && (it.flags and TcpFlags.ACK) != 0 && it.window > 0 }
+            assertTrue("Pure-ACK window update must be sent when upload buffer space frees up", pureAckWindowUpdates.isNotEmpty())
+
+            // Assert retransmissions seen by client stayed under 1% of total segments
+            val totalClientSegments = fakeTun.toForwarder.mapNotNull { pkt ->
+                val buf = ByteBuffer.wrap(pkt)
+                val parsed = PacketParser().parse(buf, pkt.size)
+                if (parsed is ParsedPacket.Tcp && parsed.src == sim.src && parsed.dst == sim.dst && parsed.payloadLength > 0) {
+                    parsed
+                } else null
+            }
+            val uniqueSeqs = totalClientSegments.map { it.seq }.toSet()
+            val clientRetransmissions = totalClientSegments.size - uniqueSeqs.size
+            val retransmissionRate = if (totalClientSegments.isNotEmpty()) clientRetransmissions.toDouble() / totalClientSegments.size else 0.0
+            assertTrue("Retransmissions seen by client ($clientRetransmissions / ${totalClientSegments.size} = $retransmissionRate) must stay under 1%", retransmissionRate < 0.01)
 
             assertEquals("Dropped segments must be 0", 0L, forwarder.droppedSegments.get())
         } finally {

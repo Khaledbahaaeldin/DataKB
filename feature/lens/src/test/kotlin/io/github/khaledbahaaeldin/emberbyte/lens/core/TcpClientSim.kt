@@ -31,6 +31,7 @@ class TcpClientSim(
     val handshakedLatch = CountDownLatch(1)
     val finReceivedLatch = CountDownLatch(1)
     val rstReceivedLatch = CountDownLatch(1)
+    var autoAck: Boolean = true
     private val clientIncomingQueue = LinkedBlockingQueue<ByteArray>()
 
     private val packetSubscriber: (ByteArray) -> Unit = { pkt ->
@@ -147,7 +148,9 @@ class TcpClientSim(
             } else if (diff > 0) {
                 pendingSegments[tcp.seq] = payload
             }
-            sendPacket(flags = TcpFlags.ACK)
+            if (autoAck) {
+                sendPacket(flags = TcpFlags.ACK)
+            }
         }
 
         if ((tcp.flags and TcpFlags.FIN) != 0) {
