@@ -4,9 +4,14 @@ import threading
 import socket
 import os
 import sys
+import tempfile
 
 PORT = 8000
-SERVE_DIR = os.environ.get("SPIKE_SERVE_DIR", os.path.dirname(os.path.abspath(__file__)))
+_default_dir = os.path.dirname(os.path.abspath(__file__))
+_temp_spike = os.path.join(tempfile.gettempdir(), "emberbyte_spike")
+if not os.path.exists(os.path.join(_default_dir, "small.bin")) and os.path.exists(os.path.join(_temp_spike, "small.bin")):
+    _default_dir = _temp_spike
+SERVE_DIR = os.environ.get("SPIKE_SERVE_DIR", _default_dir)
 
 class SpikeHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):

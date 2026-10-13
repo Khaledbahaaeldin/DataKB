@@ -1,0 +1,112 @@
+==================================================================
+Emberbyte M5 Live Lens Measurement Harness (Reproducible Runner)
+Device: emulator-5554 | Host Server: 10.0.2.2:8000
+==================================================================
+[Init] Device tools verified (/data/local/tmp/curl, toybox).
+[Control] Expected small.bin SHA-256: 24579de84a480f0baf28c16bfdcb6cf2f6722e90ad7c8d1dd411a4e7247e2e65
+[Control] Expected big.bin   SHA-256: 1766ba2079424ef06fb72c4d8a8a20daa2a0b54b096a70d771775562390de92b
+
+--- STEP 0: INTEGRITY CONTROLS (Lens OFF) ---
+[Control Wi-Fi] small.bin: 24579de84a480f0baf28c16bfdcb6cf2f6722e90ad7c8d1dd411a4e7247e2e65 (Match: True)
+[Control Wi-Fi] big.bin:   1766ba2079424ef06fb72c4d8a8a20daa2a0b54b096a70d771775562390de92b (Match: True)
+[Control eth0]  small.bin: 1ec54c58b37cdb7672c248a497632722674834965eb8deb5e39e2c14007259ab (Match: False)
+[Control eth0]  big.bin:   e395e60387ff660379c7ec7babf6a0d50b6e89cd51e0056601aa721e2e2fe7b1 (Match: False)
+  WARNING: eth0 path altered TCP stream! Marked NOT USABLE FOR INTEGRITY.
+
+--- STEP 1: CORRECTNESS SUITE ---
+
+[1.1] Small file integrity test:
+  Hash received: 24579de84a480f0baf28c16bfdcb6cf2f6722e90ad7c8d1dd411a4e7247e2e65
+  TUN Tx delta: 106768 bytes (proven crossed TUN: True)
+
+[1.2] 100 MB large file integrity test:
+  Hash received: 1766ba2079424ef06fb72c4d8a8a20daa2a0b54b096a70d771775562390de92b
+  TUN Tx delta: 108019475 bytes (proven crossed TUN: True)
+
+[1.3] HTTPS public site (curl https://example.com):
+  Result code: 000
+
+[1.4] DNS resolution:
+  Result code: 000
+
+[1.5] 200 parallel downloads:
+  Dump after 200 flows: {'flg': 0, 'result': 0, 'open': 21, 'evicted': 0, 'errors': 0, 'tunRx': 113995, 'tunTx': 1509516, 'opened': 644, 'knownUid': 642, 'unknownUid': 2}
+
+[1.6] Resumed download (curl -C -):
+  Resumed hash: 24579de84a480f0baf28c16bfdcb6cf2f6722e90ad7c8d1dd411a4e7247e2e65
+
+[1.7] Upload 20MB (curl -T):
+  Upload result code: 200
+
+[1.8] UDP exchange:
+  UDP echo reply: 
+
+[1.9] IPv6 routing:
+
+[1.10] Ping (ICMP dropped expected):
+  Ping output: PING 10.0.2.2 (10.0.2.2) 56(84) bytes of data.
+
+--- 10.0.2.2 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1026ms
+
+[1.11] Force-stop cleanup:
+  tun0 before: True, tun0 after: False, vpn_net: 
+
+--- STEP 2: PERFORMANCE BENCHMARKING (3 repetitions each) ---
+
+[Run A] Baseline (Lens OFF) on Wi-Fi path:
+  Rep 1: 4064585 B/s (3.88 MB/s, 32.52 Mbit/s)
+  Rep 2: 4027868 B/s (3.84 MB/s, 32.22 Mbit/s)
+  Rep 3: 4007788 B/s (3.82 MB/s, 32.06 Mbit/s)
+  Average Baseline (Wi-Fi): 4033414 B/s (3.85 MB/s, 32.27 Mbit/s)
+
+[Run B] Lens ON on Wi-Fi path:
+  Emberbyte PID: 9813
+  Rep 1: 6536027 B/s (6.23 MB/s) | CPU transfer: 17.56s | CPU quiet: 17.57s | PSS: 110119 kB
+    Busiest threads: [('9847', 'Forwarder-Netwo', 15.32, '0:15.32'), ('9817', 'Jit thread pool', 1.7, '0:01.70'), ('9848', 'Forwarder-TunRe', 1.68, '0:01.68'), ('9813', 'eldin.emberbyte', 1.03, '0:01.03'), ('9818', 'HeapTaskDaemon', 0.3, '0:00.30')]
+  Rep 2: 6264660 B/s (5.97 MB/s) | CPU transfer: 17.77s | CPU quiet: 17.78s | PSS: 110071 kB
+    Busiest threads: [('9847', 'Forwarder-Netwo', 31.26, '0:31.26'), ('9848', 'Forwarder-TunRe', 3.24, '0:03.24'), ('9817', 'Jit thread pool', 1.71, '0:01.71'), ('9813', 'eldin.emberbyte', 1.03, '0:01.03'), ('9818', 'HeapTaskDaemon', 0.56, '0:00.56')]
+  Rep 3: 6624756 B/s (6.32 MB/s) | CPU transfer: 16.96s | CPU quiet: 16.96s | PSS: 110169 kB
+    Busiest threads: [('9847', 'Forwarder-Netwo', 46.45, '0:46.45'), ('9848', 'Forwarder-TunRe', 4.68, '0:04.68'), ('9817', 'Jit thread pool', 1.73, '0:01.73'), ('9813', 'eldin.emberbyte', 1.03, '0:01.03'), ('9818', 'HeapTaskDaemon', 0.86, '0:00.86')]
+  Average Lens ON (Wi-Fi): 6475148 B/s (6.18 MB/s, 51.80 Mbit/s)
+  Average CPU per 100 MiB (Wi-Fi): 17.44 s
+
+[Run C] Lens ON on eth0 path (Wi-Fi disabled):
+  Baseline eth0 Rep 1: 16620133 B/s (15.85 MB/s, 132.96 Mbit/s)
+  Baseline eth0 Rep 2: 17419188 B/s (16.61 MB/s, 139.35 Mbit/s)
+  Baseline eth0 Rep 3: 17475391 B/s (16.67 MB/s, 139.80 Mbit/s)
+  Average Baseline (eth0): 17171571 B/s (16.38 MB/s, 137.37 Mbit/s)
+  Rep 1: 8853024 B/s (8.44 MB/s) | CPU transfer: 13.32s | CPU quiet: 13.33s | PSS: 110179 kB
+    Busiest threads: [('9981', 'Forwarder-Netwo', 11.78, '0:11.78'), ('9817', 'Jit thread pool', 1.77, '0:01.77'), ('9983', 'Forwarder-TunRe', 1.4, '0:01.40'), ('9813', 'eldin.emberbyte', 1.08, '0:01.08'), ('9818', 'HeapTaskDaemon', 1.01, '0:01.01')]
+  Rep 2: 10230860 B/s (9.76 MB/s) | CPU transfer: 11.70s | CPU quiet: 11.70s | PSS: 109631 kB
+    Busiest threads: [('9981', 'Forwarder-Netwo', 21.92, '0:21.92'), ('9983', 'Forwarder-TunRe', 2.69, '0:02.69'), ('9817', 'Jit thread pool', 1.77, '0:01.77'), ('9818', 'HeapTaskDaemon', 1.29, '0:01.29'), ('9813', 'eldin.emberbyte', 1.08, '0:01.08')]
+  Rep 3: 9938262 B/s (9.48 MB/s) | CPU transfer: 11.87s | CPU quiet: 11.87s | PSS: 109327 kB
+    Busiest threads: [('9981', 'Forwarder-Netwo', 32.36, '0:32.36'), ('9983', 'Forwarder-TunRe', 3.82, '0:03.82'), ('9817', 'Jit thread pool', 1.77, '0:01.77'), ('9818', 'HeapTaskDaemon', 1.59, '0:01.59'), ('9813', 'eldin.emberbyte', 1.08, '0:01.08')]
+
+Checking flow table return to ~0 after idleness on eth0:
+  Dump immediately after traffic: {'flg': 0, 'result': 0, 'open': 4, 'evicted': 0, 'errors': 0, 'tunRx': 3881713, 'tunTx': 324325683, 'opened': 5, 'knownUid': 5, 'unknownUid': 0}
+  Waiting 60 seconds for idle flow eviction...
+  Dump after 60s idle: {'flg': 0, 'result': 0, 'open': 1, 'evicted': 0, 'errors': 0, 'tunRx': 3881761, 'tunTx': 324325683, 'opened': 5, 'knownUid': 5, 'unknownUid': 0}
+  Average Lens ON (eth0): 9674049 B/s (9.23 MB/s, 77.39 Mbit/s)
+  Average CPU per 100 MiB (eth0): 12.30 s
+
+[Logcat] Process crash/ANR count: 0
+
+==================================================================
+FINAL GATES & COMPUTED VERDICTS
+==================================================================
+Gate 1: Correctness Suite: FAIL (Failures: ['1.8 UDP exchange'])
+Gate 2: Absolute Throughput: Wi-Fi=51.80 Mbit/s, eth0=77.39 Mbit/s (Threshold: >= 40.0 Mbit/s)
+  Verdict: PASS
+Gate 3: Relative Throughput: Wi-Fi=160.5%, eth0=56.3% (Threshold: >= 60.0%)
+  Verdict: PASS
+Gate 4: CPU per 100 MiB: Wi-Fi=17.44s, eth0=12.30s (Threshold: <= 2.0 s)
+  Verdict: FAIL
+Gate 5: Process Crash / ANR count: 0 (Threshold: 0)
+  Verdict: PASS
+Gate 6: Idle flow table size: 1 (Threshold: ~0, <= 2)
+  Verdict: PASS
+
+==================================================================
+DECISION: NATIVE NEEDED
+==================================================================
