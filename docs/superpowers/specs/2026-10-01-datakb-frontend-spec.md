@@ -13,7 +13,7 @@ minSdk 29, targetSdk latest stable.
 1. **The number is the product.** The first thing seen is how much data was used today, large and alive.
 2. **Alive, not noisy.** Motion expresses real data (throughput, thresholds). Nothing moves for decoration.
 3. **Honest.** Estimates are marked, gaps are shown, forecasts are ranges.
-4. **Calm by default, powerful on request.** Live Lens and budgets are opt-in and never block the basics.
+4. **Calm by default, powerful on request.** Budgets are opt-in and never block the basics.
 5. **Local-first.** No spinner waits on a network because there is none.
 
 ## 2. Module split
@@ -21,8 +21,6 @@ minSdk 29, targetSdk latest stable.
 - `:ui:design`: theme, tokens and reusable components. Takes primitives and its own UI models only.
   It has no dependency on `:core:*`.
 - `:app`: screens, `ViewModel`s, navigation, mapping contract types → UI models.
-- `:feature:lens`: the Lens screen composables and `LensViewModel`, since the screen is tied to the
-  service lifecycle.
 
 ## 3. Design tokens
 
@@ -30,7 +28,7 @@ minSdk 29, targetSdk latest stable.
 API 29–30, generated from the ember-orange seed `#E8590C` (TonalSpot). Roles used: `primary`, `secondary`, `tertiary`,
 `surfaceContainer*`, `error`. Dark is the primary design target; light is fully supported; `amoledBlack`
 overrides `surface` to `#000000`. Per-tab accent for the navbar: Home → `primary`, Apps → `tertiary`,
-Plans → `secondary`, Lens → `error`-leaning warm accent derived from the palette (never a fixed hex).
+Plans → `secondary`.
 
 **Typography.** Roboto Flex (variable, OFL licence, bundled subset) for the display number, using the
 weight (`wght` 400–900) and width (`wdth` 100–125) axes. All other text uses M3 Expressive type roles
@@ -63,7 +61,7 @@ are replaced by 150 ms fades and the Number stops reacting to throughput (see §
 )
 
 @Composable fun FloatingPillNavBar(
-    items: List<NavBarItem>,          // 4 items; each has id, label, icon, accent role
+    items: List<NavBarItem>,          // 3 items; each has id, label, icon, accent role
     selectedId: String,
     onSelect: (String) -> Unit,
     visible: Boolean,                 // driven by scroll state (see below)
@@ -119,14 +117,13 @@ Recreated in Compose from the public design, with credit in the README and `NOTI
 
 ## 5. Navigation shell
 
-Single-activity `MainActivity`. Four top-level destinations in the pill navbar:
+Single-activity `MainActivity`. Three top-level destinations in the pill navbar:
 
 | id | Route | Screen | Module |
 |---|---|---|---|
 | `home` | `home` | HomeScreen | `:app` |
 | `apps` | `apps` | AppsScreen → `apps/{packageName}` AppDetailScreen | `:app` |
 | `plans` | `plans` | PlansScreen → `plans/{planId}` PlanEditorScreen | `:app` |
-| `lens` | `lens` | LensScreen | `:feature:lens` |
 
 Outside the bar: `settings` (reached from the top-right icon on Home), `onboarding`, and
 `export/backup` dialogs inside Settings. Deep links follow contract §6. Top-level switches preserve each
@@ -211,27 +208,15 @@ name; SIM (from `SubscriptionManager`, or "Not tied to a SIM"); cap (value + uni
 app, "doesn't count toward plan"); **Alerts** (threshold chips 50/80/90/100 %). A live preview card at the
 top shows the resulting `PlanState` as fields change, using `PlanRepository.whatIf` for the forecast.
 
-### 6.4 Lens (`:feature:lens`)
+### 6.4 Removed: Lens
 
-Driven by `LensController.state`:
-
-| State | Screen |
-|---|---|
-| `Off` | Explainer: what Lens does, "all on your device", a plain statement that it uses a local VPN, "Turn on" button |
-| `NeedsConsent` | System VPN dialog launched via `prepareConsentIntent()`, then back to this screen |
-| `Starting` | Skeleton list |
-| `Running` | Live list of `LensApp` sorted by rate, each row expandable to `topDomains`; reorders with spatial springs; header shows "Lens is on" with a Stop button; "Clear history" in the overflow |
-| `Conflict` | Explains `OTHER_VPN_ACTIVE` or `ALWAYS_ON_VPN_BLOCKING` with the exact system setting to change |
-| `Error` | Message and "Try again" |
-
-```kotlin
-data class LensUiState(val state: LensState, val snapshot: LensSnapshot?, val expandedUid: Int?)
-```
+The Lens screen was discarded together with Live Lens (backend spec §7, ADR 0001). The subsection number is kept so
+older references resolve.
 
 ### 6.5 Settings
 
 Sections: Notifications (live notification, show speed, spike alerts), Appearance (dynamic colour,
-AMOLED black, haptics), Units (decimal/binary), Privacy (Lens history hours, clear Lens history, privacy
+AMOLED black, haptics), Units (decimal/binary), Privacy (privacy
 statement), Data (export CSV/JSON, backup/restore, with a passphrase dialog), Permissions (current status
 and quick fixes), About (version, GPL-3.0-or-later licence, source link, third-party notices).
 
@@ -272,8 +257,8 @@ more options later). Notifications are requested right after the first plan is s
 ## 10. Testing
 
 - **Compose UI tests:** `FloatingPillNavBar` (selection, drag-snap, hide/show), `MorphingNumber`
-  (semantics and axis mapping), plan editor validation, Lens state rendering for all six `LensState`s.
-- **Screenshot tests** (Roborazzi/Paparazzi) for Home, Apps, Plans, Lens in light/dark, dynamic/static,
+  (semantics and axis mapping), plan editor validation.
+- **Screenshot tests** (Roborazzi/Paparazzi) for Home, Apps, Plans in light/dark, dynamic/static,
   font scale 1.0 and 2.0, driven by `FakeUsageSource`.
 - **ViewModel tests** with fake repositories and a test dispatcher.
 - **Previews** for every component in `:ui:design` with a sample-data object.

@@ -16,7 +16,7 @@ component, storage and file-format contracts. Root package: `io.github.khaledbah
 - **Observation** methods return `Flow<T>`. They never throw and never complete on error; problems are
   modelled in `T` (see `CoverageStatus`, `PermissionState`).
 - **One-shot** methods are `suspend` and return `Outcome<T>`. They never throw for expected failures.
-- Module dependency direction (no cycles): `:core:engine` ← `:core:data` ← `:feature:lens`, `:app`;
+- Module dependency direction (no cycles): `:core:engine` ← `:core:data` ← `:app`;
   `:ui:design` depends on nothing in the domain (it takes primitives and its own UI models);
   `:app` depends on all.
 
@@ -256,7 +256,6 @@ data class Settings(
     val amoledBlack: Boolean = false,
     val useDynamicColor: Boolean = true,
     val unitSystem: UnitSystem = UnitSystem.DECIMAL,        // 1 GB = 1000 MB; BINARY = GiB
-    val lensHistoryHours: Int = 24,                         // rolling retention of domain hits
     val hapticsEnabled: Boolean = true,
 )
 enum class UnitSystem { DECIMAL, BINARY }
@@ -268,7 +267,6 @@ interface SettingsRepository {
 
 data class PermissionState(
     val usageAccess: Boolean, val notifications: Boolean, val phoneState: Boolean,
-    val vpnConsentGranted: Boolean,
 )
 interface PermissionRepository {
     fun observe(): Flow<PermissionState>
@@ -285,40 +283,11 @@ interface BackupService {
 }
 ```
 
-## 4. Lens contract (module `:feature:lens`, public API)
+## 4. Removed: Lens contract
 
-```kotlin
-sealed interface LensState {
-    data object Off : LensState
-    data object NeedsConsent : LensState
-    data object Starting : LensState
-    data class Running(val since: Instant) : LensState
-    data class Conflict(val reason: LensConflict) : LensState
-    data class Error(val message: String) : LensState
-}
-enum class LensConflict { OTHER_VPN_ACTIVE, ALWAYS_ON_VPN_BLOCKING }
-
-data class LensApp(
-    val uid: Int, val packageName: String, val label: String,
-    val rxBps: Long, val txBps: Long, val topDomains: List<LensDomain>,
-)
-data class LensDomain(val name: String, val bytes: Long, val lastSeen: Instant)
-data class LensSnapshot(val at: Instant, val apps: List<LensApp>)   // sorted by rx+tx rate desc
-
-interface LensController {
-    val state: StateFlow<LensState>
-    fun observeSnapshot(): Flow<LensSnapshot>
-    /** Intent for the system VPN consent dialog, or null if consent is already granted. */
-    fun prepareConsentIntent(): Intent?
-    suspend fun start(): Outcome<Unit>
-    suspend fun stop(): Outcome<Unit>
-    suspend fun clearHistory(): Outcome<Unit>
-}
-```
-
-Guarantees: while `state != Running`, `observeSnapshot()` emits nothing. `stop()` tears down the tunnel
-and the foreground service before returning. Lens never writes to the usage tables; it only owns
-`lens_domain_hit`.
+The Lens contract (`LensController`, `LensState`, `LensSnapshot`, `lens_domain_hit`, `LensVpnService`, the `lens` notification
+channel and the `emberbyte://lens` link) was discarded with Live Lens (ADR 0001, backend spec section 7). Nothing in this document
+references it any more. The section number is kept so older references resolve.
 
 ## 5. Storage contract (Room, database `emberbyte.db`, version 1)
 
@@ -334,18 +303,16 @@ and the foreground service before returning. Lens never writes to the usage tabl
 | `app_budget` | `id` | `packageName`, `limitBytes`, `period`, `planId?`, `warnAtPercent`, `enabled` |
 | `spike_event` | `id` | `packageName`, `detectedAt`, `windowMinutes`, `bytes`, `baselineBytes`, `multiple`, `dismissed` |
 | `coverage_gap` | `id` | `fromAt`, `toAt`, `reason` |
-| `lens_domain_hit` | (`uid`, `domain`, `hourStart`) | `bytes`, `lastSeen` |
 | `counter_checkpoint` | `source` | `at`, `rxBytes`, `txBytes`, `bootId` |
 
 **Database version 1 contains only the usage tables** (`total_minute`, `usage_hourly`, `app_meta`, `coverage_gap`,
-`counter_checkpoint`); the plan, add-on, free-rule, alert, budget, spike and Lens tables arrive with their milestones as
+`counter_checkpoint`); the plan, add-on, free-rule, alert, budget and spike tables arrive with their milestones as
 Migration(1, 2) and later. **`usage_hourly` rows are window rows:** `hourStart` is the start of a 2-hour window aligned to
 even UTC hours (the platform's usage-history bucket), and the bytes cover that window (or the part of it that has elapsed).
 The name is historical.
 Times are stored as epoch milliseconds (`Long`). `network` is `0 = MOBILE`, `1 = WIFI`.
 `subscriptionId` is `-1` for Wi-Fi or unknown. Settings live in Jetpack DataStore, not Room.
-Retention: `total_minute` 7 days, `usage_hourly` 13 months, `lens_domain_hit` per
-`Settings.lensHistoryHours`, `coverage_gap` 13 months. Every schema change ships a tested migration
+Retention: `total_minute` 7 days, `usage_hourly` 13 months, `coverage_gap` 13 months. Every schema change ships a tested migration
 and an exported schema JSON.
 
 ## 6. Android component contract
@@ -353,17 +320,16 @@ and an exported schema JSON.
 | Component | Name | Contract |
 |---|---|---|
 | Foreground service | `SamplerService` | Type `specialUse`. Owns the 1 Hz live sampler, flushes deltas to Room every 60 s. Started on boot and app launch. |
-| Foreground service | `LensVpnService` | Extends `VpnService`. Only started by `LensController.start()`. |
 | Worker | `CatchUpWorker` | Unique periodic work, 15 min. Runs the catch-up. Android 12+ forbids starting a foreground service from the background, so when `SamplerService` is not running it first TRIES to start it and, when Android refuses, posts the `status` notification "Measurement paused - tap to resume". A force-stop also cancels WorkManager jobs until the next launch, so this notification only appears after OS or OEM kills. |
 | Alert evaluation | `AlertRunner` (M3: plan alerts; M4 adds budgets and spikes) | See section 10.3: called every 60 s by `SamplerService` and after every `CatchUpWorker` run. There is no separate `AlertWorker`. |
 | Receiver | `BootReceiver` | `BOOT_COMPLETED` / `MY_PACKAGE_REPLACED` → start the sampler **only if onboarding is complete** (the sampler records the `REBOOT` gap itself). |
 | Widgets | `HeroWidget`, `BentoWidget` | Glance. Read `PlanRepository.observeActivePlanStates()` and `UsageRepository.observeToday()`; refresh cadence in section 10.3. |
 
 Notification channels: `live` (low importance, ongoing), `status` (low importance, "Measurement paused"), `alerts` (default importance),
-`lens` (low importance, ongoing), `spikes` (default importance).
+`spikes` (default importance).
 
 Deep links: `emberbyte://home`, `emberbyte://apps`, `emberbyte://apps/{packageName}`, `emberbyte://plans`,
-`emberbyte://plans/{planId}`, `emberbyte://lens`, `emberbyte://settings`. Notifications and widgets use only these.
+`emberbyte://plans/{planId}`, `emberbyte://settings`. Notifications and widgets use only these.
 
 ## 7. File formats
 
@@ -523,7 +489,7 @@ Constants: gap threshold 90 000 ms; live-speed EMA alpha 0.5; `NO_SUBSCRIPTION =
 |---|---|---|
 | `UsageRepository` | `RoomUsageRepository` | live speed from `SamplerEngine.liveSpeed`; `refreshNow()` runs `HourlyCatchUp`, `MissingUsageAccess` -> `Outcome.Failure(EmberbyteError.MissingUsageAccess)` |
 | `SettingsRepository` | `DataStoreSettingsRepository` | Jetpack DataStore (Preferences) |
-| `PermissionRepository` | `AndroidPermissionRepository` | `recheck()` re-reads usage access, notifications, `READ_PHONE_STATE`; `vpnConsentGranted` is always false until M5 |
+| `PermissionRepository` | `AndroidPermissionRepository` | `recheck()` re-reads usage access, notifications, `READ_PHONE_STATE` |
 | `PlanRepository` | `NoPlanRepository` (M2 only) | replaced by `RoomPlanRepository` in M3 (section 10); `NoPlanRepository` is deleted |
 | `OnboardingRepository` | `DataStoreOnboardingRepository` | |
 
@@ -541,7 +507,7 @@ Constants: gap threshold 90 000 ms; live-speed EMA alpha 0.5; `NO_SUBSCRIPTION =
 - **Mobile/Wi-Fi attribution (sampler):** mobile delta = min(mobile counter delta, total counter delta) per direction (the total
   includes mobile; a mobile counter that vanishes and returns must not create usage). Wi-Fi delta = total - mobile **only while the
   default network is Wi-Fi**, else 0 (so offline noise, tethering and cellular-side VPN traffic are not booked as Wi-Fi). Known
-  limitation: a VPN running over Wi-Fi counts its tunnel bytes twice (Live Lens, M5, will address it).
+  limitation: a VPN running over Wi-Fi counts its tunnel bytes twice (accepted; Live Lens, which would have addressed it, was discarded).
 - **Late ticks:** if more than 90 s passed since the previous tick (device sleep, frozen process), the delta is NOT added to a minute
   row; the sampler re-baselines and records a `DEVICE_ASLEEP` gap. The catch-up fills those hours from system data. `DEVICE_ASLEEP`
   gaps are stored but never shown in the Home banner.
@@ -654,7 +620,7 @@ class AlertEvaluator(plans: PlanRepository, store: PlanStore) { suspend fun eval
 | Alert evaluation | `AlertRunner.run()` in `:app`: skips when notifications are disabled (so nothing is consumed unseen), otherwise calls `AlertEvaluator.evaluate()` and posts one `alerts` notification per notice (id = plan id, tag `plan-alert`, tap opens `emberbyte://plans/{planId}`). Called every 60 s by `SamplerService` and after every `CatchUpWorker` run (covers the service-down case). There is no separate `AlertWorker`. |
 | Widgets | `HeroWidget` and `BentoWidget` (Glance). `WidgetUpdater.request(context)` is called after each catch-up cycle: every 5 minutes while the service runs, every 15 minutes through `CatchUpWorker` otherwise. Content: Hero = today's number + remaining data (or "Set up a plan"); Bento = today, forecast, live speed, top two apps. Deep link `emberbyte://home`. |
 | Channels | `alerts` (default importance, "Plan alerts") is created together with `live` and `status`. |
-| Deep links | `MainActivity` declares an `<intent-filter>` for scheme `emberbyte` with hosts `home`, `apps`, `plans`, `lens`, `settings`; navigation destinations declare the matching `navDeepLink`s of section 6. |
+| Deep links | `MainActivity` declares an `<intent-filter>` for scheme `emberbyte` with hosts `home`, `apps`, `plans`, `settings`; navigation destinations declare the matching `navDeepLink`s of section 6. |
 | Permission | `READ_PHONE_STATE` is declared (optional, requested from the plan editor only). |
 
 ### 10.4 UI-facing additions
@@ -677,7 +643,7 @@ class AlertEvaluator(plans: PlanRepository, store: PlanStore) { suspend fun eval
 
 These extend sections 1-10 and never contradict them, EXCEPT where they say so: **the spike rule of section 2 / backend section 8
 (20-minute windows) is replaced by 11.1**, because Android keeps per-app history in 2-hour buckets (section 9.4), so 20-minute per-app
-usage does not exist before Live Lens (M5). Package roots as before.
+usage does not exist on stock Android (Live Lens, which would have measured it, was discarded). Package roots as before.
 
 ### 11.1 Engine (`:core:engine`)
 
