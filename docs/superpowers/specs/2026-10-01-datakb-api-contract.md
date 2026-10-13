@@ -777,3 +777,62 @@ interface BackupService {                       // replaces section 3's BackupSe
 - The plan editor of an EXISTING plan gets a **What if** section: an extra amount per day (+ unit) from now; it shows the current forecast sentence and the
   what-if sentence (`PlanRepository.whatIf`) side by side.
 - Right-to-left fixes: numbers and their words stay together in `ForecastTile`, `GapBanner`, bar labels and the Apps range chips.
+
+## 12. Milestone 6 additions (polish: accessibility, Android 16 live update, release)
+
+These extend sections 1-11 and never contradict them. Package roots as before. Milestone 5 (Live Lens) was discarded (ADR 0001); nothing here depends on it.
+
+### 12.1 Live notification as an Android 16 live update (`:app`, `sampler`)
+
+`LiveNotificationText` gains `val progress: LiveProgress? = null` where `data class LiveProgress(val fractionUsed: Float, val chip: String)`.
+`liveNotificationText(...)` takes an extra `progress: LiveProgress?` parameter (default `null`, so existing callers and tests still compile) and
+copies it through. `SamplerService` fills it from the FIRST active `PlanState`: `fractionUsed.coerceIn(0f, 1f)` and `chip = ` the remaining data
+as a SHORT string for the status-bar chip (for example `3.2 GB`; at most 7 characters, never the word "left"; when the plan is exhausted `0 B`).
+No active plan, or `liveNotificationEnabled == false` (the minimal "Measuring" notification), means `progress = null`.
+
+`LiveNotificationBuilder.build(text)`:
+- `Build.VERSION.SDK_INT >= 36` AND `text.progress != null`: build with the platform `android.app.Notification.Builder(context, NotificationChannels.LIVE)`
+  (NOT `NotificationCompat`, which has no `ProgressStyle`): `setStyle(Notification.ProgressStyle().setProgress(round(fractionUsed * 1000)).addProgressSegment(Notification.ProgressStyle.Segment(1000)))`,
+  `setShortCriticalText(chip)`, `setRequestPromotedOngoing(true)`, plus everything the standard notification already has (small icon `ic_stat_ember`, title,
+  text, ongoing, only-alert-once, no timestamp, `CATEGORY_SERVICE`, foreground-service behaviour immediate, the Home content intent). No custom `RemoteViews`,
+  no colorization (they disqualify promotion). The class and method names above were checked in the API 37 `android.jar`.
+- Every other case: the existing `NotificationCompat` notification, unchanged (API 29 to 35 behave exactly as today).
+- The manifest declares `android.permission.POST_PROMOTED_NOTIFICATIONS` (normal permission, no prompt). Whether Android promotes the notification is the
+  system's decision (`NotificationManager.canPostPromotedNotifications()`, and the user's per-app switch); the app never asks the user to enable it, never
+  fails when it is off (the notification is then an ordinary ongoing one that still shows the progress bar), and never loops on it.
+- Update rate stays at most once per second. The progress value is quantised to 0.1% steps (0 to 1000) so a tiny change does not re-post.
+
+### 12.2 Accessibility rules (testable, applies to every screen and dialog)
+
+1. Every interactive element has a role and a non-empty accessible name that says what it does (not "button"); icon-only controls have `contentDescription`;
+   decorative icons have none (`null`) and are hidden from the semantics tree.
+2. Touch targets are at least 48 x 48 dp (`Modifier.minimumInteractiveComponentSize()` or equivalent); small visual controls keep the large hit area.
+3. Charts (`UsageBarRow` and the History charts) expose ONE summary node ("Daily usage, last 7 days, highest Wednesday, 2.1 gigabytes") and each bar
+   is reachable in order with a node such as "Wednesday, 2.1 gigabytes"; selecting a bar by accessibility click does what a tap does.
+4. State is never colour-only: warning, over-cap, estimated and selected states also use text or an icon with a description.
+5. Text scales with the system font size up to 200% without clipping or overlap: tiles reflow to ONE column when `fontScale >= 1.5`, no `maxLines` truncation of
+   a number or its unit, the navbar labels stay readable (they may switch to icon + one line). Display size ("Display size" in Settings) must not break layouts.
+6. Reduce motion (`animator_duration_scale == 0`, or the system "Remove animations") disables the springs, the morphing number tween and the navbar drag
+   animation, using the existing `ReduceMotionObserver`; the information shown stays identical.
+7. Right-to-left (pseudo-locale `ar-XB` or a real RTL locale) mirrors layout; numbers with their units stay together (existing `ForceLtr`), and no hard-coded left/right.
+8. Contrast meets WCAG AA (4.5:1 text, 3:1 large text and graphics) for the dynamic AND static palettes, light and dark, AMOLED black included; the existing
+   `TileContrastTest` approach is extended to every foreground/background pair used by text and by state indicators.
+9. Focus order follows reading order; a keyboard (Tab, arrows, Enter/Space) can operate every control; dialogs move focus in and return it on close; no focus trap.
+10. Notification texts are complete sentences a screen reader can read ("12 gigabytes left, about 3 days" style, no raw symbols such as arrows alone).
+
+### 12.3 Release build and distribution (`:app`, repo root)
+
+- `versionName = "1.0.0"`, `versionCode = 1` in `app/build.gradle.kts` (the first public release; later releases increase `versionCode` by one).
+- `release` build type: `isMinifyEnabled = true`, `isShrinkResources = true`, `proguard-rules.pro` with ONLY the keep rules proven necessary (Room, Glance, WorkManager,
+  Bouncy Castle `Argon2BytesGenerator`, kotlinx.serialization/JSON classes if any, reflection used by Robolectric is test-only and not kept). **No signing config in the
+  repository**: the release APK is unsigned; F-Droid and the maintainer sign it. No secrets, keystores or `local.properties` content are committed.
+- The release APK declares NO `INTERNET` permission and no `VpnService`; debug-only code (`src/debug`) is absent from it (checked with `aapt2 dump badging` and
+  a class listing). The build is reproducible: two clean builds of the same commit yield APKs whose entries (ignoring the signature files) are byte-identical.
+- CI (`.github/workflows/ci.yml`) additionally runs `assembleRelease` and `lintRelease`; both must pass.
+- Dependencies must all be free software from Maven Central or Google Maven (F-Droid rule); `NOTICE` lists every bundled third-party component with its licence and
+  matches the real dependency tree (an unused entry is removed, a missing one is added).
+- Store metadata lives in `fastlane/metadata/android/en-US/` (`title.txt`, `short_description.txt` at most 80 characters, `full_description.txt` at most 4000,
+  `changelogs/1.txt` at most 500 bytes, `images/icon.png` 512x512, `images/phoneScreenshots/1.png` .. at least 4 real screenshots). A draft of the F-Droid
+  metadata file is kept at `docs/release/fdroiddata-io.github.khaledbahaaeldin.emberbyte.yml` for the maintainer to submit; the task never opens a merge request itself.
+- Settings, About: "Open-source licences" opens a scrolling screen (route `licenses`, no deep link) that shows the contents of `NOTICE` (copied into a raw resource at
+  build time by a Gradle copy task, so the app and the file cannot drift) and the Roboto Flex licence text.
