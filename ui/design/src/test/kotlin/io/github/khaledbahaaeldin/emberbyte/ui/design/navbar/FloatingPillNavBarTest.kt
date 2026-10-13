@@ -46,7 +46,7 @@ class FloatingPillNavBarTest {
         NavBarItem("home", "Home", Icons.Rounded.Home, NavAccent.Primary),
         NavBarItem("apps", "Apps", Icons.Rounded.Apps, NavAccent.Tertiary),
         NavBarItem("plans", "Plans", Icons.Rounded.AccountBalanceWallet, NavAccent.Secondary),
-        NavBarItem("lens", "Lens", Icons.Rounded.Visibility, NavAccent.Error),
+        NavBarItem("extra", "Extra", Icons.Rounded.Visibility, NavAccent.Error),
     )
 
     private fun show(
@@ -136,7 +136,7 @@ class FloatingPillNavBarTest {
             swipe(start = Offset(30f, centerY), end = Offset(width - 12f, centerY), durationMillis = 300)
         }
         rule.waitForIdle()
-        assertEquals("lens", picked)
+        assertEquals("extra", picked)
     }
 
     @Test fun dragging_within_the_wide_selected_item_does_not_switch() {

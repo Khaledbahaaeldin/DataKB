@@ -32,7 +32,6 @@ internal sealed interface DeepLinkTarget {
                     }
                     else -> null
                 }
-                "lens" -> if (segments.isEmpty()) Tab(Destination.Lens) else null
                 "settings" -> if (segments.isEmpty()) Settings else null
                 else -> null
             }

@@ -71,12 +71,12 @@ class AppsViewModelTest {
     }
 
     @Test fun missing_usage_access_is_reported() = runTest(dispatcher) {
-        val permissions = FakePermissionRepository(PermissionState(false, true, true, false))
+        val permissions = FakePermissionRepository(PermissionState(false, true, true))
         val vm = viewModel(permissions)
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
         assertTrue(vm.uiState.value.needsUsageAccess)
-        permissions.set(PermissionState(true, true, true, false))
+        permissions.set(PermissionState(true, true, true))
         advanceUntilIdle()
         assertEquals(false, vm.uiState.value.needsUsageAccess)
         job.cancel()

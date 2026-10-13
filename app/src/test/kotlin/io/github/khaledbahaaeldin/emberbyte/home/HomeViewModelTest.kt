@@ -107,7 +107,7 @@ class HomeViewModelTest {
     }
 
     @Test fun missing_permissions_become_prompts() = runTest(dispatcher) {
-        val permissions = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val permissions = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true))
         val vm = HomeViewModel(
             usage = FakeUsageRepository(clock, MutableSharedFlow()),
             plans = FakePlanRepository(clock),
@@ -121,7 +121,7 @@ class HomeViewModelTest {
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
         assertEquals(listOf("usage_access"), vm.uiState.value.prompts.map { it.id })
-        permissions.set(PermissionState(true, true, true, false))
+        permissions.set(PermissionState(true, true, true))
         advanceUntilIdle()
         assertTrue(vm.uiState.value.prompts.isEmpty())
         job.cancel()

@@ -26,8 +26,4 @@ class AndroidPermissionRepositoryTest {
         repo.recheck()
         assertTrue(repo.observe().first().phoneState)
     }
-
-    @Test fun vpn_consent_is_always_false_until_lens_exists() = runBlocking {
-        assertEquals(false, AndroidPermissionRepository(app).observe().first().vpnConsentGranted)
-    }
 }

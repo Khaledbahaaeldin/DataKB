@@ -48,7 +48,7 @@ class DeepLinksTest {
     }
 
     @Test fun every_documented_link_resolves_to_the_main_activity_through_the_manifest() {
-        val uris = listOf(DeepLinks.HOME, DeepLinks.APPS, DeepLinks.app("com.example"), DeepLinks.PLANS, DeepLinks.plan(3), DeepLinks.LENS, DeepLinks.SETTINGS)
+        val uris = listOf(DeepLinks.HOME, DeepLinks.APPS, DeepLinks.app("com.example"), DeepLinks.PLANS, DeepLinks.plan(3), DeepLinks.SETTINGS)
         for (uri in uris) {
             val probe = Intent(Intent.ACTION_VIEW, uri.toUri()).setPackage(context.packageName)
             val resolved = context.packageManager.queryIntentActivities(probe, 0)

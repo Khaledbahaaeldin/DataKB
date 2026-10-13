@@ -200,7 +200,14 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, modifier: Mod
                 }
             }
         }
-        item { UsageBarRow(points = state.bars, selectedIndex = null, onSelect = {}) }
+        item {
+            UsageBarRow(
+                points = state.bars,
+                selectedIndex = null,
+                onSelect = {},
+                scrollKey = state.granularity,
+            )
+        }
         if (state.needsUsageAccess) {
             item {
                 Text(

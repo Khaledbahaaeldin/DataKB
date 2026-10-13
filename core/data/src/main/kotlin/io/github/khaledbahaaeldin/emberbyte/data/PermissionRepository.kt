@@ -6,7 +6,6 @@ data class PermissionState(
     val usageAccess: Boolean,
     val notifications: Boolean,
     val phoneState: Boolean,
-    val vpnConsentGranted: Boolean,
 )
 
 interface PermissionRepository {

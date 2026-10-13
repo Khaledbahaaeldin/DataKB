@@ -49,14 +49,12 @@ import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorScreen
 import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorViewModel
 import io.github.khaledbahaaeldin.emberbyte.plans.PlansScreen
 import io.github.khaledbahaaeldin.emberbyte.onboarding.OnboardingViewModel
-import io.github.khaledbahaaeldin.emberbyte.placeholder.PlaceholderScreen
 import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
 import io.github.khaledbahaaeldin.emberbyte.settings.ContentResolverStreamOpener
 import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
-import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
 import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.FloatingPillNavBar
 import io.github.khaledbahaaeldin.emberbyte.ui.design.navbar.glassSource
@@ -196,14 +194,6 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 val viewModel: PlanEditorViewModel =
                     viewModel(key = "plan-$planId", factory = graph.planEditorViewModelFactory(planId))
                 PlanEditorScreen(viewModel, onBack = { navController.popBackStack() }, onPrompt = actions::onPrompt)
-            }
-            composable(
-                Destination.Lens.route,
-                deepLinks = listOf(navDeepLink { uriPattern = DeepLinkPatterns.LENS }),
-            ) {
-                ForceLtr {
-                    PlaceholderScreen("Lens", "Live Lens is opt-in and arrives in a later update.")
-                }
             }
             composable(Routes.HISTORY) {
                 val viewModel: HistoryViewModel = viewModel(factory = graph.historyViewModelFactory())

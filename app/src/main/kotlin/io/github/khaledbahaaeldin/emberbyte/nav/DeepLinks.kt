@@ -11,7 +11,6 @@ object DeepLinks {
     const val HOME = "emberbyte://home"
     const val APPS = "emberbyte://apps"
     const val PLANS = "emberbyte://plans"
-    const val LENS = "emberbyte://lens"
     const val SETTINGS = "emberbyte://settings"
 
     fun app(packageName: String): String = "emberbyte://apps/" + Uri.encode(packageName)
@@ -30,6 +29,5 @@ object DeepLinkPatterns {
     const val APP_DETAIL = "emberbyte://apps/{packageName}"
     const val PLANS = DeepLinks.PLANS
     const val PLAN_EDITOR = "emberbyte://plans/{planId}"
-    const val LENS = DeepLinks.LENS
     const val SETTINGS = DeepLinks.SETTINGS
 }

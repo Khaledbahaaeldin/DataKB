@@ -11,7 +11,7 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 |---|---|
 | This file | Decisions, scope, architecture summary, milestones, risks |
 | [Frontend spec](2026-10-01-datakb-frontend-spec.md) | Design tokens, components, navigation, screens, accessibility, UI tests |
-| [Backend spec](2026-10-01-datakb-backend-spec.md) | On-device engine, sampling, plan/forecast maths, Live Lens, permissions, error handling |
+| [Backend spec](2026-10-01-datakb-backend-spec.md) | On-device engine, sampling, plan/forecast maths, permissions, error handling |
 | [API contract](2026-10-01-datakb-api-contract.md) | Typed module interfaces, storage schema, Android components, file formats. Wins on any naming conflict |
 
 ## Decisions
@@ -22,20 +22,19 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 | Audience | Open source on GitHub and F-Droid |
 | Licence | **GPL-3.0-or-later** (SPDX `GPL-3.0-or-later`): GPLv3 text in `LICENSE`, with the "version 3 or, at your option, any later version" notice in README and NOTICE |
 | Platform | Native Android, Kotlin + Jetpack Compose, minSdk 29 |
-| Real-time engine | Hybrid: light by default (`TrafficStats` + `NetworkStatsManager`), opt-in Live Lens (local VPN) |
+| Real-time engine | Light: `TrafficStats` for live speed and `NetworkStatsManager` for per-app history. No VPN (a local-VPN "Live Lens" was explored and discarded, see ADR 0001) |
 | Plan model | Flexible: per-SIM plans, renewal cycles, rollover, add-on packs, free windows |
 | Home screen | "The Number" hero with Bento tiles beneath |
 | Navigation | Floating glass pill navbar, recreated in Compose from the Floating-Navbar-M3-Flutter design (MIT, credited) |
-| Structure | Lean multi-module: `:app`, `:ui:design`, `:core:engine`, `:core:data`, `:feature:lens` |
+| Structure | Lean multi-module: `:app`, `:ui:design`, `:core:engine`, `:core:data` |
 | Cloud | None. No accounts, analytics or sync. Everything stays on the device |
-| Out of scope for v1 | Carrier SMS parsing, an app-blocking firewall, cloud sync |
+| Out of scope for v1 | Carrier SMS parsing, an app-blocking firewall, cloud sync, per-app live speed and per-domain views (would need a VPN; discarded, ADR 0001) |
 
 ## Architecture summary
 
 ```
 :app  (screens, ViewModels, navigation, widgets, DI: hand-written graph; Hilt dropped because KSP+Hilt on AGP 9 is risk for little gain)
   ├── :ui:design      theme, MorphingNumber, FloatingPillNavBar, Bento tiles (no domain dependency)
-  ├── :feature:lens   LensVpnService, packet pipeline, LensController, Lens screen
   └── :core:data      Room, DataStore, repositories, SamplerService, workers, notifications
          ▲
       :core:engine    domain types, cycle/plan/forecast/spike/reconcile maths (pure Kotlin)
@@ -44,16 +43,14 @@ real-time usage, flexible data plans, a forecast of when the cap runs out, and a
 Data flow: a foreground sampler reads cumulative counters every second for live speed and writes minute
 totals; a periodic worker reconciles per-app history from `NetworkStatsManager`; repositories expose
 `Flow`s of plan state, forecast and usage; every surface (app, widgets, notification) reads the same flows.
-Live Lens, when on, adds per-app live rates and domain names from a passthrough tunnel and is the only part
-that touches `VpnService`.
+Emberbyte never uses `VpnService` and never sees packet contents or destinations.
 
 ## Feature set
 
 **Core:** daily/weekly/monthly/all-time usage split by mobile and Wi-Fi, per-app usage and screen time,
 per-SIM plans, threshold alerts, live-speed notification, widgets, network diagnostics.
 
-**Extra:** the morphing live Number; run-out forecast with a confidence range; Live Lens (per-app and
-per-domain, on-device); per-app budgets; spike detective; "what if" planner; Android 16 live-update
+**Extra:** the morphing live Number; run-out forecast with a confidence range; per-app budgets; spike detective; "what if" planner; Android 16 live-update
 notification; CSV/JSON export and encrypted local backup.
 
 ## Milestones (each shippable)
@@ -63,7 +60,7 @@ notification; CSV/JSON export and encrypted local backup.
    Starts with the dual-SIM and foreground-service-type spikes (backend §13).
 3. **M3 Plans:** plan editor, dual-SIM handling, alerts, forecast v1, widgets, plus the cheap carry-over minors of M2.
 4. **M4 Insight:** budgets, spike detective (per 2-hour window), "what if" planner, export and encrypted backup, personal hour-of-day curve.
-5. **M5 Live Lens:** forwarder spike, then the opt-in VPN engine and Lens screen.
+5. **M5 Live Lens: discarded.** The user-space forwarder spike missed its CPU budget (12.30 to 17.44 CPU-seconds per 100 MiB against a limit of 2.0), so the feature was dropped and the code removed (ADR 0001). The numbering is kept so older documents still resolve.
 6. **M6 Polish:** accessibility pass, Android 16 live updates, F-Droid submission.
 
 ## Risks
@@ -71,10 +68,8 @@ notification; CSV/JSON export and encrypted local backup.
 | Risk | Mitigation |
 |---|---|
 | Per-SIM data not separable on API 29+ without privileged access | Attribute live data to the default-data SIM, mark estimates, verify on device in M2 |
-| Userspace packet forwarding for Live Lens is large and battery-sensitive | Opt-in, isolated module, M5 begins with a measured spike; last milestone before polish |
 | Foreground-service rules differ across Android 14–16 | Verify types on real devices in M2; document in the backend spec |
 | OEM battery killers stop the sampler | Gap detection, `CatchUpWorker` backfill, honest gap display, in-app guidance |
-| Encrypted DNS/ECH hides domains in Lens | Fall back to IP, label it clearly, document the limit |
 | Navbar blur is costly on low-end devices | Tint fallback on API 29–30 and a reduced-effects path for the system "remove animations" setting |
 
 ## Repository conventions

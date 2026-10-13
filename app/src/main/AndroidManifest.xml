@@ -42,7 +42,6 @@
                 <data android:host="home" />
                 <data android:host="apps" />
                 <data android:host="plans" />
-                <data android:host="lens" />
                 <data android:host="settings" />
             </intent-filter>
         </activity>

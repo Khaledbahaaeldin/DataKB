@@ -17,7 +17,6 @@ class DeepLinkTargetTest {
         assertEquals(DeepLinkTarget.Tab(Destination.Home), DeepLinkTarget.parse("emberbyte://home".toUri()))
         assertEquals(DeepLinkTarget.Tab(Destination.Apps), DeepLinkTarget.parse("emberbyte://apps".toUri()))
         assertEquals(DeepLinkTarget.Tab(Destination.Plans), DeepLinkTarget.parse("emberbyte://plans".toUri()))
-        assertEquals(DeepLinkTarget.Tab(Destination.Lens), DeepLinkTarget.parse("emberbyte://lens".toUri()))
     }
 
     @Test
@@ -66,7 +65,7 @@ class DeepLinkTargetTest {
         assertNull(DeepLinkTarget.parse("emberbyte://plans/1/2".toUri()))
         assertNull(DeepLinkTarget.parse("emberbyte://home/extra".toUri()))
         assertNull(DeepLinkTarget.parse("emberbyte://settings/extra".toUri()))
-        assertNull(DeepLinkTarget.parse("emberbyte://lens/extra".toUri()))
+        assertNull(DeepLinkTarget.parse("emberbyte://lens".toUri()))
         assertNull(DeepLinkTarget.parse("emberbyte://apps/com.a/extra".toUri()))
     }
 }

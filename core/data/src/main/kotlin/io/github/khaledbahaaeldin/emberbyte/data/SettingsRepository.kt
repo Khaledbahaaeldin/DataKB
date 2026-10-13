@@ -12,7 +12,6 @@ data class Settings(
     val amoledBlack: Boolean = false,
     val useDynamicColor: Boolean = true,
     val unitSystem: UnitSystem = UnitSystem.DECIMAL,
-    val lensHistoryHours: Int = 24,
     val hapticsEnabled: Boolean = true,
 )
 

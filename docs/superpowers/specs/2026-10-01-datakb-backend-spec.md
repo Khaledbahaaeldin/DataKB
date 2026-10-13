@@ -4,7 +4,7 @@ Status: draft for review. Names and signatures come from the
 [API contract](2026-10-01-datakb-api-contract.md). Companion: [frontend spec](2026-10-01-datakb-frontend-spec.md).
 
 Emberbyte has no server. "Backend" means everything below the UI: `:core:engine`, `:core:data`,
-`:feature:lens`, and the Android services and workers that feed them. Nothing leaves the device.
+and the Android services and workers that feed them. Nothing leaves the device.
 
 ## 1. Module responsibilities
 
@@ -12,7 +12,6 @@ Emberbyte has no server. "Backend" means everything below the UI: `:core:engine`
 |---|---|---|---|
 | `:core:engine` | Kotlin/JVM, no Android | Domain types, cycle/plan/forecast/spike/reconcile maths | nothing |
 | `:core:data` | Android library | Room, DataStore, repositories, samplers, workers, notifications, export/backup | `:core:engine` |
-| `:feature:lens` | Android library | `LensVpnService`, packet pipeline, `LensController`, `lens_domain_hit` | `:core:engine`, `:core:data` (settings and permissions only) |
 | `:app` | Android app | Dependency graph (hand-written; Hilt is not planned - see design doc), manifest, widgets, navigation host | all |
 
 `:core:engine` having no Android dependency is a hard rule: it keeps the money-critical maths
@@ -27,7 +26,6 @@ Emberbyte has no server. "Backend" means everything below the UI: `:core:engine`
 | `UsageStatsManager` | Per-app foreground time | Needs Usage Access |
 | `ConnectivityManager` | Active network kind, metered flag, default-network callbacks | Network kind only |
 | `SubscriptionManager` | Default-data subscription id, SIM list | Needs `READ_PHONE_STATE` |
-| Lens tunnel (opt-in) | Per-connection owner (UID), bytes, DNS and TLS SNI names | Only while Lens runs; encrypted DNS/ECH hide names (§7) |
 
 ## 3. Sampling pipeline
 
@@ -110,35 +108,13 @@ non-privileged apps. So per-SIM history cannot be queried directly. Emberbyte ha
 6. `PlanRepository.whatIf` re-runs the same projection with `extraBytesPerDay` added from `from`. It is
    pure and not persisted.
 
-## 7. Live Lens (`:feature:lens`)
+## 7. Removed: Live Lens
 
-**Intent.** Show which app is using data right now and which domains it contacts, entirely on-device.
-
-**Pipeline.**
-```
-App traffic ─► TUN interface ─► packet loop ─► per-flow table ─► forward via protect()ed sockets ─► network
-                                  │
-                                  ├─ owner UID: ConnectivityManager.getConnectionOwnerUid(...)
-                                  ├─ names: DNS queries/answers + TLS ClientHello SNI
-                                  └─► LensSnapshot (1 Hz) and lens_domain_hit (hourly rows)
-```
-
-- The tunnel is passthrough: it forwards all traffic to the real network with sockets excluded from the
-  VPN by `protect()`. Lens never alters, blocks or stores payload.
-- Per-flow table maps (protocol, local, remote) to UID and an accumulating byte count; 1 Hz diffs produce
-  `rxBps`/`txBps` per app.
-- Domains come from observed DNS answers (name ↔ IP) and TLS SNI. Where DNS-over-HTTPS or ECH hides the
-  name, the app falls back to the remote IP and shows it as such.
-- **Isolation.** Lens runs in `LensVpnService`, a foreground service, started only by
-  `LensController.start()` after the user accepts the system VPN dialog.
-- **Conflicts.** If another VPN is active, or Always-on VPN with lockdown is set, state becomes
-  `Conflict(...)` and nothing starts.
-- **Retention.** `lens_domain_hit` rows older than `Settings.lensHistoryHours` are deleted hourly and on
-  `clearHistory()`.
-- **Implementation risk.** A userspace packet forwarder is the largest single piece of work. M5 begins with
-  a spike comparing writing the forwarder in Kotlin against a small native (C/Rust) forwarder, and reading
-  prior GPL-3.0 VPN-based firewalls for design lessons. The decision and its battery measurements are
-  recorded in `docs/` before the build.
+Live Lens (per-app live rates and per-domain names through a local VPN) was explored in milestone 5 and
+discarded: the user-space Kotlin forwarder cost 12.30 to 17.44 CPU-seconds per 100 MiB against a budget of
+2.0 (ADR `docs/adr/0001-discard-live-lens.md`). Emberbyte therefore never uses `VpnService`,
+never forwards or inspects traffic, and has no `:feature:lens` module. The section number is kept so that
+references from older documents still resolve.
 
 ## 8. Alerts, budgets and spikes
 
@@ -165,13 +141,12 @@ App traffic ─► TUN interface ─► packet loop ─► per-flow table ─►
 | `POST_NOTIFICATIONS` (API 33+) | Live notification and alerts | After first plan is created |
 | `READ_PHONE_STATE` | Default-data SIM id for dual-SIM attribution | When the user adds a SIM-bound plan; optional |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE` | `SamplerService` | Install time |
-| `BIND_VPN_SERVICE` on `LensVpnService`, plus system VPN consent | Live Lens | Only when the user enables Lens |
 | `RECEIVE_BOOT_COMPLETED` | Restart the sampler after reboot | Install time |
-| `INTERNET` | Required by the VPN to forward traffic; used by nothing else | Install time |
 
 Foreground service types must be verified on a target API 34+ device during M2 (including the Android 15
-timeout behaviour of `dataSync`, which is why `specialUse` is chosen). If the platform changes the
-allowed type for a VPN service, update this table and the manifest together.
+timeout behaviour of `dataSync`, which is why `specialUse` is chosen). The app declares no `INTERNET`
+permission: it makes no network requests. If the platform changes the allowed type for the sampler,
+update this table and the manifest together.
 
 ## 11. Error handling
 
@@ -192,15 +167,11 @@ allowed type for a VPN service, update this table and the manifest together.
   thresholds. No Android needed.
 - **`:core:data`:** Room in-memory tests for every DAO and migration (exported schemas), repository tests
   with a fake clock and fake data sources, and a `SamplerService` test with scripted counter readings.
-- **`:feature:lens`:** packet-pipeline unit tests on captured sample packet bytes (DNS, TLS ClientHello),
-  and a manual device checklist for conflicts and teardown.
 - **Fake data source:** a seedable `FakeUsageSource` generates realistic weeks of data for demos,
   screenshot tests and M1.
-- **CI:** all of the above except the manual Lens checklist run on every push.
+- **CI:** all of the above run on every push.
 
 ## 13. Open verification items (resolved by spikes, not by guessing)
 
 1. Per-SIM behaviour on API 29+ for non-privileged apps (§5), tested in M2.
-2. Allowed foreground service type for the VPN service and the sampler on API 34+ (§10), tested in M2.
-3. Kotlin versus native packet forwarder for Lens (§7), decided in M5.
-4. Whether `getConnectionOwnerUid` is reliable across vendor ROMs for Lens (§7), tested in M5.
+2. Allowed foreground service type for the sampler on API 34+ (§10), tested in M2.

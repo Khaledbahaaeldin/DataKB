@@ -32,22 +32,22 @@ class HomeMappingM2Test {
     @Test fun no_permission_info_means_no_prompts() = assertTrue(build().prompts.isEmpty())
 
     @Test fun all_permissions_granted_means_no_prompts() =
-        assertTrue(build(permissions = PermissionState(true, true, true, false)).prompts.isEmpty())
+        assertTrue(build(permissions = PermissionState(true, true, true)).prompts.isEmpty())
 
     @Test fun missing_usage_access_prompts_to_open_settings() {
-        val prompts = build(permissions = PermissionState(false, true, true, false)).prompts
+        val prompts = build(permissions = PermissionState(false, true, true)).prompts
         assertEquals(listOf("usage_access"), prompts.map { it.id })
         assertEquals("Open settings", prompts.single().actionLabel)
     }
 
     @Test fun missing_notifications_prompts_to_allow() {
-        val prompts = build(permissions = PermissionState(true, false, true, false)).prompts
+        val prompts = build(permissions = PermissionState(true, false, true)).prompts
         assertEquals(listOf("notifications"), prompts.map { it.id })
         assertEquals("Allow", prompts.single().actionLabel)
     }
 
     @Test fun both_missing_gives_usage_access_first() {
-        val prompts = build(permissions = PermissionState(false, false, true, false)).prompts
+        val prompts = build(permissions = PermissionState(false, false, true)).prompts
         assertEquals(listOf("usage_access", "notifications"), prompts.map { it.id })
     }
 
@@ -116,8 +116,8 @@ class HomeMappingM2Test {
         assertNull(build(coverage = CoverageStatus(listOf(gap(130, 20, GapReason.DEVICE_ASLEEP)), null)).gap)
 
     @Test fun top_apps_locked_follows_usage_access_permission() {
-        assertTrue(build(permissions = PermissionState(false, true, true, false)).topAppsLocked)
-        assertFalse(build(permissions = PermissionState(true, true, true, false)).topAppsLocked)
+        assertTrue(build(permissions = PermissionState(false, true, true)).topAppsLocked)
+        assertFalse(build(permissions = PermissionState(true, true, true)).topAppsLocked)
         assertFalse(build(permissions = null).topAppsLocked)
     }
 }
