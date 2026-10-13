@@ -214,6 +214,7 @@ internal fun HomeContent(
                 points = state.week,
                 selectedIndex = state.selectedDay,
                 onSelect = { onEvent(HomeEvent.SelectDay(it)) },
+                openAtEnd = false,
             )
         }
     }

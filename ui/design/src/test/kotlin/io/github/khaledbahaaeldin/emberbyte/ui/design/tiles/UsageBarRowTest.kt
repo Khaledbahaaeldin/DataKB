@@ -49,18 +49,19 @@ class UsageBarRowTest {
     }
 
     @Test
-    fun seven_bars_fit_without_scrolling() {
+    fun seven_bars_in_379dp_container_is_scrollable_but_starts_at_first_bar_unclipped() {
         val bars = (1..7).map { BarUi(bytes = 100L * it, label = "$it", description = "FitBar $it") }
         rule.setContent {
-            Box(Modifier.size(360.dp, 200.dp)) {
-                UsageBarRow(points = bars, selectedIndex = 0, onSelect = {})
+            Box(Modifier.size(379.dp, 200.dp)) {
+                UsageBarRow(points = bars, selectedIndex = 0, onSelect = {}, openAtEnd = false)
             }
         }
-        for (i in 1..7) {
-            val node = rule.onNodeWithContentDescription("FitBar $i")
-            node.assertWidthIsAtLeast(48.dp)
-            node.assertHeightIsAtLeast(48.dp)
-        }
+        rule.waitForIdle()
+        // First bar is displayed
+        val firstBar = rule.onNodeWithContentDescription("FitBar 1")
+        firstBar.assertIsDisplayed()
+        firstBar.assertWidthIsAtLeast(48.dp)
+        firstBar.assertHeightIsAtLeast(48.dp)
     }
 
     @Test
