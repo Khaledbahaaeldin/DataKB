@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.lens.core
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -230,5 +231,101 @@ class ForwarderLimitsTest {
             serverThread.interrupt()
             serverThread.join(500)
         }
+    }
+
+    @Test(timeout = 8000)
+    fun stop_releases_all_sockets_including_flows_blocked_in_connect() {
+        val isolatedTun = FakeTun()
+        val createdChannels = java.util.concurrent.CopyOnWriteArrayList<java.nio.channels.SocketChannel>()
+        val customFactory = SocketChannelFactory {
+            val sc = java.nio.channels.SocketChannel.open()
+            createdChannels.add(sc)
+            sc
+        }
+
+        val testForwarder = Forwarder(
+            tun = isolatedTun,
+            protector = countingProtector,
+            owner = ownerResolver,
+            listener = testListener,
+            clock = clock,
+            maxFlows = 16,
+            mtu = 1400,
+            channelFactory = customFactory
+        )
+        val th = Thread({ testForwarder.run() }, "Forwarder-Stop-Channels-Thread")
+        th.start()
+
+        try {
+            // 1. Established flow
+            val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+            val serverPort = server.localPort
+            val serverThread = Thread {
+                try {
+                    val client = server.accept()
+                    Thread.sleep(3000)
+                    client.close()
+                } catch (_: Exception) {} finally {
+                    server.close()
+                }
+            }
+            serverThread.start()
+
+            val sim1 = TcpClientSim(
+                tun = isolatedTun,
+                src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54301),
+                dst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), serverPort)
+            )
+            assertTrue("Flow 1 should connect", sim1.connect())
+
+            // 2. Flow blocked in connect: non-routable IP (192.0.2.1 TEST-NET-1 or 10.255.255.1)
+            val nonRoutableDst = InetSocketAddress(InetAddress.getByName("192.0.2.1"), 80)
+            val synBlocked = PacketBuilder.ipv4Tcp(
+                src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54302),
+                dst = nonRoutableDst,
+                seq = 1000L,
+                ack = 0L,
+                flags = TcpFlags.SYN
+            )
+            isolatedTun.toForwarder.offer(synBlocked)
+            val startWait = System.currentTimeMillis()
+            while (createdChannels.size < 2 && System.currentTimeMillis() - startWait < 3000) {
+                Thread.sleep(20)
+            }
+
+            assertTrue("At least 2 channels created", createdChannels.size >= 2)
+
+            val startStop = System.currentTimeMillis()
+            testForwarder.stop()
+            th.join(2000)
+            val stopDuration = System.currentTimeMillis() - startStop
+            assertTrue("stop() completed within 2 seconds: actual ${stopDuration}ms", stopDuration <= 2000)
+            assertFalse("Forwarder thread must terminate", th.isAlive)
+
+            // Verify EVERY created channel is closed
+            for (ch in createdChannels) {
+                assertFalse("All socket channels must be closed after stop() returns", ch.isOpen)
+            }
+
+            sim1.stop()
+            serverThread.interrupt()
+            serverThread.join(500)
+        } finally {
+            testForwarder.stop()
+            isolatedTun.close()
+            th.join(500)
+        }
+    }
+
+    @Test
+    fun owner_cache_bounded_at_4096_entries() {
+        val cache = BoundedLruCache<FlowKey, Int>(4096)
+        val dst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), 80)
+        for (i in 1..10000) {
+            val src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 1000 + (i % 60000))
+            val key = FlowKey(6, src, dst)
+            cache.computeIfAbsent(key) { 10000 + i }
+        }
+        assertEquals("Owner cache must be bounded at exactly 4096 entries", 4096, cache.size())
     }
 }

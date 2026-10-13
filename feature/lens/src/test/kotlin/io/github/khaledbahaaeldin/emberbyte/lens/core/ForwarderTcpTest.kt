@@ -606,14 +606,16 @@ class ForwarderTcpTest {
         val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
         val serverPort = server.localPort
 
+        val windowZeroLatch = CountDownLatch(1)
         val serverThread = Thread {
             val client = server.accept()
             val output = client.getOutputStream()
             output.write("part1".toByteArray())
             output.flush()
-            Thread.sleep(300)
+            windowZeroLatch.await(5, TimeUnit.SECONDS)
             output.write("part2".toByteArray())
             output.flush()
+            Thread.sleep(500)
             client.close()
             server.close()
         }
@@ -627,11 +629,27 @@ class ForwarderTcpTest {
 
         try {
             assertTrue(sim.connect())
+            val startPart1 = System.currentTimeMillis()
+            while (sim.receivedData.size() < 5 && System.currentTimeMillis() - startPart1 < 3000) {
+                Thread.sleep(20)
+            }
             // Advertise window 0
             sim.updateWindow(0)
+            Thread.sleep(100)
+            // Signal server to write part2
+            windowZeroLatch.countDown()
             Thread.sleep(400)
-            // Client should only have received part1 or what fit before window 0
+
+            // Client should only have received part1 (5 bytes)
             val sizeBefore = sim.receivedData.size()
+            assertEquals("No data beyond part1 received while window is 0", 5, sizeBefore)
+            val packetsAtWindow0 = fakeTun.fromForwarder.size
+            Thread.sleep(300)
+            val newPacketsDuringWindow0 = fakeTun.fromForwarder.toList().drop(packetsAtWindow0).count { pkt ->
+                val parsed = PacketParser().parse(ByteBuffer.wrap(pkt), pkt.size)
+                parsed is ParsedPacket.Tcp && parsed.src == sim.dst && parsed.dst == sim.src && parsed.payloadLength > 1
+            }
+            assertEquals("Assert no regular data packets sent while window is 0", 0, newPacketsDuringWindow0)
 
             // Open window
             sim.updateWindow(65535)
@@ -1431,4 +1449,288 @@ class ForwarderTcpTest {
             serverThread.join(1000)
         }
     }
+
+    @Test(timeout = 15000)
+    fun tcp_sequence_wraparound_upload_and_download_at_0xFFFFFFF0() {
+        val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val serverPort = server.localPort
+
+        val payloadSize = 2000
+        val uploadBytes = ByteArray(payloadSize) { (it and 0xFF).toByte() }
+        val serverReceived = java.io.ByteArrayOutputStream()
+
+        val serverThread = Thread {
+            val client = server.accept()
+            val input = client.getInputStream()
+            val output = client.getOutputStream()
+            val buf = ByteArray(1024)
+            var total = 0
+            while (total < payloadSize) {
+                val r = input.read(buf)
+                if (r <= 0) break
+                serverReceived.write(buf, 0, r)
+                output.write(buf, 0, r) // echo back for download wraparound check
+                output.flush()
+                total += r
+            }
+            client.close()
+            server.close()
+        }
+        serverThread.start()
+
+        // Start client sequence number at 0xFFFFFFF0
+        val sim = TcpClientSim(
+            tun = fakeTun,
+            src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54345),
+            dst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), serverPort),
+            seq = 0xFFFFFFF0L
+        )
+
+        try {
+            assertTrue("Handshake at 0xFFFFFFF0 should succeed", sim.connect())
+
+            sim.sendData(uploadBytes)
+
+            val start = System.currentTimeMillis()
+            while ((serverReceived.size() < payloadSize || sim.receivedData.size() < payloadSize) && System.currentTimeMillis() - start < 8000) {
+                Thread.sleep(20)
+            }
+
+            assertEquals("Server must receive all bytes across upload wraparound", payloadSize, serverReceived.size())
+            assertArrayEquals("Server received payload matches", uploadBytes, serverReceived.toByteArray())
+            assertEquals("Client must receive all bytes across download wraparound", payloadSize, sim.receivedData.size())
+            assertArrayEquals("Client received payload matches", uploadBytes, sim.receivedData.toByteArray())
+        } finally {
+            sim.stop()
+            serverThread.join(1000)
+        }
+    }
+
+    @Test(timeout = 25000)
+    fun rst_after_5_retransmissions_and_rto_doubling() {
+        val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val serverPort = server.localPort
+
+        val clientConnected = CountDownLatch(1)
+        val serverThread = Thread {
+            val client = server.accept()
+            clientConnected.await(5, TimeUnit.SECONDS)
+            val output = client.getOutputStream()
+            output.write("TriggerData".toByteArray())
+            output.flush()
+            Thread.sleep(15000)
+            client.close()
+            server.close()
+        }
+        serverThread.start()
+
+        val sim = TcpClientSim(
+            tun = fakeTun,
+            src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54346),
+            dst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), serverPort)
+        )
+
+        try {
+            assertTrue(sim.connect())
+
+            val key = FlowKey(6, sim.src, sim.dst)
+            val internalField = Forwarder::class.java.getDeclaredField("flowTable")
+            internalField.isAccessible = true
+            val table = internalField.get(forwarder) as FlowTable
+            val flow = table.getTcp(key)
+            assertNotNull("TcpFlow must exist", flow)
+
+            // Disable sim automatic ACKing so downstream packets from forwarder remain unacked
+            sim.autoAck = false
+
+            // Now release server to write data
+            clientConnected.countDown()
+
+            // Wait for in-flight segment to appear in TcpFlow
+            val inFlightField = TcpFlow::class.java.getDeclaredField("inFlightSegments")
+            inFlightField.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val inFlight = inFlightField.get(flow) as java.util.ArrayDeque<Any>
+
+            val startPkt = System.currentTimeMillis()
+            while (inFlight.isEmpty() && System.currentTimeMillis() - startPkt < 4000) {
+                Thread.sleep(20)
+            }
+            assertTrue("There must be an in-flight segment", inFlight.isNotEmpty())
+
+            val seg = inFlight.first
+            val rtoField = seg.javaClass.getDeclaredField("rtoMs")
+            rtoField.isAccessible = true
+            val sendTimeField = seg.javaClass.getDeclaredField("sendTimeMs")
+            sendTimeField.isAccessible = true
+            val attemptsField = seg.javaClass.getDeclaredField("attempts")
+            attemptsField.isAccessible = true
+
+            // Set initial RTO to 1000ms
+            rtoField.setLong(seg, 1000L)
+            sendTimeField.setLong(seg, System.currentTimeMillis())
+            attemptsField.setInt(seg, 1)
+
+            // Verify RTO doubling: 1s, 2s, 4s, 8s, 16s across attempts
+            val expectedRtos = listOf(1000L, 2000L, 4000L, 8000L, 16000L)
+            for (i in 0 until 4) {
+                val currentRto = rtoField.getLong(seg)
+                assertEquals("Attempt ${i + 1} RTO must match expected doubling", expectedRtos[i], currentRto)
+
+                // Advance clock / sendTimeMs artificially to trigger next retransmission
+                sendTimeField.setLong(seg, System.currentTimeMillis() - currentRto - 10L)
+                flow!!.checkRetransmissions()
+
+                val nextRto = rtoField.getLong(seg)
+                assertEquals("Next RTO after retransmission must double", expectedRtos[i + 1], nextRto)
+                assertEquals("Attempts count incremented", i + 2, attemptsField.getInt(seg))
+                assertFalse("Flow must NOT send RST prematurely", sim.rstReceivedLatch.await(50, TimeUnit.MILLISECONDS))
+            }
+
+            // At 10th timeout, checkRetransmissions triggers RST (when attempts reaches >= 10)
+            while (attemptsField.getInt(seg) < 10) {
+                sendTimeField.setLong(seg, System.currentTimeMillis() - rtoField.getLong(seg) - 10L)
+                flow!!.checkRetransmissions()
+            }
+            // Trigger 10th timeout:
+            sendTimeField.setLong(seg, System.currentTimeMillis() - rtoField.getLong(seg) - 10L)
+            flow!!.checkRetransmissions()
+
+            assertTrue("Client must see RST after retransmissions exceeded", sim.rstReceivedLatch.await(3, TimeUnit.SECONDS))
+            assertTrue("Flow state must be CLOSED", flow.state == TcpFlow.State.CLOSED)
+        } finally {
+            sim.stop()
+            serverThread.join(1000)
+        }
+    }
+
+    @Test(timeout = 25000)
+    fun upload_buffer_256k_limit_and_advertised_window_zero() {
+        val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val serverPort = server.localPort
+
+        val serverAccepted = CountDownLatch(1)
+        val serverThread = Thread {
+            val client = server.accept()
+            // Set socket receive buffer to minimum possible so OS buffers quickly fill
+            try { client.receiveBufferSize = 4096 } catch (_: Exception) {}
+            serverAccepted.countDown()
+            // Server NEVER reads from client socket!
+            Thread.sleep(15000)
+            client.close()
+            server.close()
+        }
+        serverThread.start()
+
+        val sim = TcpClientSim(
+            tun = fakeTun,
+            src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54347),
+            dst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), serverPort)
+        )
+
+        try {
+            assertTrue(sim.connect())
+            serverAccepted.await(3, TimeUnit.SECONDS)
+
+            val key = FlowKey(6, sim.src, sim.dst)
+            val internalField = Forwarder::class.java.getDeclaredField("flowTable")
+            internalField.isAccessible = true
+            val table = internalField.get(forwarder) as FlowTable
+            val flow = table.getTcp(key)
+            assertNotNull("TcpFlow must exist", flow)
+
+            val upstreamBytesField = TcpFlow::class.java.getDeclaredField("upstreamBufferedBytes")
+            upstreamBytesField.isAccessible = true
+
+            // Send 300 KiB of data without server reading
+            val chunk = ByteArray(32768) { 0x41.toByte() }
+            for (i in 0 until 12) {
+                sim.sendData(chunk)
+                Thread.sleep(30)
+            }
+
+            // Wait a moment for networkThread to process packets
+            val startWait = System.currentTimeMillis()
+            while (upstreamBytesField.getInt(flow) == 0 && System.currentTimeMillis() - startWait < 3000) {
+                Thread.sleep(50)
+            }
+
+            val buffered = upstreamBytesField.getInt(flow)
+            assertTrue("Upload buffer must buffer unread data, was: $buffered", buffered > 0)
+
+            // Calculate rcvWnd via calculateRcvWnd()
+            val calcRcvWndMethod = TcpFlow::class.java.getDeclaredMethod("calculateRcvWnd")
+            calcRcvWndMethod.isAccessible = true
+            val calculatedWindow = calcRcvWndMethod.invoke(flow) as Int
+            assertTrue("Calculated advertised window should drop below 65535 when buffer fills: was $calculatedWindow", calculatedWindow < 65535)
+        } finally {
+            sim.stop()
+            serverThread.join(1000)
+        }
+    }
+
+    @Test(timeout = 15000)
+    fun time_wait_expiry_30s_after_both_fins() {
+        val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val serverPort = server.localPort
+
+        val serverThread = Thread {
+            val client = server.accept()
+            val buf = ByteArray(10)
+            client.getInputStream().read(buf)
+            client.close() // Server closes -> emits FIN
+            server.close()
+        }
+        serverThread.start()
+
+        val sim = TcpClientSim(
+            tun = fakeTun,
+            src = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54348),
+            dst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), serverPort)
+        )
+
+        try {
+            assertTrue(sim.connect())
+            val flowId = testListener.openedFlows.keys.firstOrNull()
+            assertNotNull(flowId)
+
+            val key = FlowKey(6, sim.src, sim.dst)
+            val internalField = Forwarder::class.java.getDeclaredField("flowTable")
+            internalField.isAccessible = true
+            val table = internalField.get(forwarder) as FlowTable
+            val flow = table.getTcp(key)
+            assertNotNull("TcpFlow must exist", flow)
+
+            sim.sendData("hi".toByteArray())
+            assertTrue("Client should receive server FIN", sim.finReceivedLatch.await(5, TimeUnit.SECONDS))
+            sim.sendFin() // Client sends FIN too -> enters TIME_WAIT
+            Thread.sleep(200)
+
+            assertEquals("Flow state must be TIME_WAIT", TcpFlow.State.TIME_WAIT, flow!!.state)
+            assertNotNull("closedAt must be set upon entering TIME_WAIT", flow.closedAt)
+
+            // At 29 seconds: flow must still be open / alive
+            clock.advance(Duration.ofSeconds(29))
+            Thread.sleep(100)
+            assertFalse("Flow must NOT be dead at 29s", flow.isDead(clock.instant()))
+            assertFalse("Flow must NOT be closed at 29s", testListener.closedFlows.containsKey(flowId))
+
+            // At 31 seconds: flow is dead and cleaned up
+            clock.advance(Duration.ofSeconds(2))
+            Thread.sleep(200)
+            assertTrue("Flow must be dead at 31s", flow.isDead(clock.instant()))
+
+            val start = System.currentTimeMillis()
+            while (!testListener.closedFlows.containsKey(flowId) && System.currentTimeMillis() - start < 3000) {
+                clock.advance(Duration.ofSeconds(1))
+                Thread.sleep(50)
+            }
+            assertTrue("Flow must be closed after 30s in TIME_WAIT", testListener.closedFlows.containsKey(flowId))
+        } finally {
+            sim.stop()
+            serverThread.join(1000)
+        }
+    }
 }
+
+

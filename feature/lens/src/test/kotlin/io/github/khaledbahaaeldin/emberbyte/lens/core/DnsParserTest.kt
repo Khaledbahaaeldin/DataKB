@@ -129,6 +129,252 @@ class DnsParserTest {
         assertEquals(0L, answers[0].ttlSeconds)
     }
 
+    @Test
+    fun dnsNameOver255Bytes_dropped() {
+        // Construct a DNS message with question section having total wire length > 255 bytes (e.g., 5 labels of 60 bytes = 300 bytes)
+        val out = java.io.ByteArrayOutputStream()
+        val hdr = ByteBuffer.allocate(12).order(ByteOrder.BIG_ENDIAN)
+        hdr.putShort(0x1111.toShort())
+        hdr.putShort(0x8180.toShort()) // response
+        hdr.putShort(1.toShort()) // 1 question
+        hdr.putShort(1.toShort()) // 1 answer
+        hdr.putShort(0.toShort())
+        hdr.putShort(0.toShort())
+        out.write(hdr.array())
+
+        // Question name: 5 labels of 60 bytes
+        for (i in 0 until 5) {
+            out.write(60)
+            out.write("a".repeat(60).toByteArray(Charsets.US_ASCII))
+        }
+        out.write(0) // terminator
+        val qTail = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN)
+        qTail.putShort(1.toShort()) // Type A
+        qTail.putShort(1.toShort()) // Class IN
+        out.write(qTail.array())
+
+        // Answer record
+        val ansHdr = ByteBuffer.allocate(2 + 2 + 2 + 4 + 2 + 4).order(ByteOrder.BIG_ENDIAN)
+        ansHdr.putShort(0xC00C.toShort()) // Pointer to offset 12 (the oversized question name)
+        ansHdr.putShort(1.toShort()) // Type A
+        ansHdr.putShort(1.toShort()) // Class IN
+        ansHdr.putInt(300) // TTL
+        ansHdr.putShort(4.toShort()) // rdLength
+        ansHdr.put(byteArrayOf(1, 2, 3, 4))
+        out.write(ansHdr.array())
+
+        val answers = DnsParser.answers(out.toByteArray())
+        assertTrue("DNS names over 255 bytes must be dropped / return empty", answers.isEmpty())
+    }
+
+    @Test
+    fun pointerJumpLimit_16_enforced() {
+        // Construct a DNS message with a chain of compression pointers:
+        // Header: 12 bytes
+        // In DnsParser, when reading an answer name that starts with a pointer to offset 12,
+        // that initial pointer is jump 1!
+        // Each subsequent pointer at offset 12, 14, ... is an additional jump.
+        // Total jumps = 1 (from answer pointer) + numInternalJumps.
+        // For total 16 jumps: numInternalJumps = 15.
+        // For total 17 jumps: numInternalJumps = 16.
+        fun buildPointerChainPayload(totalJumps: Int): ByteArray {
+            val numInternalJumps = totalJumps - 1
+            val out = java.io.ByteArrayOutputStream()
+            val hdr = ByteBuffer.allocate(12).order(ByteOrder.BIG_ENDIAN)
+            hdr.putShort(0x1234.toShort())
+            hdr.putShort(0x8180.toShort()) // standard response, no error
+            hdr.putShort(0.toShort()) // 0 questions
+            hdr.putShort(1.toShort()) // 1 answer
+            hdr.putShort(0.toShort())
+            hdr.putShort(0.toShort())
+            out.write(hdr.array())
+
+            // Structure of payload:
+            // Header: bytes 0..11
+            // Answer record: bytes 12..27
+            //   Name: pointer to offset 28 (0xC01C) (Jump 1)
+            //   Type: 1 (A)
+            //   Class: 1 (IN)
+            //   TTL: 300
+            //   rdLength: 4
+            //   rdata: 93.184.216.34
+            // Pointer chain: bytes 28 onwards
+            //   Chain has (totalJumps - 1) pointers.
+            //   Pointer at offset 28 + 2*i points to 28 + 2*(i+1).
+            // Terminal name at offset 28 + 2*(totalJumps - 1): "\x07example\x03com\x00"
+            val chainStartOffset = 12 + 16 // 28
+            val ansHdr = ByteBuffer.allocate(16).order(ByteOrder.BIG_ENDIAN)
+            ansHdr.putShort((0xC000 or chainStartOffset).toShort()) // pointer to chain start (Jump 1)
+            ansHdr.putShort(1.toShort()) // Type A
+            ansHdr.putShort(1.toShort()) // Class IN
+            ansHdr.putInt(300) // TTL
+            ansHdr.putShort(4.toShort()) // rdLength
+            ansHdr.put(byteArrayOf(93.toByte(), 184.toByte(), 216.toByte(), 34.toByte()))
+            out.write(ansHdr.array())
+
+            for (i in 0 until numInternalJumps) {
+                val nextOffset = chainStartOffset + 2 * (i + 1)
+                val ptr = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN)
+                ptr.putShort((0xC000 or nextOffset).toShort())
+                out.write(ptr.array())
+            }
+
+            val nameBytes = PacketBuilder.encodeDnsName("example.com")
+            out.write(nameBytes)
+
+            return out.toByteArray()
+        }
+
+        val chain16 = buildPointerChainPayload(16)
+        val answers16 = DnsParser.answers(chain16)
+        assertEquals("16 pointer jumps should be accepted", 1, answers16.size)
+        assertEquals("example.com", answers16[0].name)
+
+        val chain17 = buildPointerChainPayload(17)
+        val answers17 = DnsParser.answers(chain17)
+        assertTrue("17 pointer jumps must exceed the 16-pointer limit and be dropped", answers17.isEmpty())
+    }
+
+    @Test
+    fun answerCap_64_answers_enforced() {
+        // Construct a DNS message containing 80 answers
+        val rawAnswers = (1..80).map { i ->
+            PacketBuilder.DnsRawAnswer(
+                nameRef = PacketBuilder.NameRef.Literal("host$i.example.com"),
+                type = 1,
+                ttl = 300L,
+                rdata = byteArrayOf(10, 0, (i shr 8).toByte(), (i and 0xFF).toByte())
+            )
+        }
+        val payload = PacketBuilder.dnsResponse(
+            id = 0x2222,
+            questions = listOf("host1.example.com" to 1),
+            answers = rawAnswers
+        )
+
+        val answers = DnsParser.answers(payload)
+        assertEquals("At most 64 answers must be parsed due to the 64-answer cap", 64, answers.size)
+    }
+
+    @Test
+    fun fuzzTest_rawRandomByteArrays() {
+        val rand = java.util.Random(42L)
+        for (i in 0 until 5_000) {
+            val len = rand.nextInt(300)
+            val bytes = ByteArray(len)
+            rand.nextBytes(bytes)
+            // Must not throw any unhandled exceptions
+            DnsParser.answers(bytes)
+        }
+    }
+
+    @Test
+    fun structureAwareFuzzing_20kMutations() {
+        val rand = java.util.Random(54321L)
+
+        // Seed valid DNS responses
+        val resp1 = PacketBuilder.dnsResponse(
+            id = 0x1234,
+            questions = listOf("example.com" to 1),
+            answers = listOf(
+                PacketBuilder.DnsRawAnswer(
+                    nameRef = PacketBuilder.NameRef.Literal("example.com"),
+                    type = 1,
+                    ttl = 300,
+                    rdata = byteArrayOf(93.toByte(), 184.toByte(), 216.toByte(), 34.toByte())
+                )
+            )
+        )
+        val resp2 = PacketBuilder.dnsResponse(
+            id = 0x5678,
+            questions = listOf("ipv6.example.org" to 28),
+            answers = listOf(
+                PacketBuilder.DnsRawAnswer(
+                    nameRef = PacketBuilder.NameRef.Literal("ipv6.example.org"),
+                    type = 28,
+                    ttl = 600,
+                    rdata = ByteArray(16) { 0x20.toByte() }
+                )
+            )
+        )
+        val resp3 = PacketBuilder.dnsResponse(
+            id = 0x9abc,
+            questions = listOf("cname.example.com" to 1),
+            answers = listOf(
+                PacketBuilder.DnsRawAnswer(
+                    nameRef = PacketBuilder.NameRef.Literal("cname.example.com"),
+                    type = 5,
+                    ttl = 120,
+                    rdata = PacketBuilder.encodeDnsName("target.example.net")
+                ),
+                PacketBuilder.DnsRawAnswer(
+                    nameRef = PacketBuilder.NameRef.Literal("target.example.net"),
+                    type = 1,
+                    ttl = 120,
+                    rdata = byteArrayOf(1, 2, 3, 4)
+                )
+            )
+        )
+
+        val seedResponses = listOf(resp1, resp2, resp3)
+        var nonNullCount = 0
+        val iterations = 20_000
+
+        for (i in 0 until iterations) {
+            val base = seedResponses[i % seedResponses.size].clone()
+            val mutationType = rand.nextInt(4)
+            val mutatedBytes: ByteArray
+
+            when (mutationType) {
+                0 -> {
+                    // Truncation at arbitrary length
+                    val truncLen = rand.nextInt(base.size + 1)
+                    mutatedBytes = base.copyOf(truncLen)
+                }
+                1 -> {
+                    // Random bit / byte flips
+                    val flips = rand.nextInt(3) + 1
+                    for (f in 0 until flips) {
+                        val idx = rand.nextInt(base.size)
+                        base[idx] = (base[idx].toInt() xor (1 shl rand.nextInt(8))).toByte()
+                    }
+                    mutatedBytes = base
+                }
+                2 -> {
+                    // Mutate ID or TTL without breaking record structure
+                    if (base.size >= 12) {
+                        base[0] = rand.nextInt(256).toByte() // ID
+                        base[1] = rand.nextInt(256).toByte()
+                    }
+                    mutatedBytes = base
+                }
+                3 -> {
+                    // Mutate RDATA bytes
+                    val rdataOffset = base.size - 4
+                    if (rdataOffset >= 12) {
+                        base[rdataOffset] = rand.nextInt(256).toByte()
+                    }
+                    mutatedBytes = base
+                }
+                else -> mutatedBytes = base
+            }
+
+            // Must never throw
+            val answers = DnsParser.answers(mutatedBytes)
+            if (answers.isNotEmpty()) {
+                nonNullCount++
+                for (ans in answers) {
+                    assertTrue("Domain name not empty", ans.name.isNotEmpty())
+                    assertTrue("TTL >= 0", ans.ttlSeconds >= 0)
+                }
+            }
+        }
+
+        val nonNullRatio = nonNullCount.toDouble() / iterations
+        assertTrue("At least 30% of mutated inputs must parse to non-empty result (was ${nonNullRatio * 100}%, $nonNullCount/$iterations)",
+            nonNullRatio >= 0.30)
+    }
+
     private fun hexToBytes(hex: String): ByteArray {
         val clean = hex.replace(" ", "")
         val len = clean.length

@@ -352,10 +352,16 @@ class ForwarderUdpTest {
             Thread.sleep(100)
             val dnsFlowId = testListener.openedFlows.entries.first { it.value.remote.port == 53 }.key
 
-            // Advance 11 seconds -> DNS flow should close, regular should stay open
-            clock.advance(Duration.ofSeconds(11))
+            // Advance 9 seconds -> DNS flow must still be open (no ICMP early close, server never replies)
+            clock.advance(Duration.ofSeconds(9))
+            Thread.sleep(100)
+            assertTrue("DNS flow must still be open at 9s", !testListener.closedFlows.containsKey(dnsFlowId))
+            assertTrue("Regular flow must still be open at 9s", !testListener.closedFlows.containsKey(regularFlowId))
+
+            // Advance another 2 seconds (total 11s) -> DNS flow should close, regular should stay open
+            clock.advance(Duration.ofSeconds(2))
             Thread.sleep(200)
-            assertTrue("DNS flow should close after 10s", testListener.closedFlows.containsKey(dnsFlowId))
+            assertTrue("DNS flow should close after 10s (tested at 11s)", testListener.closedFlows.containsKey(dnsFlowId))
             assertTrue("Regular flow should still be open after 11s", !testListener.closedFlows.containsKey(regularFlowId))
 
             // Advance another 50 seconds (total 61s) -> regular flow should close

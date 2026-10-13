@@ -220,9 +220,11 @@ class PacketParserTest {
         pIcmp[11] = c.toByte()
         assertNull("ICMP protocol should be dropped", parser.parse(ByteBuffer.wrap(pIcmp), pIcmp.size))
 
-        // 10. Truncated TCP/UDP header
+        // 10. Truncated TCP header < 20 bytes dropped
         val pTrunc = PacketBuilder.ipv4Tcp(src, dst, 1, 1, TcpFlags.ACK)
-        assertNull("Truncated buffer should be dropped", parser.parse(ByteBuffer.wrap(pTrunc), 25)) // only 5 bytes of TCP
+        assertNull("Truncated buffer < 20 bytes TCP should be dropped", parser.parse(ByteBuffer.wrap(pTrunc), 25)) // only 5 bytes of TCP
+        val pTrunc19 = PacketBuilder.ipv4Tcp(src, dst, 1, 1, TcpFlags.ACK)
+        assertNull("TCP header 19 bytes (< 20) should be dropped", parser.parse(ByteBuffer.wrap(pTrunc19), 39)) // 20 IP + 19 TCP
 
         // 11. IPv6 extension headers: hop-by-hop (0), routing (43), dest opts (60) are skipped; fragment (44) is dropped
         val src6 = InetSocketAddress(InetAddress.getByName("2001:db8::1"), 1234)
@@ -230,13 +232,27 @@ class PacketParserTest {
 
         // Hop-by-hop (0) extension header of 8 bytes (data = 6 bytes)
         val hopByHopExt = 0 to ByteArray(6)
-        val pSkipExt = PacketBuilder.ipv6Tcp(src6, dst6, 1, 1, TcpFlags.ACK, extensionHeaders = listOf(hopByHopExt))
-        assertNotNull("IPv6 hop-by-hop extension header should be skipped", parser.parse(ByteBuffer.wrap(pSkipExt), pSkipExt.size))
+        val pHopExt = PacketBuilder.ipv6Tcp(src6, dst6, 1, 1, TcpFlags.ACK, extensionHeaders = listOf(hopByHopExt))
+        assertNotNull("IPv6 hop-by-hop (0) extension header should be skipped", parser.parse(ByteBuffer.wrap(pHopExt), pHopExt.size))
+
+        // Routing (43) extension header of 8 bytes (data = 6 bytes)
+        val routingExt = 43 to ByteArray(6)
+        val pRoutingExt = PacketBuilder.ipv6Tcp(src6, dst6, 1, 1, TcpFlags.ACK, extensionHeaders = listOf(routingExt))
+        assertNotNull("IPv6 routing (43) extension header should be skipped", parser.parse(ByteBuffer.wrap(pRoutingExt), pRoutingExt.size))
+
+        // Destination options (60) extension header of 8 bytes (data = 6 bytes)
+        val dstOptsExt = 60 to ByteArray(6)
+        val pDstOptsExt = PacketBuilder.ipv6Tcp(src6, dst6, 1, 1, TcpFlags.ACK, extensionHeaders = listOf(dstOptsExt))
+        assertNotNull("IPv6 destination options (60) extension header should be skipped", parser.parse(ByteBuffer.wrap(pDstOptsExt), pDstOptsExt.size))
+
+        // Multiple chained extension headers: hop-by-hop (0) -> routing (43) -> dest opts (60)
+        val pChainedExt = PacketBuilder.ipv6Tcp(src6, dst6, 1, 1, TcpFlags.ACK, extensionHeaders = listOf(hopByHopExt, routingExt, dstOptsExt))
+        assertNotNull("Chained 0, 43, 60 extension headers should all be skipped", parser.parse(ByteBuffer.wrap(pChainedExt), pChainedExt.size))
 
         // Fragment extension header (44)
         val fragExt = 44 to ByteArray(6)
         val pFragExt = PacketBuilder.ipv6Tcp(src6, dst6, 1, 1, TcpFlags.ACK, extensionHeaders = listOf(fragExt))
-        assertNull("IPv6 fragment extension header should be dropped", parser.parse(ByteBuffer.wrap(pFragExt), pFragExt.size))
+        assertNull("IPv6 fragment extension header (44) should be dropped", parser.parse(ByteBuffer.wrap(pFragExt), pFragExt.size))
 
         // 12. Empty and 1-byte buffers give null without exception
         assertNull(parser.parse(ByteBuffer.allocate(0), 0))
@@ -258,5 +274,138 @@ class PacketParserTest {
                 assertTrue("payload inside buffer", parsed.payloadOffset + parsed.payloadLength <= len)
             }
         }
+    }
+
+    @Test
+    fun structureAwareFuzzing_20kMutations() {
+        val rand = Random(12345L)
+        val src4 = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 54321)
+        val dst4 = InetSocketAddress(InetAddress.getByName("93.184.216.34"), 443)
+        val src6 = InetSocketAddress(InetAddress.getByName("fd7a:115c:a1e0::2"), 54322)
+        val dst6 = InetSocketAddress(InetAddress.getByName("2606:2800:220:1:248:1893:25c8:1946"), 443)
+
+        // Seed base valid packets
+        val basePackets = listOf(
+            PacketBuilder.ipv4Tcp(src4, dst4, seq = 1000L, ack = 500L, flags = TcpFlags.ACK or TcpFlags.PSH, payload = "Hello TCP v4".toByteArray()),
+            PacketBuilder.ipv4Tcp(src4, dst4, seq = 2000L, ack = 0L, flags = TcpFlags.SYN, options = PacketBuilder.buildMssOption(1400)),
+            PacketBuilder.ipv4Udp(src4, dst4, payload = "Hello UDP v4".toByteArray()),
+            PacketBuilder.ipv6Tcp(src6, dst6, seq = 3000L, ack = 1500L, flags = TcpFlags.ACK, payload = "Hello TCP v6".toByteArray()),
+            PacketBuilder.ipv6Udp(src6, dst6, payload = "Hello UDP v6".toByteArray())
+        )
+
+        var nonNullCount = 0
+        val iterations = 20_000
+
+        for (i in 0 until iterations) {
+            val base = basePackets[i % basePackets.size].clone()
+            val mutationType = rand.nextInt(5)
+            var testLen = base.size
+            val isIpv4 = (base[0].toInt().ushr(4) and 0x0F) == 4
+            val isUdp = if (isIpv4) (base[9].toInt() and 0xFF) == 17 else (base[6].toInt() and 0xFF) == 17
+
+            when (mutationType) {
+                0 -> {
+                    // Truncation at arbitrary length
+                    testLen = rand.nextInt(base.size + 1)
+                }
+                1 -> {
+                    // Random bit/byte flips in payload or header (preserving checksums if possible)
+                    val flips = rand.nextInt(3) + 1
+                    for (f in 0 until flips) {
+                        val idx = rand.nextInt(base.size)
+                        base[idx] = (base[idx].toInt() xor (1 shl rand.nextInt(8))).toByte()
+                    }
+                    // Recalculate checksums so mutation can survive validation
+                    recalculateChecksums(base, isIpv4, isUdp)
+                }
+                2 -> {
+                    // Mutate TCP flags or window or sequence numbers (non-checksum fields)
+                    if (!isUdp && isIpv4 && base.size >= 40) {
+                        // Mutate window or seq
+                        base[14] = rand.nextInt(256).toByte()
+                        base[15] = rand.nextInt(256).toByte()
+                        // Recalculate TCP checksum
+                        recalculateChecksums(base, isIpv4 = true, isUdp = false)
+                    }
+                }
+                3 -> {
+                    // Mutate payload bytes only (and recalculate transport checksum)
+                    val ipHeaderLen = if (isIpv4) (base[0].toInt() and 0x0F) * 4 else 40
+                    val transportHeaderLen = if (isUdp) 8 else ((base[ipHeaderLen + 12].toInt() and 0xFF).ushr(4) * 4)
+                    val payloadStart = ipHeaderLen + transportHeaderLen
+                    if (base.size > payloadStart) {
+                        val pIdx = payloadStart + rand.nextInt(base.size - payloadStart)
+                        base[pIdx] = rand.nextInt(256).toByte()
+                        recalculateChecksums(base, isIpv4, isUdp)
+                    }
+                }
+                4 -> {
+                    // Corrupted length fields
+                    if (isIpv4) {
+                        base[2] = rand.nextInt(256).toByte()
+                        base[3] = rand.nextInt(256).toByte()
+                        recalculateChecksums(base, isIpv4, isUdp)
+                    }
+                }
+            }
+
+            val buf = ByteBuffer.wrap(base, 0, testLen)
+            val parsed = parser.parse(buf, testLen)
+            if (parsed != null) {
+                nonNullCount++
+                assertTrue("payloadOffset >= 0", parsed.payloadOffset >= 0)
+                assertTrue("payloadLength >= 0", parsed.payloadLength >= 0)
+                assertTrue("payload inside buffer: offset=${parsed.payloadOffset} len=${parsed.payloadLength} bufLen=$testLen",
+                    parsed.payloadOffset + parsed.payloadLength <= testLen)
+            }
+        }
+
+        val nonNullRatio = nonNullCount.toDouble() / iterations
+        assertTrue("At least 30% of mutated inputs must parse to non-null result (was ${nonNullRatio * 100}%, $nonNullCount/$iterations)",
+            nonNullRatio >= 0.30)
+    }
+
+    private fun recalculateChecksums(bytes: ByteArray, isIpv4: Boolean, isUdp: Boolean) {
+        try {
+            if (isIpv4 && bytes.size >= 20) {
+                val ihl = (bytes[0].toInt() and 0x0F)
+                val ipHeaderLen = ihl * 4
+                if (ipHeaderLen in 20..bytes.size) {
+                    bytes[10] = 0
+                    bytes[11] = 0
+                    val cIp = Checksums.ipv4Header(bytes, 0, ipHeaderLen)
+                    bytes[10] = (cIp shr 8).toByte()
+                    bytes[11] = cIp.toByte()
+
+                    val protocol = bytes[9].toInt() and 0xFF
+                    val transportOffset = ipHeaderLen
+                    val totalLen = ((bytes[2].toInt() and 0xFF) shl 8) or (bytes[3].toInt() and 0xFF)
+                    val transportLen = minOf(bytes.size, totalLen) - transportOffset
+                    if (transportLen >= if (protocol == 17) 8 else 20) {
+                        val chkPos = if (protocol == 17) transportOffset + 6 else transportOffset + 16
+                        bytes[chkPos] = 0
+                        bytes[chkPos + 1] = 0
+                        val cTrans = Checksums.transport(bytes, 0, false, protocol, transportOffset, transportLen)
+                        bytes[chkPos] = (cTrans shr 8).toByte()
+                        bytes[chkPos + 1] = cTrans.toByte()
+                    }
+                }
+            } else if (!isIpv4 && bytes.size >= 40) {
+                val nextHeader = bytes[6].toInt() and 0xFF
+                if (nextHeader == 6 || nextHeader == 17) {
+                    val transportOffset = 40
+                    val payloadLen = ((bytes[4].toInt() and 0xFF) shl 8) or (bytes[5].toInt() and 0xFF)
+                    val transportLen = minOf(bytes.size - 40, payloadLen)
+                    if (transportLen >= if (nextHeader == 17) 8 else 20) {
+                        val chkPos = if (nextHeader == 17) transportOffset + 6 else transportOffset + 16
+                        bytes[chkPos] = 0
+                        bytes[chkPos + 1] = 0
+                        val cTrans = Checksums.transport(bytes, 0, true, nextHeader, transportOffset, transportLen)
+                        bytes[chkPos] = (cTrans shr 8).toByte()
+                        bytes[chkPos + 1] = cTrans.toByte()
+                    }
+                }
+            }
+        } catch (_: Exception) {}
     }
 }

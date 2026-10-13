@@ -2,6 +2,7 @@ package io.github.khaledbahaaeldin.emberbyte.lens.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -115,5 +116,68 @@ class SniParserTest {
             // Must not throw
             SniParser.serverName(bytes)
         }
+    }
+
+    @Test
+    fun structureAwareFuzzing_20kMutations() {
+        val rand = Random(998877L)
+
+        val record1 = PacketBuilder.clientHello("example.com")
+        val record2 = PacketBuilder.clientHello("secure.bank.org")
+        val record3 = PacketBuilder.clientHello("api.service.io")
+        val seedRecords = listOf(record1, record2, record3)
+
+        var nonNullCount = 0
+        val iterations = 20_000
+
+        for (i in 0 until iterations) {
+            val base = seedRecords[i % seedRecords.size].clone()
+            val mutationType = rand.nextInt(4)
+            val mutated: ByteArray
+
+            when (mutationType) {
+                0 -> {
+                    // Truncation at arbitrary length
+                    val truncLen = rand.nextInt(base.size + 1)
+                    mutated = base.copyOf(truncLen)
+                }
+                1 -> {
+                    // Random bit flips
+                    val flips = rand.nextInt(2) + 1
+                    for (f in 0 until flips) {
+                        val idx = rand.nextInt(base.size)
+                        base[idx] = (base[idx].toInt() xor (1 shl rand.nextInt(8))).toByte()
+                    }
+                    mutated = base
+                }
+                2 -> {
+                    // Mutate TLS version or random bytes (offsets 1..37) without breaking handshake/SNI structure
+                    val randOffset = 1 + rand.nextInt(37)
+                    base[randOffset] = rand.nextInt(256).toByte()
+                    mutated = base
+                }
+                3 -> {
+                    // Mutate session ID or cipher suite fields without touching record header or SNI extension
+                    val offset = 40 + rand.nextInt(20)
+                    if (offset < base.size - 20) {
+                        base[offset] = rand.nextInt(256).toByte()
+                    }
+                    mutated = base
+                }
+                else -> mutated = base
+            }
+
+            // Must never throw
+            val name = SniParser.serverName(mutated)
+            if (name != null) {
+                nonNullCount++
+                assertTrue("SNI name not empty", name.isNotEmpty())
+                assertTrue("SNI name lowercase", name == name.lowercase())
+            }
+        }
+
+        val nonNullRatio = nonNullCount.toDouble() / iterations
+        assertTrue("At least 30% of mutated ClientHello inputs must parse to non-null result (was ${nonNullRatio * 100}%, $nonNullCount/$iterations)",
+            nonNullRatio >= 0.30)
     }
 }
