@@ -28,7 +28,6 @@ per-app data budgets, spike detection, "what if" planning, threshold alerts, enc
 - Budgets and spikes count mobile data only.
 - A backup cannot be recovered without its passphrase (there is no reset).
 - Restoring replaces plans, budgets and history on this device and skips usage rows of apps that are not installed.
-- Live Lens is not available (milestone 5).
 - Per-SIM history is estimated when more than one SIM was used (backend spec section 5).
 - A plan bound to a SIM is marked "Estimated" when part of its history has no SIM information (pre-install or backfilled traffic) or the window starts before Emberbyte's first measurement (for example without usage access).
 - Plan alerts need the app notification setting AND the 'Plan alerts' channel enabled.
@@ -38,9 +37,7 @@ per-app data budgets, spike detection, "what if" planning, threshold alerts, enc
 
 Everything stays on your device. There are no accounts, no analytics and no cloud. The app
 requests `QUERY_ALL_PACKAGES` only to show app names and `PACKAGE_USAGE_STATS` only for per-app
-history, both optional for totals. The optional **Live Lens** feature (milestone 5) uses a
-local-only VPN to show which app is using data right now; it is off unless you turn it on,
-and nothing it sees leaves the phone.
+history, both optional for totals. Emberbyte never uses a VPN and cannot see which servers an app contacts.
 
 ## Build
 

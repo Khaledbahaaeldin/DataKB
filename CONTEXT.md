@@ -35,9 +35,3 @@ _Avoid_: SimCard, Line, ModemPort
 **Session**:
 A contiguous interval of active network connectivity across a single network transport interface.
 _Avoid_: Connection, Tunnel, Flow
-
-### Live Inspection
-
-**Forwarder**:
-A local packet relay mechanism designed to inspect in-flight packets, extract TLS SNI and DNS metadata, and resolve socket owners.
-_Avoid_: Proxy, Firewall, Interceptor, Sniffer

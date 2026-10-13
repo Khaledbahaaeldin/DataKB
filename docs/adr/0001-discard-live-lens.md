@@ -1,15 +1,31 @@
-# 0001: Defer Pure-Kotlin Forwarder for Live Lens (Milestone 5)
+# 0001: Discard Live Lens (milestone 5)
 
 ## Status
 Accepted
 
 ## Context
-Milestone 5 (Live Lens) explored whether a local Android `VpnService` forwarder could be built purely in user-space Kotlin using `java.nio` non-blocking sockets and an in-process TCP state machine. The spike fix wave (Tasks Q1–Q5) resolved selector spin, unacknowledged FIN handling, bidirectional TCP window flow control, SNI fragmentation reassembly, and buffer allocation overhead. However, empirical benchmarking on device runtime ART revealed that processing user-space TCP state, checksum recalculations, and NIO selector context switching incurs 12.30 to 17.44 CPU-seconds per 100 MiB of transferred data (against the budgeted threshold of <= 2.0 CPU-seconds per 100 MiB).
+Live Lens was meant to show which app uses data right now and which servers it contacts. Android offers no API for
+that to ordinary apps: per-app live counters are not readable for other apps, and destinations and DNS lookups are
+not exposed. The only unprivileged route is a local `VpnService` that forwards every packet itself.
+
+Milestone 5 therefore started with a spike: a user-space forwarder in Kotlin (`java.nio` sockets plus our own TCP
+state machine). After an audit and a fix wave (end-of-stream spin, acknowledging unrelayed data, both TCP windows,
+SNI across segments, allocations), the spike record on branch `m5-live-lens`
+(`docs/spikes/lens-forwarder.md`) measured **12.30 to 17.44 CPU-seconds per 100 MiB** transferred, against a budget of
+**2.0**, and a decision of `NATIVE NEEDED`.
 
 ## Decision
-We decided to accept the spike verdict **`NATIVE NEEDED`** and **defer** the Live Lens feature module from production release. The forwarder spike code and test suite remain isolated within `:feature:lens`, while production builds and the application UI remain scoped to Milestone 4 (Insight) functionality. When Live Lens is resumed in the future, it must be implemented via a native C/Rust packet engine (e.g. lwIP / tun2socks) rather than a JVM user-space stack.
+Discard the feature. Emberbyte does not use `VpnService`, has no `:feature:lens` module and ships no Lens screen,
+deep link, setting, permission flag or notification channel. A native (C/Rust) packet engine would be a separate,
+much larger project (JNI, an NDK build in CI, a licence review) and is not justified for an opt-in extra.
+
+The spike code, its tests, the audit and QA records stay readable on the `m5-live-lens` branch and are not part of
+`main`.
 
 ## Consequences
-- The application remains clean, stable, and battery-friendly without high CPU overhead from JVM packet translation.
-- Release compilation (`compileReleaseKotlin`) contains no spike receivers or debug activities.
-- Future work on Live Lens will require JNI bindings and native compilation rather than extending the Kotlin engine.
+- The app stays small, battery-friendly and free of any network-facing code. It declares no `INTERNET` permission.
+- Per-app history still comes from `NetworkStatsManager` in 2-hour buckets; a live per-app speed and per-domain view
+  do not exist.
+- A VPN running over Wi-Fi still has its tunnel bytes counted twice (a documented limitation).
+- Milestone numbering is unchanged: M5 is "discarded" and the next milestone is M6 (polish).
+- Reviving the idea means starting from a native engine, not from the Kotlin forwarder.
