@@ -12,18 +12,42 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
+import androidx.core.net.toUri
 import io.github.khaledbahaaeldin.emberbyte.lens.core.DnsAnswer
 import io.github.khaledbahaaeldin.emberbyte.lens.core.FlowInfo
 import io.github.khaledbahaaeldin.emberbyte.lens.core.FlowListener
 import io.github.khaledbahaaeldin.emberbyte.lens.core.Forwarder
 import java.util.concurrent.atomic.AtomicLong
 
-class LensVpnService : VpnService() {
+open class LensVpnService : VpnService() {
+
+    internal open fun establish(): ParcelFileDescriptor? {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        @android.annotation.SuppressLint("MissingPermission")
+        val activeNet = cm.activeNetwork
+
+        val builder = Builder()
+            .setSession("Emberbyte Lens")
+            .setMtu(1400)
+            .addAddress("10.7.0.2", 32)
+            .addAddress("fd7a:115c:a1e0::2", 128)
+            .addRoute("0.0.0.0", 0)
+            .addRoute("::", 0)
+            .setBlocking(true)
+
+        if (activeNet != null) {
+            builder.setUnderlyingNetworks(arrayOf(activeNet))
+        }
+
+        return builder.establish()
+    }
 
     private var tunPfd: ParcelFileDescriptor? = null
     private var tunDevice: ParcelTunDevice? = null
     private var forwarder: Forwarder? = null
     private var forwarderThread: Thread? = null
+
+    private var underlyingNetworks: UnderlyingNetworks? = null
 
     val spikeListener = SpikeFlowListener()
 
@@ -32,6 +56,7 @@ class LensVpnService : VpnService() {
         const val ACTION_STOP = "io.github.khaledbahaaeldin.emberbyte.lens.action.STOP"
         const val CHANNEL_ID = "lens"
         const val NOTIFICATION_ID = 2001
+        private const val ERROR_NOTIFICATION_ID = 2002
 
         fun startIntent(context: Context): Intent =
             Intent(context, LensVpnService::class.java).apply { action = ACTION_START }
@@ -119,29 +144,31 @@ class LensVpnService : VpnService() {
             @android.annotation.SuppressLint("MissingPermission")
             val activeNet = cm.activeNetwork
 
-            val builder = Builder()
-                .setSession("Emberbyte Lens")
-                .setMtu(1400)
-                .addAddress("10.7.0.2", 32)
-                .addAddress("fd7a:115c:a1e0::2", 128)
-                .addRoute("0.0.0.0", 0)
-                .addRoute("::", 0)
-                .setBlocking(true)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && activeNet != null) {
-                builder.setUnderlyingNetworks(arrayOf(activeNet))
-            }
-
-            val pfd = builder.establish()
+            val pfd = establish()
 
             if (pfd == null) {
+                android.util.Log.e("LensVpnService", "start failed: no VPN consent")
+                LensStartResult.set(LensStartResult.NoConsent)
+                postErrorNotification()
                 stopSelf()
                 return
             }
 
+            LensStartResult.set(LensStartResult.Success)
+
             if (activeNet != null) {
                 setUnderlyingNetworks(arrayOf(activeNet))
             }
+
+            val un = UnderlyingNetworks(cm) { network ->
+                if (network != null) {
+                    setUnderlyingNetworks(arrayOf(network))
+                } else {
+                    setUnderlyingNetworks(null)
+                }
+            }
+            underlyingNetworks = un
+            un.start()
 
             tunPfd = pfd
             val device = ParcelTunDevice(pfd)
@@ -167,7 +194,34 @@ class LensVpnService : VpnService() {
         }
     }
 
+    private fun postErrorNotification() {
+        val tapIntent = Intent(Intent.ACTION_VIEW, "emberbyte://lens".toUri()).apply {
+            setPackage(packageName)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val tapPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            tapIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Lens could not start")
+            .setContentText("Open Emberbyte and turn Lens on again.")
+            .setContentIntent(tapPendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIFICATION_ID, notification)
+    }
+
     private fun stopVpn() {
+        underlyingNetworks?.stop()
+        underlyingNetworks = null
+
         val fwd = forwarder
         forwarder = null
 
@@ -185,12 +239,7 @@ class LensVpnService : VpnService() {
         } catch (_: Throwable) {}
         tunPfd = null
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
@@ -221,17 +270,15 @@ class LensVpnService : VpnService() {
     )
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Lens",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Shows while Lens is running"
-            }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Lens",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Shows while Lens is running"
         }
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(channel)
     }
 
     private fun buildNotification(): Notification {
@@ -245,7 +292,7 @@ class LensVpnService : VpnService() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Lens is on")
-            .setContentText("Lens is on")
+            .setContentText("Watching which apps use data")
             .setOngoing(true)
             .addAction(0, "Stop", stopPendingIntent)
             .build()

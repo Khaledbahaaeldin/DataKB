@@ -13,7 +13,8 @@
 
         <receiver
             android:name="io.github.khaledbahaaeldin.emberbyte.lens.spike.LensSpikeReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="io.github.khaledbahaaeldin.emberbyte.debug.LENS_START" />
                 <action android:name="io.github.khaledbahaaeldin.emberbyte.debug.LENS_STOP" />

@@ -44,10 +44,6 @@ class LensSpikeActivity : Activity() {
 
     private fun startLens() {
         val startIntent = LensVpnService.startIntent(this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(startIntent)
-        } else {
-            startService(startIntent)
-        }
+        startForegroundService(startIntent)
     }
 }

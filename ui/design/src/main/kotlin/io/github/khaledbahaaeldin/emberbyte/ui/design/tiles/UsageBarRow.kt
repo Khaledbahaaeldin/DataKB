@@ -34,6 +34,7 @@ fun UsageBarRow(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     scrollKey: Any? = null,
+    openAtEnd: Boolean = true,
 ) {
     val max = (points.maxOfOrNull { it.bytes } ?: 0L).coerceAtLeast(1L)
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -42,7 +43,7 @@ fun UsageBarRow(
         val scrollable = totalNeeded > maxWidth
         val scrollState = rememberScrollState()
 
-        if (scrollable) {
+        if (scrollable && openAtEnd) {
             LaunchedEffect(points.size, scrollKey) {
                 scrollState.scrollTo(scrollState.maxValue)
             }

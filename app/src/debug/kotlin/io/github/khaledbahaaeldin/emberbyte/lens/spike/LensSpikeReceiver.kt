@@ -21,11 +21,7 @@ class LensSpikeReceiver : BroadcastReceiver() {
             ACTION_START -> {
                 Log.i(TAG, "Received LENS_START broadcast")
                 val startIntent = LensVpnService.startIntent(context)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(startIntent)
-                } else {
-                    context.startService(startIntent)
-                }
+                context.startForegroundService(startIntent)
                 setResultCode(0)
                 setResultData("STARTED")
             }
@@ -34,13 +30,9 @@ class LensSpikeReceiver : BroadcastReceiver() {
                 val service = LensVpnService.activeInstance
                 if (service != null) {
                     val stopIntent = LensVpnService.stopIntent(context)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        try {
-                            context.startForegroundService(stopIntent)
-                        } catch (_: Exception) {
-                            context.startService(stopIntent)
-                        }
-                    } else {
+                    try {
+                        context.startForegroundService(stopIntent)
+                    } catch (_: Exception) {
                         context.startService(stopIntent)
                     }
                 }
@@ -58,7 +50,12 @@ class LensSpikeReceiver : BroadcastReceiver() {
                     setResultCode(0)
                     setResultData(dumpStr)
                 } else {
-                    val dumpStr = "open=0 evicted=0 errors=0 tunRx=0 tunTx=0 opened=0 knownUid=0 unknownUid=0 (inactive)"
+                    val suffix = if (io.github.khaledbahaaeldin.emberbyte.lens.android.LensStartResult.get() == io.github.khaledbahaaeldin.emberbyte.lens.android.LensStartResult.NoConsent) {
+                        "(failed: no consent)"
+                    } else {
+                        "(inactive)"
+                    }
+                    val dumpStr = "open=0 evicted=0 errors=0 tunRx=0 tunTx=0 opened=0 knownUid=0 unknownUid=0 $suffix"
                     Log.i(TAG, "LENS_DUMP: $dumpStr")
                     setResultCode(0)
                     setResultData(dumpStr)
