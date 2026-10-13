@@ -48,7 +48,7 @@ class OnboardingViewModelTest {
 
     @Test fun ui_state_observes_permission_changes() = runTest(dispatcher) {
         val onboardingRepo = FakeOnboardingRepository()
-        val permsRepo = FakePermissionRepository(PermissionState(usageAccess = false, notifications = false, phoneState = false, vpnConsentGranted = false))
+        val permsRepo = FakePermissionRepository(PermissionState(usageAccess = false, notifications = false, phoneState = false))
         val plansRepo = FakePlanRepository()
         val vm = OnboardingViewModel(onboardingRepo, permsRepo, plansRepo)
         val job = launch { vm.uiState.collect {} }
@@ -57,7 +57,7 @@ class OnboardingViewModelTest {
         assertFalse(vm.uiState.value.usageAccess)
         assertFalse(vm.uiState.value.notifications)
 
-        permsRepo.set(PermissionState(usageAccess = true, notifications = true, phoneState = false, vpnConsentGranted = false))
+        permsRepo.set(PermissionState(usageAccess = true, notifications = true, phoneState = false))
         advanceUntilIdle()
 
         assertTrue(vm.uiState.value.usageAccess)

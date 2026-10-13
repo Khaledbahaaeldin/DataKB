@@ -310,7 +310,7 @@ class PlanEditorViewModelTest {
         assertEquals("SIM 1 · Alpha", vm.uiState.value.sims[1].label)
         assertFalse(vm.uiState.value.needsPhonePermission)
         sims.sims = emptyList()
-        permissions.set(PermissionState(usageAccess = true, notifications = true, phoneState = false, vpnConsentGranted = false)); advanceUntilIdle()
+        permissions.set(PermissionState(usageAccess = true, notifications = true, phoneState = false)); advanceUntilIdle()
         assertTrue(vm.uiState.value.needsPhonePermission)
         assertEquals(listOf(null, 5), vm.uiState.value.sims.map { it.subscriptionId })     // "Not tied" and the default data SIM, which needs no permission
         assertEquals("Default data SIM", vm.uiState.value.sims[1].label)

@@ -24,6 +24,5 @@ class AndroidPermissionRepository(private val context: Context) : PermissionRepo
         notifications = NotificationManagerCompat.from(context).areNotificationsEnabled(),
         phoneState = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) ==
             PackageManager.PERMISSION_GRANTED,
-        vpnConsentGranted = false, // Live Lens arrives in M5
     )
 }

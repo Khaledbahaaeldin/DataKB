@@ -31,7 +31,7 @@ class DataStoreRepositoriesTest {
         val changed = Settings(
             liveNotificationEnabled = false, notificationShowsSpeed = false, spikeAlertsEnabled = false,
             amoledBlack = true, useDynamicColor = false, unitSystem = UnitSystem.BINARY,
-            lensHistoryHours = 6, hapticsEnabled = false,
+            hapticsEnabled = false,
         )
         val result = repo.update { changed }
         assertEquals(Outcome.Success(Unit), result)

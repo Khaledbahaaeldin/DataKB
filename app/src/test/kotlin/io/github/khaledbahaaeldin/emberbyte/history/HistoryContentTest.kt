@@ -73,7 +73,7 @@ class HistoryContentTest {
         val vm = HistoryViewModel(
             usage = usage,
             settings = FakeSettingsRepository(),
-            permissions = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false)),
+            permissions = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true)),
             clock = clock,
             locale = Locale.ENGLISH,
             dates = flowOf(today),
@@ -137,7 +137,7 @@ class HistoryContentTest {
         val vm = HistoryViewModel(
             usage = usage,
             settings = FakeSettingsRepository(),
-            permissions = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false)),
+            permissions = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true)),
             clock = clock,
             locale = Locale.ENGLISH,
             dates = flowOf(today),

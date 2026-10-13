@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Emberbyte"
 
-include(":app", ":ui:design", ":core:engine", ":core:data", ":feature:lens")
+include(":app", ":ui:design", ":core:engine", ":core:data")

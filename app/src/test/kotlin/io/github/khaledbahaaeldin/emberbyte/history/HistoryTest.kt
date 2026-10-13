@@ -92,12 +92,12 @@ class HistoryTest {
 
     @Test fun history_ui_state_needs_usage_access_follows_permission() = runTest(dispatcher) {
         val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
-        val perms = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val perms = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true))
         val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), perms, clock, Locale.ENGLISH, flowOf(today))
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
         assertEquals(true, vm.uiState.value.needsUsageAccess)
-        perms.set(PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false))
+        perms.set(PermissionState(usageAccess = true, notifications = true, phoneState = true))
         advanceUntilIdle()
         assertEquals(false, vm.uiState.value.needsUsageAccess)
         job.cancel()
@@ -105,7 +105,7 @@ class HistoryTest {
 
     @Test fun the_caveat_is_hidden_when_usage_access_is_granted() = runTest(dispatcher) {
         val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
-        val perms = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val perms = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true))
         val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), perms, clock, Locale.ENGLISH, flowOf(today))
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()
@@ -115,7 +115,7 @@ class HistoryTest {
 
     @Test fun the_caveat_is_shown_without_usage_access() = runTest(dispatcher) {
         val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
-        val perms = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true, vpnConsentGranted = false))
+        val perms = FakePermissionRepository(PermissionState(usageAccess = false, notifications = true, phoneState = true))
         val vm = HistoryViewModel(FakeUsageRepository(clock, MutableSharedFlow()), FakeSettingsRepository(), perms, clock, Locale.ENGLISH, flowOf(today))
         val job = launch { vm.uiState.collect {} }
         advanceUntilIdle()

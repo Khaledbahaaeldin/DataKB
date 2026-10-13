@@ -32,7 +32,7 @@ class NavBarFontScaleTest {
         NavBarItem("home", "Home", Icons.Rounded.Home, NavAccent.Primary),
         NavBarItem("apps", "Apps", Icons.Rounded.Apps, NavAccent.Tertiary),
         NavBarItem("plans", "Plans", Icons.Rounded.AccountBalanceWallet, NavAccent.Secondary),
-        NavBarItem("lens", "Lens", Icons.Rounded.Visibility, NavAccent.Error),
+        NavBarItem("extra", "Extra", Icons.Rounded.Visibility, NavAccent.Error),
     )
 
     @Test fun at_200_percent_font_every_item_stays_inside_the_bar() {

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakePermissionRepository(
-    initial: PermissionState = PermissionState(usageAccess = true, notifications = true, phoneState = true, vpnConsentGranted = false),
+    initial: PermissionState = PermissionState(usageAccess = true, notifications = true, phoneState = true),
 ) : PermissionRepository {
     private val state = MutableStateFlow(initial)
 

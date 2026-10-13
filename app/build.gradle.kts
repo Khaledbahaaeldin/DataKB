@@ -27,7 +27,6 @@ dependencies {
     implementation(project(":ui:design"))
     implementation(project(":core:engine"))
     implementation(project(":core:data"))
-    implementation(project(":feature:lens"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

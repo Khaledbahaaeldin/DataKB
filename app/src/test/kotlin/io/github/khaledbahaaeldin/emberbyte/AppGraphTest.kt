@@ -30,7 +30,6 @@ class AppGraphTest {
         // Permissions initial state is observable
         val perms = graph.permissions.observe().first()
         org.junit.Assert.assertNotNull(perms)
-        assertEquals(false, perms.vpnConsentGranted)
 
         // Prune executes without error on real Room store
         graph.prune()

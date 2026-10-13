@@ -34,7 +34,7 @@ class NavigationTest {
         assertEquals(Destination.Home, Destination.fromRoute("home"))
         assertEquals(Destination.Apps, Destination.fromRoute("apps"))
         assertEquals(Destination.Plans, Destination.fromRoute("plans"))
-        assertEquals(Destination.Lens, Destination.fromRoute("lens"))
+        assertEquals(Destination.Home, Destination.fromRoute("lens"))
     }
 
     @Test fun the_app_detail_route_keeps_the_apps_tab_selected() {
@@ -57,27 +57,7 @@ class NavigationTest {
         assertEquals("apps/uid%3A10123", Routes.appDetail("uid:10123"))
     }
 
-    @Test fun lens_tab_shows_placeholder_text_that_it_arrives_in_a_later_update() {
-        val graph = (app as EmberbyteApplication).graph
-        runBlocking {
-            graph.onboarding.complete()
-            graph.onboardingCompleted.first { it == true }
-        }
-        rule.setContent {
-            val settings by graph.settingsState.collectAsState()
-            val current = settings
-            if (current != null) {
-                EmberbyteTheme(darkTheme = true, dynamicColor = current.useDynamicColor, amoledBlack = current.amoledBlack) {
-                    EmberbyteApp(graph, hapticsEnabled = current.hapticsEnabled)
-                }
-            }
-        }
-        rule.waitUntil(10_000) { rule.onAllNodesWithTag("nav_lens").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("nav_lens").performClick()
-        rule.onNodeWithText("Live Lens is opt-in and arrives in a later update.").assertIsDisplayed()
-    }
-
-    @Test fun lens_tab_shows_placeholder_text_under_rtl() {
+    @Test fun plans_tab_opens_under_rtl() {
         val graph = (app as EmberbyteApplication).graph
         runBlocking {
             graph.onboarding.complete()
@@ -94,8 +74,8 @@ class NavigationTest {
                 }
             }
         }
-        rule.waitUntil(10_000) { rule.onAllNodesWithTag("nav_lens").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("nav_lens").performClick()
-        rule.onNodeWithText("Live Lens is opt-in and arrives in a later update.").assertIsDisplayed()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("nav_plans").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("nav_plans").performClick()
+        rule.onNodeWithText("Set up your first plan").assertIsDisplayed()
     }
 }

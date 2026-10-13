@@ -39,7 +39,7 @@ class NavBarHousekeepingTest {
         NavBarItem("home", "Home", Icons.Rounded.Home, NavAccent.Primary),
         NavBarItem("apps", "Apps", Icons.Rounded.Apps, NavAccent.Tertiary),
         NavBarItem("plans", "Plans", Icons.Rounded.AccountBalanceWallet, NavAccent.Secondary),
-        NavBarItem("lens", "Lens", Icons.Rounded.Visibility, NavAccent.Error),
+        NavBarItem("extra", "Extra", Icons.Rounded.Visibility, NavAccent.Error),
     )
 
     private class CountingHaptics : HapticFeedback {

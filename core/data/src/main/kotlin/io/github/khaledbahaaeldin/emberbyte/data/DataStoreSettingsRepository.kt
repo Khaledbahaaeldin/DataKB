@@ -23,7 +23,6 @@ internal object SettingsKeys {
     val AMOLED_BLACK = booleanPreferencesKey("amoled_black")
     val USE_DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
     val UNIT_SYSTEM = stringPreferencesKey("unit_system")
-    val LENS_HISTORY_HOURS = intPreferencesKey("lens_history_hours")
     val HAPTICS = booleanPreferencesKey("haptics_enabled")
     val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
 }
@@ -38,7 +37,6 @@ internal fun Preferences.toSettings(): Settings {
         useDynamicColor = this[SettingsKeys.USE_DYNAMIC_COLOR] ?: d.useDynamicColor,
         unitSystem = this[SettingsKeys.UNIT_SYSTEM]
             ?.let { name -> runCatching { UnitSystem.valueOf(name) }.getOrNull() } ?: d.unitSystem,
-        lensHistoryHours = this[SettingsKeys.LENS_HISTORY_HOURS] ?: d.lensHistoryHours,
         hapticsEnabled = this[SettingsKeys.HAPTICS] ?: d.hapticsEnabled,
     )
 }
@@ -50,7 +48,6 @@ internal fun MutablePreferences.write(settings: Settings) {
     this[SettingsKeys.AMOLED_BLACK] = settings.amoledBlack
     this[SettingsKeys.USE_DYNAMIC_COLOR] = settings.useDynamicColor
     this[SettingsKeys.UNIT_SYSTEM] = settings.unitSystem.name
-    this[SettingsKeys.LENS_HISTORY_HOURS] = settings.lensHistoryHours
     this[SettingsKeys.HAPTICS] = settings.hapticsEnabled
 }
 
