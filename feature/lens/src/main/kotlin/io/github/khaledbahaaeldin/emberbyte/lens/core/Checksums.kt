@@ -98,4 +98,66 @@ object Checksums {
         // In UDP, RFC 768: if the computed checksum is zero, it is transmitted as all ones (0xFFFF).
         return result
     }
+
+    fun ipv4Header(buf: java.nio.ByteBuffer, off: Int, headerLen: Int): Int {
+        var sum = 0L
+        var i = off
+        val end = off + headerLen
+        while (i < end) {
+            val b1 = buf.get(i).toInt() and 0xFF
+            val b2 = if (i + 1 < end) buf.get(i + 1).toInt() and 0xFF else 0
+            val word = (b1 shl 8) or b2
+            sum += word
+            i += 2
+        }
+        while (sum shr 16 > 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
+        }
+        return (sum.toInt().inv()) and 0xFFFF
+    }
+
+    fun transport(buf: java.nio.ByteBuffer, ipOff: Int, ipv6: Boolean, protocol: Int, segOff: Int, segLen: Int): Int {
+        var sum = 0L
+
+        if (!ipv6) {
+            val srcIpOff = ipOff + 12
+            val dstIpOff = ipOff + 16
+
+            sum += ((buf.get(srcIpOff).toInt() and 0xFF) shl 8) or (buf.get(srcIpOff + 1).toInt() and 0xFF)
+            sum += ((buf.get(srcIpOff + 2).toInt() and 0xFF) shl 8) or (buf.get(srcIpOff + 3).toInt() and 0xFF)
+            sum += ((buf.get(dstIpOff).toInt() and 0xFF) shl 8) or (buf.get(dstIpOff + 1).toInt() and 0xFF)
+            sum += ((buf.get(dstIpOff + 2).toInt() and 0xFF) shl 8) or (buf.get(dstIpOff + 3).toInt() and 0xFF)
+            sum += protocol and 0xFFFF
+            sum += segLen and 0xFFFF
+        } else {
+            val srcIpOff = ipOff + 8
+            val dstIpOff = ipOff + 24
+
+            for (k in 0 until 16 step 2) {
+                sum += ((buf.get(srcIpOff + k).toInt() and 0xFF) shl 8) or (buf.get(srcIpOff + k + 1).toInt() and 0xFF)
+            }
+            for (k in 0 until 16 step 2) {
+                sum += ((buf.get(dstIpOff + k).toInt() and 0xFF) shl 8) or (buf.get(dstIpOff + k + 1).toInt() and 0xFF)
+            }
+            sum += (segLen ushr 16) and 0xFFFF
+            sum += segLen and 0xFFFF
+            sum += protocol and 0xFFFF
+        }
+
+        var i = segOff
+        val end = segOff + segLen
+        while (i < end) {
+            val b1 = buf.get(i).toInt() and 0xFF
+            val b2 = if (i + 1 < end) buf.get(i + 1).toInt() and 0xFF else 0
+            val word = (b1 shl 8) or b2
+            sum += word
+            i += 2
+        }
+
+        while (sum shr 16 > 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
+        }
+        val result = (sum.toInt().inv()) and 0xFFFF
+        return result
+    }
 }

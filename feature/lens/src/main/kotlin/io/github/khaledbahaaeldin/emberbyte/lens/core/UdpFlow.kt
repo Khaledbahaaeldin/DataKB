@@ -9,6 +9,8 @@ import java.nio.channels.Selector
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 class UdpFlow(
     val flowId: Long,
@@ -21,11 +23,17 @@ class UdpFlow(
     val clock: Clock,
     val mtu: Int,
     val selector: Selector,
-    val tunWriteLock: Any
+    val tunWriteLock: Any,
+    val oversizedDatagramsCounter: AtomicLong? = null,
+    val protectFailuresCounter: AtomicLong? = null
 ) {
     val openedAt: Instant = clock.instant()
     var lastActiveAt: Instant = openedAt
-    var isClosed = false
+    val closed = AtomicBoolean(false)
+    val isClosed: Boolean get() = closed.get()
+
+    val isIpv6: Boolean = src.address is Inet6Address
+    val maxPayload: Int = if (isIpv6) mtu - 48 else mtu - 28
 
     var channel: DatagramChannel? = null
     var selectionKey: SelectionKey? = null
@@ -34,6 +42,7 @@ class UdpFlow(
     val idleTimeoutSeconds: Long = if (isDnsPort) 10L else 60L
 
     private val writeBuffer = ByteBuffer.allocate(mtu + 200)
+    private val readBuffer = ByteBuffer.allocate(65535)
 
     init {
         listener.onFlowOpened(FlowInfo(flowId, ownerUid, 17, src, dst, openedAt))
@@ -41,9 +50,29 @@ class UdpFlow(
             val dc = DatagramChannel.open()
             channel = dc
             dc.configureBlocking(false)
-            protector.protect(dc)
-            dc.connect(dst) // connect so only packets from dst are received
-            selectionKey = dc.register(selector, SelectionKey.OP_READ, this)
+
+            val protected = try {
+                protector.protect(dc)
+            } catch (_: Exception) {
+                false
+            }
+
+            if (!protected) {
+                protectFailuresCounter?.incrementAndGet()
+                try { dc.close() } catch (_: Exception) {}
+                close()
+            } else {
+                if (!isDnsPort) {
+                    dc.connect(dst) // connect so only packets from dst are received
+                } else {
+                    if (dst.address.isLoopbackAddress) {
+                        dc.bind(InetSocketAddress(dst.address, 0))
+                    } else {
+                        dc.bind(null)
+                    }
+                }
+                selectionKey = dc.register(selector, SelectionKey.OP_READ, this)
+            }
         } catch (e: Exception) {
             close()
         }
@@ -56,7 +85,11 @@ class UdpFlow(
 
         try {
             val buf = ByteBuffer.wrap(raw, udp.payloadOffset, udp.payloadLength)
-            ch.write(buf)
+            if (ch.isConnected) {
+                ch.write(buf)
+            } else {
+                ch.send(buf, dst)
+            }
             listener.onBytes(flowId, rxBytes = 0, txBytes = udp.payloadLength.toLong())
         } catch (e: Exception) {
             close()
@@ -66,22 +99,36 @@ class UdpFlow(
     fun onSocketReadable() {
         lastActiveAt = clock.instant()
         val ch = channel ?: return
-        val readBuf = ByteBuffer.allocate(65535)
 
         try {
-            val readBytes = ch.read(readBuf)
+            readBuffer.clear()
+            val readBytes = if (ch.isConnected) {
+                ch.read(readBuffer)
+            } else {
+                val senderAddr = ch.receive(readBuffer)
+                if (senderAddr == null) 0 else readBuffer.position()
+            }
             if (readBytes > 0) {
-                readBuf.flip()
+                readBuffer.flip()
+
+                // If reply exceeds TUN MTU, drop it and count, keep flow alive
+                if (readBytes > maxPayload) {
+                    oversizedDatagramsCounter?.incrementAndGet()
+                    return
+                }
+
                 val payload = ByteArray(readBytes)
-                readBuf.get(payload)
+                readBuffer.get(payload)
 
                 // Report bytes
                 listener.onBytes(flowId, rxBytes = readBytes.toLong(), txBytes = 0)
 
-                // Check DNS answers
-                val answers = DnsParser.answers(payload)
-                if (answers.isNotEmpty()) {
-                    listener.onDns(answers)
+                // Only parse as DNS on port 53
+                if (isDnsPort) {
+                    val answers = DnsParser.answers(payload)
+                    if (answers.isNotEmpty()) {
+                        listener.onDns(answers)
+                    }
                 }
 
                 // Write packet back to TUN
@@ -97,14 +144,16 @@ class UdpFlow(
                     tun.write(writeBuffer, totalLen)
                 }
             }
+        } catch (_: java.net.PortUnreachableException) {
+            // Remote port unreachable (e.g. ICMP port unreachable on Windows when query packet was sent to port without listener).
+            // Keep UDP flow alive.
         } catch (e: Exception) {
             close()
         }
     }
 
     fun close() {
-        if (isClosed) return
-        isClosed = true
+        if (!closed.compareAndSet(false, true)) return
         try {
             selectionKey?.cancel()
             channel?.close()

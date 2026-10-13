@@ -5,11 +5,46 @@ import java.nio.ByteBuffer
 import java.nio.channels.ClosedSelectorException
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
+import java.nio.channels.SocketChannel
 import java.time.Clock
+import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+
+fun interface SocketChannelFactory {
+    fun open(): SocketChannel
+    companion object {
+        val SYSTEM = SocketChannelFactory { SocketChannel.open() }
+    }
+}
+
+class BoundedLruCache<K, V>(private val maxSize: Int) {
+    private val map = object : LinkedHashMap<K, V>(maxSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: Map.Entry<K, V>?): Boolean {
+            return size > maxSize
+        }
+    }
+
+    @Synchronized
+    fun computeIfAbsent(key: K, mappingFunction: (K) -> V): V {
+        val existing = map[key]
+        if (existing != null) return existing
+        val computed = mappingFunction(key)
+        map[key] = computed
+        return computed
+    }
+
+    @Synchronized
+    fun remove(key: K): V? = map.remove(key)
+
+    @Synchronized
+    fun size(): Int = map.size
+
+    @Synchronized
+    fun clear() = map.clear()
+}
 
 class Forwarder(
     val tun: TunDevice,
@@ -18,12 +53,26 @@ class Forwarder(
     val listener: FlowListener,
     val clock: Clock = Clock.systemUTC(),
     val maxFlows: Int = 1024,
-    val mtu: Int = 1400
+    val mtu: Int = 1400,
+    val channelFactory: SocketChannelFactory = SocketChannelFactory.SYSTEM
 ) {
     val evictedFlows = AtomicLong(0)
     val errors = AtomicLong(0)
     val selectorWakeups = AtomicLong(0)
     val droppedSegments = AtomicLong(0)
+    val oversizedDatagrams = AtomicLong(0)
+    val protectFailures = AtomicLong(0)
+
+    private val uidCache = BoundedLruCache<FlowKey, Int>(4096)
+    internal val uidCacheSize: Int get() = uidCache.size()
+    internal fun uidCacheSize(): Int = uidCache.size()
+    internal val flowListener: FlowListener get() = internalListener
+    internal fun registerFlowForTest(key: FlowKey, uid: Int = 10042) {
+        uidCache.computeIfAbsent(key) { uid }
+    }
+
+    internal val tunReaderThreadInstance: Thread? get() = tunReaderThread
+    internal val networkThreadInstance: Thread? get() = networkThread
 
     private val running = AtomicBoolean(false)
     private val tunWriteLock = Any()
@@ -32,11 +81,48 @@ class Forwarder(
 
     val openFlows: Int get() = flowTable.size()
 
-    // Uid cache per 5-tuple / connection
-    private val uidCache = ConcurrentHashMap<FlowKey, Int>()
+    val directBufferPool = DirectBufferPool(bufferCapacity = 2048, maxPoolSize = 1024)
+    val byteArrayPool = ByteArrayPool(arrayCapacity = 2048, maxPoolSize = 1024)
+
+    private val flowKeys = ConcurrentHashMap<Long, FlowKey>()
+
+    private val internalListener = object : FlowListener {
+        override fun onFlowOpened(flow: FlowInfo) {
+            flowKeys[flow.flowId] = FlowKey(flow.protocol, flow.local, flow.remote)
+            listener.onFlowOpened(flow)
+        }
+
+        override fun onBytes(flowId: Long, rxBytes: Long, txBytes: Long) {
+            listener.onBytes(flowId, rxBytes, txBytes)
+        }
+
+        override fun onName(flowId: Long, name: String) {
+            listener.onName(flowId, name)
+        }
+
+        override fun onDns(answers: List<DnsAnswer>) {
+            listener.onDns(answers)
+        }
+
+        override fun onFlowClosed(flowId: Long) {
+            val key = flowKeys.remove(flowId)
+            if (key != null) {
+                uidCache.remove(key)
+            }
+            listener.onFlowClosed(flowId)
+        }
+    }
 
     private val packetParser = PacketParser()
-    private val networkTasks = ConcurrentLinkedQueue<() -> Unit>()
+
+    data class NetworkPacketTask(
+        val packet: ParsedPacket,
+        val raw: ByteArray,
+        val length: Int,
+        val isPooled: Boolean
+    )
+
+    private val networkTasks = java.util.concurrent.ArrayBlockingQueue<NetworkPacketTask>(512)
 
     private var tunReaderThread: Thread? = null
     private var networkThread: Thread? = null
@@ -65,7 +151,6 @@ class Forwarder(
 
     fun stop() {
         if (!running.compareAndSet(true, false)) {
-            // Already stopped or stopping, ensure resources closed
             tun.close()
             try {
                 selector.wakeup()
@@ -86,6 +171,8 @@ class Forwarder(
         } catch (_: Exception) {}
 
         flowTable.closeAll()
+        uidCache.clear()
+        flowKeys.clear()
     }
 
     private fun tunReaderLoop() {
@@ -102,16 +189,26 @@ class Forwarder(
 
                 val parsed = packetParser.parse(readBuffer, bytesRead)
                 if (parsed == null) {
-                    // Malformed or non-TCP/UDP packet dropped silently
                     continue
                 }
 
-                // Copy raw bytes to pass to network thread
                 readBuffer.position(0)
-                val raw = ByteArray(bytesRead)
-                readBuffer.get(raw)
+                val isPooled = bytesRead <= 2048
+                val raw = if (isPooled) byteArrayPool.acquire() else ByteArray(bytesRead)
+                readBuffer.get(raw, 0, bytesRead)
 
-                dispatchPacketToNetwork(parsed, raw)
+                val task = NetworkPacketTask(parsed, raw, bytesRead, isPooled)
+                while (running.get()) {
+                    if (networkTasks.offer(task, 10, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                        break
+                    }
+                    try {
+                        selector.wakeup()
+                    } catch (_: Exception) {}
+                }
+                try {
+                    selector.wakeup()
+                } catch (_: Exception) {}
             } catch (e: Exception) {
                 if (!running.get()) break
                 errors.incrementAndGet()
@@ -119,28 +216,11 @@ class Forwarder(
         }
     }
 
-    private fun dispatchPacketToNetwork(packet: ParsedPacket, raw: ByteArray) {
-        networkTasks.offer {
-            try {
-                when (packet) {
-                    is ParsedPacket.Tcp -> handleTcpPacket(packet, raw)
-                    is ParsedPacket.Udp -> handleUdpPacket(packet, raw)
-                }
-            } catch (e: Exception) {
-                errors.incrementAndGet()
-            }
-        }
-        try {
-            selector.wakeup()
-        } catch (_: Exception) {}
-    }
-
     private fun handleTcpPacket(tcp: ParsedPacket.Tcp, raw: ByteArray) {
         val key = FlowKey(6, tcp.src, tcp.dst)
         var flow = flowTable.getTcp(key)
 
         if (flow == null) {
-            // New TCP flow only on SYN (and not RST)
             if ((tcp.flags and TcpFlags.SYN) != 0 && (tcp.flags and TcpFlags.RST) == 0) {
                 val uid = uidCache.computeIfAbsent(key) {
                     owner.uidOf(6, tcp.src, tcp.dst)
@@ -153,17 +233,19 @@ class Forwarder(
                     ownerUid = uid,
                     tun = tun,
                     protector = protector,
-                    listener = listener,
+                    listener = internalListener,
                     clock = clock,
                     mtu = mtu,
                     selector = selector,
                     tunWriteLock = tunWriteLock,
-                    droppedSegmentsCounter = droppedSegments
+                    droppedSegmentsCounter = droppedSegments,
+                    channelFactory = channelFactory,
+                    protectFailuresCounter = protectFailures,
+                    directBufferPool = directBufferPool
                 )
                 flowTable.putTcp(key, newFlow)
                 newFlow.startConnect(tcp.mss, tcp.seq)
             } else {
-                // Non-SYN packet for unknown flow: respond with RST+ACK or RST
                 sendStatelessRst(tcp)
             }
         } else {
@@ -212,11 +294,13 @@ class Forwarder(
                 ownerUid = uid,
                 tun = tun,
                 protector = protector,
-                listener = listener,
+                listener = internalListener,
                 clock = clock,
                 mtu = mtu,
                 selector = selector,
-                tunWriteLock = tunWriteLock
+                tunWriteLock = tunWriteLock,
+                oversizedDatagramsCounter = oversizedDatagrams,
+                protectFailuresCounter = protectFailures
             )
             flowTable.putUdp(key, newFlow)
             flow = newFlow
@@ -226,11 +310,8 @@ class Forwarder(
     }
 
     private fun networkLoop() {
-        var lastCleanupTime = clock.instant()
-
         while (running.get()) {
             try {
-                // Drain network tasks first
                 drainNetworkTasks()
 
                 val selectResult = try {
@@ -259,7 +340,6 @@ class Forwarder(
                     }
                 }
 
-                // Check TCP retransmissions and idle flow cleanups
                 for (flow in flowTable.tcpFlows.values) {
                     flow.checkRetransmissions()
                 }
@@ -277,9 +357,16 @@ class Forwarder(
         while (true) {
             val task = networkTasks.poll() ?: break
             try {
-                task.invoke()
+                when (val pkt = task.packet) {
+                    is ParsedPacket.Tcp -> handleTcpPacket(pkt, task.raw)
+                    is ParsedPacket.Udp -> handleUdpPacket(pkt, task.raw)
+                }
             } catch (e: Exception) {
                 errors.incrementAndGet()
+            } finally {
+                if (task.isPooled) {
+                    byteArrayPool.release(task.raw)
+                }
             }
         }
     }

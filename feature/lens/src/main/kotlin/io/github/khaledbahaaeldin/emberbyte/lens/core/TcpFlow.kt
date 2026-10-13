@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.lens.core
 
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.Inet6Address
 import java.net.InetSocketAddress
@@ -12,6 +13,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.ArrayDeque
 import java.util.TreeMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 class TcpFlow(
@@ -26,7 +28,10 @@ class TcpFlow(
     val mtu: Int,
     val selector: Selector,
     val tunWriteLock: Any,
-    val droppedSegmentsCounter: AtomicLong? = null
+    val droppedSegmentsCounter: AtomicLong? = null,
+    val channelFactory: SocketChannelFactory = SocketChannelFactory.SYSTEM,
+    val protectFailuresCounter: AtomicLong? = null,
+    val directBufferPool: DirectBufferPool? = null
 ) {
     enum class State {
         SYN_RECEIVED,
@@ -43,52 +48,62 @@ class TcpFlow(
     val openedAt: Instant = clock.instant()
     var lastActiveAt: Instant = openedAt
     var closedAt: Instant? = null
+    val closed = AtomicBoolean(false)
+    val isClosed: Boolean get() = closed.get()
 
     // Addressing
     val isIpv6: Boolean = src.address is Inet6Address
     val localMss: Int = if (isIpv6) mtu - 60 else mtu - 40
     var peerMss: Int = localMss
+    val srcIpBytes: ByteArray = (src.address as? java.net.Inet4Address)?.address ?: src.address.address
+    val dstIpBytes: ByteArray = (dst.address as? java.net.Inet4Address)?.address ?: dst.address.address
 
     // Sequence space
-    // TUN side (we send packets from dst to src):
-    // mySeq: next sequence number we send to client
-    // myAck: next sequence number we expect from client (acknowledging client's seq)
     var mySeq: Long = 100000L
     var myAck: Long = 0L
 
-    // Client receive window (advertised by client / app)
+    // Client receive window
     var clientWindow: Int = 65535
     var sndWnd: Int = 65535
 
     // Buffers:
-    // 1) App to socket (Upstream / TX):
-    // Client sends data -> buffer up to 256 KiB -> write to SocketChannel
+    // 1) Upstream (App to socket)
     private val upstreamQueue = ArrayDeque<ByteArray>()
     private var upstreamBufferedBytes = 0
     private val maxBufferSize = 256 * 1024
 
     // Out-of-order queue for segments from client
-    // key = seq, value = data
     private val outOfOrderSegments = TreeMap<Long, ByteArray> { a, b ->
         (a - b).toInt()
     }
-    // Out-of-order FIN sequence number if received ahead of time
     private var pendingClientFinSeq: Long? = null
+
+    // SNI reassembly buffer (buffers up to 16 KiB, 3 segments, or 1s simulated time)
+    private var sniBuffer: ByteArrayOutputStream? = ByteArrayOutputStream()
+    private var sniSegmentCount = 0
+    private var sniFinished = false
+    private val sniReported = AtomicBoolean(false)
 
     // Last advertised rcvWnd to client
     private var lastAdvertisedRcvWnd: Int = 65535
 
-    // 2) Socket to app (Downstream / RX):
-    // Downstream buffer holding data read from server socket not yet sent to TUN
-    private val downstreamQueue = ArrayDeque<ByteArray>()
-    private var downstreamQueueOffset = 0 // offset within first chunk of downstreamQueue
+    // 2) Downstream (Socket to app)
+    data class DownstreamChunk(
+        val directBuf: ByteBuffer? = null,
+        val byteArray: ByteArray? = null,
+        val payloadLen: Int
+    )
+    private val downstreamQueue = ArrayDeque<DownstreamChunk>()
     private var downstreamBufferedBytes = 0
 
-    // Retransmission queue (in flight packets sent to TUN, unacknowledged by client)
+    // Retransmission queue
     data class InFlightSegment(
         val seq: Long,
-        val payload: ByteArray,
-        val isFin: Boolean,
+        val payload: ByteArray? = null,
+        val directBuf: ByteBuffer? = null,
+        val totalLen: Int = 0,
+        val payloadLen: Int = payload?.size ?: 0,
+        val isFin: Boolean = false,
         var sendTimeMs: Long = System.currentTimeMillis(),
         var rtoMs: Long = 200L,
         var attempts: Int = 1
@@ -103,8 +118,9 @@ class TcpFlow(
     var channel: SocketChannel? = null
     var selectionKey: SelectionKey? = null
 
-    private var parsedSni = false
     private val writeBuffer = ByteBuffer.allocate(mtu + 200)
+    private val socketReadBuffer = ByteBuffer.allocateDirect(65536)
+    private val socketWriteBuffer = ByteBuffer.allocateDirect(65536)
 
     private var serverEofProcessed = false
 
@@ -119,10 +135,23 @@ class TcpFlow(
         myAck = (initialSeq + 1) and 0xFFFFFFFFL
 
         try {
-            val sc = SocketChannel.open()
+            val sc = channelFactory.open()
             channel = sc
             sc.configureBlocking(false)
-            protector.protect(sc)
+
+            val protected = try {
+                protector.protect(sc)
+            } catch (e: Exception) {
+                false
+            }
+
+            if (!protected) {
+                protectFailuresCounter?.incrementAndGet()
+                sendRstAck()
+                try { sc.close() } catch (_: Exception) {}
+                close()
+                return
+            }
 
             val connecting = sc.connect(dst)
             selectionKey = sc.register(selector, SelectionKey.OP_CONNECT, this)
@@ -185,19 +214,7 @@ class TcpFlow(
 
         // Process client payload
         if (tcp.payloadLength > 0) {
-            val payload = ByteArray(tcp.payloadLength)
-            System.arraycopy(raw, tcp.payloadOffset, payload, 0, tcp.payloadLength)
-
-            // Check SNI on first payload if not yet parsed
-            if (!parsedSni) {
-                parsedSni = true
-                val sni = SniParser.serverName(payload)
-                if (sni != null) {
-                    listener.onName(flowId, sni)
-                }
-            }
-
-            processClientData(tcp.seq, payload)
+            processClientPayload(tcp.seq, raw, tcp.payloadOffset, tcp.payloadLength)
         }
 
         // Handle FIN from client
@@ -217,7 +234,6 @@ class TcpFlow(
         if (ackNum == lastAckNum && inFlightSegments.isNotEmpty()) {
             dupAckCount++
             if (dupAckCount == 3) {
-                // Fast retransmit the head unacknowledged segment immediately
                 val headSeg = inFlightSegments.first()
                 sendSegmentToTun(headSeg)
                 headSeg.sendTimeMs = System.currentTimeMillis()
@@ -227,14 +243,16 @@ class TcpFlow(
             dupAckCount = 0
         }
 
-        // Remove acknowledged segments from inFlightSegments
         while (inFlightSegments.isNotEmpty()) {
             val seg = inFlightSegments.first()
-            val segEnd = (seg.seq + seg.payload.size + (if (seg.isFin) 1 else 0)) and 0xFFFFFFFFL
+            val segEnd = (seg.seq + seg.payloadLen + (if (seg.isFin) 1 else 0)) and 0xFFFFFFFFL
             val diff = (ackNum - segEnd).toInt()
             if (diff >= 0) {
                 inFlightSegments.removeFirst()
-                inFlightBytes -= seg.payload.size
+                inFlightBytes -= seg.payloadLen
+                if (seg.directBuf != null && directBufferPool != null) {
+                    directBufferPool.release(seg.directBuf)
+                }
             } else {
                 break
             }
@@ -246,18 +264,53 @@ class TcpFlow(
             enterTimeWait()
         }
 
-        // Space in inFlightBytes might have opened up, try sending queued downstream data
         sendPendingDownstreamData()
+    }
+
+    private fun processClientPayload(seq: Long, raw: ByteArray, offset: Int, length: Int) {
+        val diff = (seq - myAck).toInt()
+        val ch = channel
+        if (diff == 0 && outOfOrderSegments.isEmpty() && upstreamQueue.isEmpty() && sniFinished && ch != null) {
+            socketWriteBuffer.clear()
+            val toWrite = minOf(length, socketWriteBuffer.remaining())
+            socketWriteBuffer.put(raw, offset, toWrite)
+            socketWriteBuffer.flip()
+
+            val written = try {
+                ch.write(socketWriteBuffer)
+            } catch (e: Exception) {
+                sendRst()
+                close()
+                return
+            }
+
+            if (written > 0) {
+                listener.onBytes(flowId, rxBytes = 0, txBytes = written.toLong())
+                myAck = (myAck + written) and 0xFFFFFFFFL
+
+                if (written < length) {
+                    val remaining = ByteArray(length - written)
+                    System.arraycopy(raw, offset + written, remaining, 0, remaining.size)
+                    upstreamQueue.addLast(remaining)
+                    upstreamBufferedBytes += remaining.size
+                }
+                checkPendingClientFin()
+                sendAck()
+                return
+            }
+        }
+
+        val payload = ByteArray(length)
+        System.arraycopy(raw, offset, payload, 0, length)
+        processClientData(seq, payload)
     }
 
     private fun processClientData(seq: Long, data: ByteArray) {
         val diff = (seq - myAck).toInt()
         if (diff == 0) {
-            // In order
             acceptClientPayload(data)
             myAck = (myAck + data.size) and 0xFFFFFFFFL
 
-            // Drain out-of-order queue if contiguous
             while (outOfOrderSegments.isNotEmpty()) {
                 val nextEntry = outOfOrderSegments.firstEntry() ?: break
                 val nextDiff = (nextEntry.key - myAck).toInt()
@@ -272,25 +325,66 @@ class TcpFlow(
                 }
             }
 
-            // Check if pending client FIN can now be accepted
             checkPendingClientFin()
-
-            // Send ACK back to client
             sendAck()
         } else if (diff < 0) {
-            // Duplicate segment: re-acknowledge and ignore
             sendAck()
         } else {
-            // Out of order: buffer if not too many
             if (outOfOrderSegments.size < 64) {
                 outOfOrderSegments[seq] = data
             }
-            // Re-ACK current myAck
             sendAck()
         }
     }
 
+    private fun checkSni(data: ByteArray) {
+        if (sniFinished) return
+        if (Duration.between(openedAt, clock.instant()).toMillis() >= 1000) {
+            finishSni()
+            return
+        }
+
+        val buf = sniBuffer ?: return
+        buf.write(data)
+        sniSegmentCount++
+
+        val raw = buf.toByteArray()
+        // Non-TLS check: first byte must be 0x16 (Handshake)
+        if (raw.isNotEmpty() && raw[0] != 0x16.toByte()) {
+            finishSni()
+            return
+        }
+
+        if (raw.size >= 5) {
+            val recordLen = ((raw[3].toInt() and 0xFF) shl 8) or (raw[4].toInt() and 0xFF)
+            val totalRecordSize = 5 + recordLen
+            if (totalRecordSize > 16384) {
+                finishSni()
+                return
+            }
+            if (raw.size >= totalRecordSize) {
+                val completeRecord = if (raw.size == totalRecordSize) raw else raw.copyOf(totalRecordSize)
+                val name = SniParser.serverName(completeRecord)
+                if (name != null && sniReported.compareAndSet(false, true)) {
+                    listener.onName(flowId, name)
+                }
+                finishSni()
+                return
+            }
+        }
+
+        if (buf.size() >= 16384 || sniSegmentCount >= 3) {
+            finishSni()
+        }
+    }
+
+    private fun finishSni() {
+        sniFinished = true
+        sniBuffer = null
+    }
+
     private fun acceptClientPayload(data: ByteArray) {
+        checkSni(data)
         upstreamQueue.addLast(data)
         upstreamBufferedBytes += data.size
         listener.onBytes(flowId, rxBytes = 0, txBytes = data.size.toLong())
@@ -316,15 +410,19 @@ class TcpFlow(
         try {
             while (upstreamQueue.isNotEmpty()) {
                 val chunk = upstreamQueue.first()
-                val buf = ByteBuffer.wrap(chunk)
-                val written = ch.write(buf)
+                socketWriteBuffer.clear()
+                val toWrite = minOf(chunk.size, socketWriteBuffer.remaining())
+                socketWriteBuffer.put(chunk, 0, toWrite)
+                socketWriteBuffer.flip()
+
+                val written = ch.write(socketWriteBuffer)
                 if (written > 0) {
                     upstreamBufferedBytes -= written
-                    if (buf.remaining() == 0) {
+                    if (written == chunk.size) {
                         upstreamQueue.removeFirst()
                     } else {
-                        val remaining = ByteArray(buf.remaining())
-                        buf.get(remaining)
+                        val remaining = ByteArray(chunk.size - written)
+                        System.arraycopy(chunk, written, remaining, 0, remaining.size)
                         upstreamQueue.removeFirst()
                         upstreamQueue.addFirst(remaining)
                         break
@@ -360,15 +458,12 @@ class TcpFlow(
                 sendAck()
             } else {
                 pendingClientFinSeq = finSeq
-                // Do not ACK FIN yet: unrelayed data is still in upstreamQueue!
                 sendAck()
             }
         } else if (diff > 0) {
-            // Out-of-order FIN: missing data before it. Hold it until gap filled.
             pendingClientFinSeq = finSeq
             sendAck()
         } else {
-            // Duplicate FIN: re-ACK
             sendAck()
         }
     }
@@ -408,10 +503,10 @@ class TcpFlow(
     fun onSocketReadable() {
         lastActiveAt = clock.instant()
         val ch = channel ?: return
-        val readBuf = ByteBuffer.allocate(32768)
+        socketReadBuffer.clear()
         val readBytes: Int
         try {
-            readBytes = ch.read(readBuf)
+            readBytes = ch.read(socketReadBuffer)
         } catch (e: Exception) {
             sendRst()
             close()
@@ -419,18 +514,77 @@ class TcpFlow(
         }
 
         if (readBytes == -1) {
-            // EOF from server -> clear OP_READ, send FIN to client
             onServerEof()
             return
         }
 
         if (readBytes > 0) {
-            readBuf.flip()
-            val data = ByteArray(readBytes)
-            readBuf.get(data)
+            socketReadBuffer.flip()
             listener.onBytes(flowId, rxBytes = readBytes.toLong(), txBytes = 0)
-            downstreamQueue.addLast(data)
-            downstreamBufferedBytes += readBytes
+
+            val effectiveWindow = minOf(sndWnd, 256 * 1024)
+            val mss = minOf(localMss, peerMss)
+
+            while (socketReadBuffer.hasRemaining()) {
+                val allowedInFlight = effectiveWindow - inFlightBytes
+                val toSend = minOf(mss, socketReadBuffer.remaining())
+                val pktBuf = if (directBufferPool != null) directBufferPool.acquire() else null
+
+                if (pktBuf != null) {
+                    val headerLen = if (isIpv6) 60 else 40
+                    pktBuf.position(headerLen)
+                    val oldLimit = socketReadBuffer.limit()
+                    socketReadBuffer.limit(socketReadBuffer.position() + toSend)
+                    pktBuf.put(socketReadBuffer)
+                    socketReadBuffer.limit(oldLimit)
+
+                    if (allowedInFlight >= toSend && downstreamQueue.isEmpty()) {
+                        pktBuf.position(0)
+                        val totalLen = if (isIpv6) {
+                            PacketWriter.writeIpv6Tcp(pktBuf, dst, src, seq = mySeq, ack = myAck, flags = TcpFlags.ACK or TcpFlags.PSH, window = calculateRcvWnd(), payloadLength = toSend)
+                        } else {
+                            PacketWriter.writeIpv4Tcp(pktBuf, dst, src, seq = mySeq, ack = myAck, flags = TcpFlags.ACK or TcpFlags.PSH, window = calculateRcvWnd(), payloadLength = toSend, srcIpBytes = dstIpBytes, dstIpBytes = srcIpBytes)
+                        }
+                        pktBuf.position(0)
+                        synchronized(tunWriteLock) {
+                            tun.write(pktBuf, totalLen)
+                        }
+
+                        val seg = InFlightSegment(
+                            seq = mySeq,
+                            directBuf = pktBuf,
+                            totalLen = totalLen,
+                            payloadLen = toSend,
+                            isFin = false
+                        )
+                        inFlightSegments.addLast(seg)
+                        inFlightBytes += toSend
+                        mySeq = (mySeq + toSend) and 0xFFFFFFFFL
+                    } else {
+                        downstreamQueue.addLast(DownstreamChunk(directBuf = pktBuf, payloadLen = toSend))
+                        downstreamBufferedBytes += toSend
+                    }
+                } else {
+                    val payload = ByteArray(toSend)
+                    socketReadBuffer.get(payload)
+                    if (allowedInFlight >= toSend && downstreamQueue.isEmpty()) {
+                        val seg = InFlightSegment(
+                            seq = mySeq,
+                            payload = payload,
+                            payloadLen = toSend,
+                            isFin = false
+                        )
+                        inFlightSegments.addLast(seg)
+                        inFlightBytes += toSend
+                        mySeq = (mySeq + toSend) and 0xFFFFFFFFL
+                        sendSegmentToTun(seg)
+                    } else {
+                        downstreamQueue.addLast(DownstreamChunk(byteArray = payload, payloadLen = toSend))
+                        downstreamBufferedBytes += toSend
+                    }
+                }
+            }
+
             sendPendingDownstreamData()
             updateSelectionInterest()
         }
@@ -438,40 +592,56 @@ class TcpFlow(
 
     private fun sendPendingDownstreamData() {
         val effectiveWindow = minOf(sndWnd, 256 * 1024)
-        val mss = minOf(localMss, peerMss)
 
         while (downstreamQueue.isNotEmpty()) {
             val allowedInFlight = effectiveWindow - inFlightBytes
             if (allowedInFlight <= 0) break
 
             val firstChunk = downstreamQueue.first()
-            val chunkRemaining = firstChunk.size - downstreamQueueOffset
-            val toSend = minOf(mss, minOf(allowedInFlight, chunkRemaining))
-            if (toSend <= 0) break
+            if (allowedInFlight < firstChunk.payloadLen) break
 
-            val payload = ByteArray(toSend)
-            System.arraycopy(firstChunk, downstreamQueueOffset, payload, 0, toSend)
-            downstreamQueueOffset += toSend
-            downstreamBufferedBytes -= toSend
+            downstreamQueue.removeFirst()
+            downstreamBufferedBytes -= firstChunk.payloadLen
 
-            if (downstreamQueueOffset >= firstChunk.size) {
-                downstreamQueue.removeFirst()
-                downstreamQueueOffset = 0
+            val toSend = firstChunk.payloadLen
+            if (firstChunk.directBuf != null) {
+                val pktBuf = firstChunk.directBuf
+                pktBuf.position(0)
+                val totalLen = if (isIpv6) {
+                    PacketWriter.writeIpv6Tcp(pktBuf, dst, src, seq = mySeq, ack = myAck, flags = TcpFlags.ACK or TcpFlags.PSH, window = calculateRcvWnd(), payloadLength = toSend)
+                } else {
+                    PacketWriter.writeIpv4Tcp(pktBuf, dst, src, seq = mySeq, ack = myAck, flags = TcpFlags.ACK or TcpFlags.PSH, window = calculateRcvWnd(), payloadLength = toSend, srcIpBytes = dstIpBytes, dstIpBytes = srcIpBytes)
+                }
+                pktBuf.position(0)
+                synchronized(tunWriteLock) {
+                    tun.write(pktBuf, totalLen)
+                }
+
+                val seg = InFlightSegment(
+                    seq = mySeq,
+                    directBuf = pktBuf,
+                    totalLen = totalLen,
+                    payloadLen = toSend,
+                    isFin = false
+                )
+                inFlightSegments.addLast(seg)
+                inFlightBytes += toSend
+                mySeq = (mySeq + toSend) and 0xFFFFFFFFL
+            } else {
+                val payload = firstChunk.byteArray ?: ByteArray(0)
+                val seg = InFlightSegment(
+                    seq = mySeq,
+                    payload = payload,
+                    payloadLen = toSend,
+                    isFin = false
+                )
+                inFlightSegments.addLast(seg)
+                inFlightBytes += toSend
+                mySeq = (mySeq + toSend) and 0xFFFFFFFFL
+                sendSegmentToTun(seg)
             }
-
-            val seg = InFlightSegment(
-                seq = mySeq,
-                payload = payload,
-                isFin = false
-            )
-            inFlightSegments.addLast(seg)
-            inFlightBytes += toSend
-            mySeq = (mySeq + toSend) and 0xFFFFFFFFL
-
-            sendSegmentToTun(seg)
         }
 
-        // If downstream buffer has emptied and server gave EOF, emit FIN if not yet emitted
         if (serverEofProcessed && downstreamQueue.isEmpty() && state == State.ESTABLISHED) {
             emitServerFin()
         }
@@ -491,6 +661,7 @@ class TcpFlow(
         val seg = InFlightSegment(
             seq = mySeq,
             payload = ByteArray(0),
+            payloadLen = 0,
             isFin = true
         )
         inFlightSegments.addLast(seg)
@@ -513,8 +684,15 @@ class TcpFlow(
     }
 
     private fun sendSegmentToTun(seg: InFlightSegment) {
+        if (seg.directBuf != null) {
+            synchronized(tunWriteLock) {
+                seg.directBuf.position(0)
+                tun.write(seg.directBuf, seg.totalLen)
+            }
+            return
+        }
         val flags = if (seg.isFin) (TcpFlags.FIN or TcpFlags.ACK) else (TcpFlags.ACK or TcpFlags.PSH)
-        sendTcpPacket(flags = flags, seq = seg.seq, ack = myAck, payload = seg.payload)
+        sendTcpPacket(flags = flags, seq = seg.seq, ack = myAck, payload = seg.payload ?: ByteArray(0))
     }
 
     fun pumpSocketToTun() {
@@ -553,7 +731,6 @@ class TcpFlow(
     fun checkRetransmissions() {
         val nowMs = System.currentTimeMillis()
 
-        // 1. Regular retransmissions of unacknowledged in-flight segments
         for (seg in inFlightSegments) {
             val elapsed = nowMs - seg.sendTimeMs
             if (elapsed >= seg.rtoMs) {
@@ -569,18 +746,19 @@ class TcpFlow(
             }
         }
 
-        // 2. Zero-window probing:
-        // When client advertised window is 0 and we have buffered downstream data waiting to be sent
         if (sndWnd == 0 && downstreamQueue.isNotEmpty()) {
             if (zeroWindowProbeSentTimeMs == 0L) {
                 zeroWindowProbeSentTimeMs = nowMs
             }
             val elapsed = nowMs - zeroWindowProbeSentTimeMs
             if (elapsed >= zeroWindowRtoMs) {
-                // Send 1-byte probe from downstream buffer without removing from queue
                 val firstChunk = downstreamQueue.first()
-                val probeByte = byteArrayOf(firstChunk[downstreamQueueOffset])
-                // Sequence number is mySeq
+                val probeByte = if (firstChunk.directBuf != null) {
+                    val headerLen = if (isIpv6) 60 else 40
+                    byteArrayOf(firstChunk.directBuf.get(headerLen))
+                } else {
+                    byteArrayOf(firstChunk.byteArray!![0])
+                }
                 sendTcpPacket(
                     flags = TcpFlags.ACK or TcpFlags.PSH,
                     seq = mySeq,
@@ -600,12 +778,13 @@ class TcpFlow(
         sendTcpPacket(flags = TcpFlags.ACK, seq = mySeq, ack = myAck)
     }
 
+    private val emptyBytes = ByteArray(0)
     private fun sendTcpPacket(
         flags: Int,
         seq: Long,
         ack: Long,
-        payload: ByteArray = ByteArray(0),
-        options: ByteArray = ByteArray(0)
+        payload: ByteArray = emptyBytes,
+        options: ByteArray = emptyBytes
     ) {
         val rcvWnd = calculateRcvWnd()
         lastAdvertisedRcvWnd = rcvWnd
@@ -614,14 +793,16 @@ class TcpFlow(
             writeBuffer.clear()
             val totalLen = PacketWriter.writeTcp(
                 buffer = writeBuffer,
-                src = dst, // swap: from remote dst to local src
+                src = dst,
                 dst = src,
                 seq = seq,
                 ack = ack,
                 flags = flags,
                 window = rcvWnd,
                 payload = payload,
-                options = options
+                options = options,
+                srcIpBytes = dstIpBytes,
+                dstIpBytes = srcIpBytes
             )
             writeBuffer.flip()
             tun.write(writeBuffer, totalLen)
@@ -629,23 +810,40 @@ class TcpFlow(
     }
 
     fun close() {
+        if (!closed.compareAndSet(false, true)) return
         state = State.CLOSED
         try {
             selectionKey?.cancel()
             channel?.close()
         } catch (_: Exception) {}
+
+        // Release any pooled buffers held in inFlightSegments and downstreamQueue
+        if (directBufferPool != null) {
+            for (seg in inFlightSegments) {
+                if (seg.directBuf != null) {
+                    directBufferPool.release(seg.directBuf)
+                }
+            }
+            for (chunk in downstreamQueue) {
+                if (chunk.directBuf != null) {
+                    directBufferPool.release(chunk.directBuf)
+                }
+            }
+        }
+        inFlightSegments.clear()
+        downstreamQueue.clear()
+
         listener.onFlowClosed(flowId)
     }
 
     fun isDead(now: Instant): Boolean {
-        if (state == State.CLOSED) return true
+        if (isClosed) return true
         if (state == State.TIME_WAIT) {
             val ca = closedAt ?: return true
             if (Duration.between(ca, now).seconds >= 30) {
                 return true
             }
         }
-        // Idle timeout 5 minutes
         if (Duration.between(lastActiveAt, now).seconds >= 300) {
             return true
         }

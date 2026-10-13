@@ -25,13 +25,15 @@ object PacketWriter {
         ack: Long,
         flags: Int,
         window: Int = 65535,
-        payload: ByteArray = ByteArray(0),
+        payload: ByteArray? = null,
         payloadOffset: Int = 0,
-        payloadLength: Int = payload.size,
-        options: ByteArray = ByteArray(0)
+        payloadLength: Int = payload?.size ?: 0,
+        options: ByteArray = ByteArray(0),
+        srcIpBytes: ByteArray? = null,
+        dstIpBytes: ByteArray? = null
     ): Int {
-        val srcIp = src.address as Inet4Address
-        val dstIp = dst.address as Inet4Address
+        val srcIp = src.address as? Inet4Address
+        val dstIp = dst.address as? Inet4Address
 
         val ipHeaderLen = 20
         val tcpHeaderLen = 20 + options.size
@@ -51,8 +53,8 @@ object PacketWriter {
         buffer.put(6.toByte()) // Protocol TCP
         val ipChecksumPos = buffer.position()
         buffer.putShort(0.toShort())
-        buffer.put(srcIp.address)
-        buffer.put(dstIp.address)
+        if (srcIpBytes != null) buffer.put(srcIpBytes) else buffer.put(srcIp!!.address)
+        if (dstIpBytes != null) buffer.put(dstIpBytes) else buffer.put(dstIp!!.address)
 
         val tcpOffset = buffer.position()
         buffer.putShort(src.port.toShort())
@@ -74,20 +76,31 @@ object PacketWriter {
             buffer.put(0.toByte())
         }
 
-        if (payloadLength > 0) {
+        if (payload != null && payloadLength > 0) {
             buffer.put(payload, payloadOffset, payloadLength)
         }
 
-        val endPos = buffer.position()
+        val endPos = startPos + totalLen
+        buffer.position(endPos)
 
         // Checksums calculation
-        val raw = buffer.array()
-        val arrayOffset = buffer.arrayOffset()
-        val ipChecksum = Checksums.ipv4Header(raw, arrayOffset + startPos, ipHeaderLen)
+        val ipChecksum = if (buffer.hasArray()) {
+            val raw = buffer.array()
+            val arrayOffset = buffer.arrayOffset()
+            Checksums.ipv4Header(raw, arrayOffset + startPos, ipHeaderLen)
+        } else {
+            Checksums.ipv4Header(buffer, startPos, ipHeaderLen)
+        }
         buffer.putShort(ipChecksumPos, ipChecksum.toShort())
 
         val tcpLen = paddedTcpHeaderLen + payloadLength
-        val tcpChecksum = Checksums.transport(raw, arrayOffset + startPos, false, 6, arrayOffset + tcpOffset, tcpLen)
+        val tcpChecksum = if (buffer.hasArray()) {
+            val raw = buffer.array()
+            val arrayOffset = buffer.arrayOffset()
+            Checksums.transport(raw, arrayOffset + startPos, false, 6, arrayOffset + tcpOffset, tcpLen)
+        } else {
+            Checksums.transport(buffer, startPos, false, 6, tcpOffset, tcpLen)
+        }
         buffer.putShort(tcpChecksumPos, tcpChecksum.toShort())
 
         buffer.position(endPos)
@@ -102,9 +115,9 @@ object PacketWriter {
         ack: Long,
         flags: Int,
         window: Int = 65535,
-        payload: ByteArray = ByteArray(0),
+        payload: ByteArray? = null,
         payloadOffset: Int = 0,
-        payloadLength: Int = payload.size,
+        payloadLength: Int = payload?.size ?: 0,
         options: ByteArray = ByteArray(0)
     ): Int {
         val srcIp = src.address as Inet6Address
@@ -147,15 +160,20 @@ object PacketWriter {
             buffer.put(0.toByte())
         }
 
-        if (payloadLength > 0) {
+        if (payload != null && payloadLength > 0) {
             buffer.put(payload, payloadOffset, payloadLength)
         }
 
-        val endPos = buffer.position()
+        val endPos = startPos + totalLen
+        buffer.position(endPos)
 
-        val raw = buffer.array()
-        val arrayOffset = buffer.arrayOffset()
-        val tcpChecksum = Checksums.transport(raw, arrayOffset + startPos, true, 6, arrayOffset + tcpOffset, tcpLen)
+        val tcpChecksum = if (buffer.hasArray()) {
+            val raw = buffer.array()
+            val arrayOffset = buffer.arrayOffset()
+            Checksums.transport(raw, arrayOffset + startPos, true, 6, arrayOffset + tcpOffset, tcpLen)
+        } else {
+            Checksums.transport(buffer, startPos, true, 6, tcpOffset, tcpLen)
+        }
         buffer.putShort(tcpChecksumPos, tcpChecksum.toShort())
 
         buffer.position(endPos)
@@ -205,12 +223,22 @@ object PacketWriter {
 
         val endPos = buffer.position()
 
-        val raw = buffer.array()
-        val arrayOffset = buffer.arrayOffset()
-        val ipChecksum = Checksums.ipv4Header(raw, arrayOffset + startPos, ipHeaderLen)
+        val ipChecksum = if (buffer.hasArray()) {
+            val raw = buffer.array()
+            val arrayOffset = buffer.arrayOffset()
+            Checksums.ipv4Header(raw, arrayOffset + startPos, ipHeaderLen)
+        } else {
+            Checksums.ipv4Header(buffer, startPos, ipHeaderLen)
+        }
         buffer.putShort(ipChecksumPos, ipChecksum.toShort())
 
-        val udpChecksum = Checksums.transport(raw, arrayOffset + startPos, false, 17, arrayOffset + udpOffset, udpLen)
+        val udpChecksum = if (buffer.hasArray()) {
+            val raw = buffer.array()
+            val arrayOffset = buffer.arrayOffset()
+            Checksums.transport(raw, arrayOffset + startPos, false, 17, arrayOffset + udpOffset, udpLen)
+        } else {
+            Checksums.transport(buffer, startPos, false, 17, udpOffset, udpLen)
+        }
         buffer.putShort(udpChecksumPos, (if (udpChecksum == 0) 0xFFFF else udpChecksum).toShort())
 
         buffer.position(endPos)
@@ -255,9 +283,13 @@ object PacketWriter {
 
         val endPos = buffer.position()
 
-        val raw = buffer.array()
-        val arrayOffset = buffer.arrayOffset()
-        val udpChecksum = Checksums.transport(raw, arrayOffset + startPos, true, 17, arrayOffset + udpOffset, udpLen)
+        val udpChecksum = if (buffer.hasArray()) {
+            val raw = buffer.array()
+            val arrayOffset = buffer.arrayOffset()
+            Checksums.transport(raw, arrayOffset + startPos, true, 17, arrayOffset + udpOffset, udpLen)
+        } else {
+            Checksums.transport(buffer, startPos, true, 17, udpOffset, udpLen)
+        }
         buffer.putShort(udpChecksumPos, (if (udpChecksum == 0) 0xFFFF else udpChecksum).toShort())
 
         buffer.position(endPos)
@@ -272,15 +304,17 @@ object PacketWriter {
         ack: Long,
         flags: Int,
         window: Int = 65535,
-        payload: ByteArray = ByteArray(0),
+        payload: ByteArray? = null,
         payloadOffset: Int = 0,
-        payloadLength: Int = payload.size,
-        options: ByteArray = ByteArray(0)
+        payloadLength: Int = payload?.size ?: 0,
+        options: ByteArray = ByteArray(0),
+        srcIpBytes: ByteArray? = null,
+        dstIpBytes: ByteArray? = null
     ): Int {
         return if (src.address is Inet6Address) {
             writeIpv6Tcp(buffer, src, dst, seq, ack, flags, window, payload, payloadOffset, payloadLength, options)
         } else {
-            writeIpv4Tcp(buffer, src, dst, seq, ack, flags, window, payload, payloadOffset, payloadLength, options)
+            writeIpv4Tcp(buffer, src, dst, seq, ack, flags, window, payload, payloadOffset, payloadLength, options, srcIpBytes, dstIpBytes)
         }
     }
 

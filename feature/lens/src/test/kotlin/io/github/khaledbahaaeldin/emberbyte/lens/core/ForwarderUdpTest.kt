@@ -231,18 +231,31 @@ class ForwarderUdpTest {
         }
         serverThread.start()
 
-        // Source port on app side: 53123, dest is serverPort (in test we simulate dest port 53 or server responding from port 53)
-        // Wait, contract: "when a DNS answer is seen (UDP, source port 53, names reported as onDns)"
-        // Or if destination was 53. If serverPort is ephemeral, can we simulate destination port 53?
-        // Wait, on local machine, port 53 might require root/admin.
-        // But what if destination was port 53 or source port was 53?
-        // In our Forwarder, if dest port is 53 or src port is 53, DnsParser can check the payload!
+        // Destination port 53 per contract: "UDP parsed as DNS only on port 53"
         val clientSrc = InetSocketAddress(InetAddress.getByName("10.7.0.2"), 53003)
-        val serverDst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), serverPort)
+        val serverDst = InetSocketAddress(InetAddress.getByName("127.0.0.1"), 53)
 
         // Query packet
         val queryPkt = PacketBuilder.ipv4Udp(clientSrc, serverDst, "dns query".toByteArray())
         fakeTun.toForwarder.offer(queryPkt)
+
+        // Find created flow in flow table and send dnsPayload to its bound socket
+        val key = FlowKey(17, clientSrc, serverDst)
+        val internalField = Forwarder::class.java.getDeclaredField("flowTable")
+        internalField.isAccessible = true
+        val table = internalField.get(forwarder) as FlowTable
+        var udpFlow: UdpFlow? = null
+        val deadline = System.currentTimeMillis() + 3000
+        while (System.currentTimeMillis() < deadline && udpFlow == null) {
+            udpFlow = table.getUdp(key)
+            if (udpFlow == null) Thread.sleep(20)
+        }
+        assertNotNull("UdpFlow must be present in flow table", udpFlow)
+
+        // Send reply directly to the forwarder UDP socket from ephemeral socket
+        val sender = DatagramSocket()
+        sender.send(DatagramPacket(dnsPayload, dnsPayload.size, udpFlow!!.channel!!.socket().localSocketAddress))
+        sender.close()
 
         // The response comes back through the forwarder to fakeTun
         val start = System.currentTimeMillis()

@@ -11,16 +11,27 @@ class PacketParser {
      * Returns null for anything that is not a valid IPv4/IPv6 TCP/UDP packet,
      * or on any bounds or checksum failure.
      */
+    private val scratchArray = ThreadLocal.withInitial { ByteArray(65535) }
+
+    private var lastSrc4Int = 0
+    private var lastSrc4Address: InetAddress? = null
+    private var lastDst4Int = 0
+    private var lastDst4Address: InetAddress? = null
+
+    private var lastSrc4Port = -1
+    private var lastSrc4SocketAddress: InetSocketAddress? = null
+    private var lastDst4Port = -1
+    private var lastDst4SocketAddress: InetSocketAddress? = null
+
     fun parse(buffer: ByteBuffer, length: Int): ParsedPacket? {
         if (length < 20 || buffer.remaining() < length) return null
 
         val startPos = buffer.position()
         if (length > buffer.limit() - startPos) return null
 
-        // Need the underlying byte array or read into one for Checksums
-        val rawBytes = ByteArray(length)
+        val rawBytes = scratchArray.get()!!
         val origPos = buffer.position()
-        buffer.get(rawBytes)
+        buffer.get(rawBytes, 0, length)
         buffer.position(origPos)
 
         val firstByte = rawBytes[0].toInt() and 0xFF
@@ -56,13 +67,36 @@ class PacketParser {
         }
 
         val protocol = bytes[9].toInt() and 0xFF
-        val srcIp = ByteArray(4)
-        System.arraycopy(bytes, 12, srcIp, 0, 4)
-        val dstIp = ByteArray(4)
-        System.arraycopy(bytes, 16, dstIp, 0, 4)
+        val srcIpInt = ((bytes[12].toInt() and 0xFF) shl 24) or
+                ((bytes[13].toInt() and 0xFF) shl 16) or
+                ((bytes[14].toInt() and 0xFF) shl 8) or
+                (bytes[15].toInt() and 0xFF)
+        val dstIpInt = ((bytes[16].toInt() and 0xFF) shl 24) or
+                ((bytes[17].toInt() and 0xFF) shl 16) or
+                ((bytes[18].toInt() and 0xFF) shl 8) or
+                (bytes[19].toInt() and 0xFF)
 
-        val srcAddress = InetAddress.getByAddress(srcIp)
-        val dstAddress = InetAddress.getByAddress(dstIp)
+        val srcAddress = if (srcIpInt == lastSrc4Int && lastSrc4Address != null) {
+            lastSrc4Address!!
+        } else {
+            val srcIp = ByteArray(4)
+            System.arraycopy(bytes, 12, srcIp, 0, 4)
+            val addr = InetAddress.getByAddress(srcIp)
+            lastSrc4Int = srcIpInt
+            lastSrc4Address = addr
+            addr
+        }
+
+        val dstAddress = if (dstIpInt == lastDst4Int && lastDst4Address != null) {
+            lastDst4Address!!
+        } else {
+            val dstIp = ByteArray(4)
+            System.arraycopy(bytes, 16, dstIp, 0, 4)
+            val addr = InetAddress.getByAddress(dstIp)
+            lastDst4Int = dstIpInt
+            lastDst4Address = addr
+            addr
+        }
 
         val transportLen = totalLength - ipHeaderLen
         return parseTransport(
@@ -186,9 +220,31 @@ class PacketParser {
                 val payloadOffset = segOff + tcpHeaderLen
                 val payloadLength = segLen - tcpHeaderLen
 
+                val srcSocketAddress = if (srcAddress === lastSrc4Address && srcPort == lastSrc4Port && lastSrc4SocketAddress != null) {
+                    lastSrc4SocketAddress!!
+                } else {
+                    val sa = InetSocketAddress(srcAddress, srcPort)
+                    if (srcAddress === lastSrc4Address) {
+                        lastSrc4Port = srcPort
+                        lastSrc4SocketAddress = sa
+                    }
+                    sa
+                }
+
+                val dstSocketAddress = if (dstAddress === lastDst4Address && dstPort == lastDst4Port && lastDst4SocketAddress != null) {
+                    lastDst4SocketAddress!!
+                } else {
+                    val sa = InetSocketAddress(dstAddress, dstPort)
+                    if (dstAddress === lastDst4Address) {
+                        lastDst4Port = dstPort
+                        lastDst4SocketAddress = sa
+                    }
+                    sa
+                }
+
                 return ParsedPacket.Tcp(
-                    src = InetSocketAddress(srcAddress, srcPort),
-                    dst = InetSocketAddress(dstAddress, dstPort),
+                    src = srcSocketAddress,
+                    dst = dstSocketAddress,
                     seq = seq,
                     ack = ack,
                     flags = flags,
@@ -218,9 +274,31 @@ class PacketParser {
                 val payloadOffset = segOff + 8
                 val payloadLength = udpLen - 8
 
+                val srcSocketAddress = if (srcAddress === lastSrc4Address && srcPort == lastSrc4Port && lastSrc4SocketAddress != null) {
+                    lastSrc4SocketAddress!!
+                } else {
+                    val sa = InetSocketAddress(srcAddress, srcPort)
+                    if (srcAddress === lastSrc4Address) {
+                        lastSrc4Port = srcPort
+                        lastSrc4SocketAddress = sa
+                    }
+                    sa
+                }
+
+                val dstSocketAddress = if (dstAddress === lastDst4Address && dstPort == lastDst4Port && lastDst4SocketAddress != null) {
+                    lastDst4SocketAddress!!
+                } else {
+                    val sa = InetSocketAddress(dstAddress, dstPort)
+                    if (dstAddress === lastDst4Address) {
+                        lastDst4Port = dstPort
+                        lastDst4SocketAddress = sa
+                    }
+                    sa
+                }
+
                 return ParsedPacket.Udp(
-                    src = InetSocketAddress(srcAddress, srcPort),
-                    dst = InetSocketAddress(dstAddress, dstPort),
+                    src = srcSocketAddress,
+                    dst = dstSocketAddress,
                     payloadOffset = payloadOffset,
                     payloadLength = payloadLength
                 )
