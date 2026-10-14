@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -35,9 +38,29 @@ fun UsageBarRow(
     modifier: Modifier = Modifier,
     scrollKey: Any? = null,
     openAtEnd: Boolean = true,
+    summaryDescription: String? = null,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val max = (points.maxOfOrNull { it.bytes } ?: 0L).coerceAtLeast(1L)
+    val summary = summaryDescription ?: run {
+        if (points.isNotEmpty()) {
+            if (points.size == 7) {
+                val highest = points.maxByOrNull { it.bytes }
+                if (highest != null) "Daily usage, last 7 days, highest ${highest.description}"
+                else "Daily usage, last 7 days"
+            } else {
+                "Daily usage, last ${points.size} periods"
+            }
+        } else "Daily usage"
+    }
+
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .size(1.dp)
+                .semantics { this.contentDescription = summary },
+        )
+
         val count = points.size
         val totalNeeded = (count * 48).dp + ((count - 1).coerceAtLeast(0) * 8).dp
         val scrollable = totalNeeded > maxWidth
@@ -51,9 +74,9 @@ fun UsageBarRow(
 
         Row(
             modifier = if (scrollable) {
-                Modifier.fillMaxWidth().horizontalScroll(scrollState)
+                Modifier.fillMaxWidth().horizontalScroll(scrollState).padding(contentPadding)
             } else {
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth().padding(contentPadding)
             },
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Bottom,

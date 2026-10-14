@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -333,7 +334,10 @@ fun AppDetailContent(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = { onEvent(AppDetailEvent.OpenBudgetEditor) }) {
+                        TextButton(
+                            onClick = { onEvent(AppDetailEvent.OpenBudgetEditor) },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        ) {
                             Text("Set a budget")
                         }
                     }
@@ -363,10 +367,16 @@ fun AppDetailContent(
                                 )
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { onEvent(AppDetailEvent.OpenBudgetEditor) }) {
+                                TextButton(
+                                    onClick = { onEvent(AppDetailEvent.OpenBudgetEditor) },
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                                ) {
                                     Text("Edit")
                                 }
-                                TextButton(onClick = { onEvent(AppDetailEvent.RemoveBudget) }) {
+                                TextButton(
+                                    onClick = { onEvent(AppDetailEvent.RemoveBudget) },
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                                ) {
                                     Text("Remove")
                                 }
                             }
@@ -414,7 +424,10 @@ fun AppDetailContent(
                                         }
                                     }
                                 }
-                                TextButton(onClick = { onEvent(AppDetailEvent.DismissSpike(spike.id)) }) {
+                                TextButton(
+                                    onClick = { onEvent(AppDetailEvent.DismissSpike(spike.id)) },
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                                ) {
                                     Text("Dismiss")
                                 }
                             }
@@ -423,11 +436,24 @@ fun AppDetailContent(
                 }
             }
         }
-        item { UsageBarRow(points = state.bars, selectedIndex = null, onSelect = {}) }
+        item {
+            val weekSummary = "${spokenBytes(state.totalBytes, state.units)} used in the last 7 days"
+            UsageBarRow(
+                points = state.bars,
+                selectedIndex = null,
+                onSelect = {},
+                summaryDescription = weekSummary,
+            )
+        }
         if (!state.packageName.startsWith("uid:") && onOpenSettings != null) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    TextButton(onClick = onOpenSettings) { Text("App settings") }
+                    TextButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    ) {
+                        Text("App settings")
+                    }
                 }
             }
         }

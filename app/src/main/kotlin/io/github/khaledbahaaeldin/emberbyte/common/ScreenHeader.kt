@@ -13,10 +13,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.ui.unit.dp
+
 @Composable
 internal fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
+        IconButton(onClick = onBack, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
             Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
         }
         Text(title, style = MaterialTheme.typography.headlineSmall)

@@ -133,6 +133,7 @@ fun MorphingNumber(
             }
             Text(
                 text = formatted.unit,
+                modifier = Modifier.clearAndSetSemantics { },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.headlineMedium,
             )

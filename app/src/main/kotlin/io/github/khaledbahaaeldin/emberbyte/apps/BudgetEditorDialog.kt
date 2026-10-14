@@ -1,6 +1,5 @@
 package io.github.khaledbahaaeldin.emberbyte.apps
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -8,7 +7,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -21,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.engine.model.BudgetPeriod
@@ -67,6 +69,7 @@ fun BudgetEditorDialog(
                 ) {
                     listOf(CapUnit.MB, CapUnit.GB).forEach { unit ->
                         FilterChip(
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                             selected = editor.unit == unit,
                             onClick = { onEvent(AppDetailEvent.SetBudgetUnit(unit)) },
                             label = {
@@ -85,11 +88,13 @@ fun BudgetEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FilterChip(
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                         selected = editor.period == BudgetPeriod.DAILY,
                         onClick = { onEvent(AppDetailEvent.SetBudgetPeriod(BudgetPeriod.DAILY)) },
                         label = { Text("Daily") },
                     )
                     FilterChip(
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                         selected = editor.period == BudgetPeriod.CYCLE,
                         onClick = { onEvent(AppDetailEvent.SetBudgetPeriod(BudgetPeriod.CYCLE)) },
                         label = { Text("Plan cycle") },
@@ -106,13 +111,18 @@ fun BudgetEditorDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onEvent(AppDetailEvent.SetBudgetPlan(null)) }
+                                .sizeIn(minHeight = 48.dp)
+                                .selectable(
+                                    selected = editor.planId == null,
+                                    role = Role.RadioButton,
+                                    onClick = { onEvent(AppDetailEvent.SetBudgetPlan(null)) },
+                                )
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(
                                 selected = editor.planId == null,
-                                onClick = { onEvent(AppDetailEvent.SetBudgetPlan(null)) },
+                                onClick = null,
                             )
                             Text("Calendar month", modifier = Modifier.padding(start = 8.dp))
                         }
@@ -122,13 +132,18 @@ fun BudgetEditorDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onEvent(AppDetailEvent.SetBudgetPlan(opt.id)) }
+                                    .sizeIn(minHeight = 48.dp)
+                                    .selectable(
+                                        selected = editor.planId == opt.id,
+                                        role = Role.RadioButton,
+                                        onClick = { onEvent(AppDetailEvent.SetBudgetPlan(opt.id)) },
+                                    )
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(
                                     selected = editor.planId == opt.id,
-                                    onClick = { onEvent(AppDetailEvent.SetBudgetPlan(opt.id)) },
+                                    onClick = null,
                                 )
                                 Text(opt.name, modifier = Modifier.padding(start = 8.dp))
                             }
@@ -148,6 +163,7 @@ fun BudgetEditorDialog(
                 ) {
                     listOf(50, 80, 90).forEach { pct ->
                         FilterChip(
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                             selected = editor.warnAtPercent == pct,
                             onClick = { onEvent(AppDetailEvent.SetBudgetWarn(pct)) },
                             label = {
@@ -171,6 +187,7 @@ fun BudgetEditorDialog(
             TextButton(
                 onClick = { onEvent(AppDetailEvent.SaveBudget) },
                 enabled = !editor.saving,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
             ) {
                 Text("Save")
             }
@@ -178,6 +195,7 @@ fun BudgetEditorDialog(
         dismissButton = {
             TextButton(
                 onClick = { onEvent(AppDetailEvent.CloseBudgetEditor) },
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
             ) {
                 Text("Cancel")
             }
