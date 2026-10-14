@@ -1,26 +1,66 @@
 # Emberbyte
 
-An open-source Android data monitor with a Material 3 Expressive interface: daily and real-time usage,
-flexible data plans with per-SIM binding, add-on packs, free windows, rollover, a personalized run-out forecast,
-per-app data budgets, spike detection, "what if" planning, threshold alerts, encrypted backups, and home-screen widgets.
+An open-source Android data monitor with a Material 3 Expressive interface: real-time transfer speed,
+daily and total data consumption by mobile and Wi-Fi, per-app usage history, flexible data plans with
+per-SIM binding, add-on packs, free windows, rollover, personalized quota run-out forecasts, threshold
+alerts, home-screen widgets, per-app budgets, spike detection, "what if" planning, data export, and
+encrypted local backups.
 
-> Status: milestone M4 (insight: budgets, spikes, what-if, export and backup, personal curve).
-> "DataKB" is the project codename; the repository keeps that name.
+> "DataKB" is the project codename; the repository retains that name.
+
+---
+
+## Screenshots
+
+| Home | Apps | Plans | Settings |
+|:---:|:---:|:---:|:---:|
+| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1_home.png" width="200" alt="Home Screen" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2_apps.png" width="200" alt="Apps Screen" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3_plans.png" width="200" alt="Plans Screen" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4_settings.png" width="200" alt="Settings Screen" /> |
+
+---
 
 ## Features
 
-- **Flexible Data Plans**: Custom billing cycles, per-SIM binding, add-on packs, free windows (e.g. night data), and usage rollover (capped or uncapped).
-- **Per-App Data Budgets**: Daily or plan-cycle mobile data budgets per app with configurable warning thresholds (50%, 80%, 90%) and alert notifications.
-- **Spike Detection**: Detects unusual mobile data consumption per 2-hour window against a 14-day median baseline and alerts you.
-- **"What If" Planner**: Scenario planning in the plan editor to project run-out dates under hypothetical extra daily usage.
-- **Personalized Forecast**: Predicts when your data cap will run out using a learned hour-of-day curve from your past week of usage on the plan's SIM, including free-window traffic.
-- **Threshold Alerts**: Notifies you when you reach specified usage percentages (e.g. 50%, 80%, 100%).
-- **CSV and JSON Streamed Export**: Streamed export of historical usage and plan data without loading entire datasets into memory.
-- **Encrypted Backup & Restore**: Secure `.emberbyte` backups protected by Argon2id key derivation and AES-256-GCM encryption.
-- **Home-Screen Widgets**: Glance-based widgets showing your remaining data and status at a glance.
-- **Per-App History**: Historical per-app mobile and Wi-Fi data usage.
+- **Live Speed Indicator**: Ongoing foreground notification displaying real-time download and upload transfer rates.
+- **Totals by Mobile & Wi-Fi**: Clear separation of cellular mobile data and Wi-Fi network consumption.
+- **Per-App History**: Breakdown of data usage per application across daily and 2-hour measurement windows.
+- **Flexible Data Plans with Forecast & Alerts**: Custom billing cycles (monthly or every N days), SIM binding, add-on quota packs, free data windows (e.g. night data), and usage rollover (capped or uncapped). Predicts run-out dates based on your learned hourly usage curve and alerts at 50%, 80%, 90%, and 100% quota.
+- **Home-Screen Widgets**: Jetpack Glance widgets displaying remaining data, progress, and renewal days.
+- **Per-App Data Budgets**: Set daily or billing-cycle cellular budgets per application with warning notifications.
+- **Spike Detector**: Alerts when an app consumes an unusual surge of mobile data against a 14-day median baseline.
+- **"What If" Scenario Planner**: Explore how hypothetical extra daily usage alters your projected run-out date.
+- **CSV and JSON Streamed Export**: Stream historical traffic metrics without memory spikes.
+- **Encrypted Local Backup & Restore**: Secure `.emberbyte` archive backups protected with Argon2id and AES-256-GCM.
 
-## Known limitations
+> [!NOTE]
+> An in-depth packet inspection feature ("Live Lens") was explored during development and discarded due to CPU and battery constraints; see [ADR 0001: Discard Live Lens](docs/adr/0001-discard-live-lens.md). Emberbyte avoids VPN tunnels entirely.
+
+---
+
+## Privacy Guarantee
+
+Everything stays on your device. Emberbyte operates 100% offline and declares NO `android.permission.INTERNET`. There are no accounts, no telemetry, no tracking, and no external servers. All metrics and configuration are stored locally in Room databases and encrypted archives.
+
+---
+
+## Declared Permissions
+
+Every permission declared in [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) is required for core local features and documented in [RELEASE.md](docs/release/RELEASE.md):
+
+| Permission | Type | Justification / Usage |
+|---|---|---|
+| `android.permission.PACKAGE_USAGE_STATS` | Special App Access | Required to query per-application daily and hourly data usage buckets via `NetworkStatsManager`. Granted explicitly by user in Android Settings > Usage Access. |
+| `android.permission.QUERY_ALL_PACKAGES` | System / Store Policy | Required to resolve installed app names, icons, and package visibility across UIDs for data usage breakdown on Android 11+ (API 30+). |
+| `android.permission.ACCESS_NETWORK_STATE` | Normal | Required to observe active network connectivity (Wi-Fi vs Cellular vs Metered) and network capabilities. |
+| `android.permission.READ_PHONE_STATE` | Dangerous / Runtime | Required on multi-SIM devices to detect active subscription IDs and correlate cellular usage with the user's configured data plan SIM slot. |
+| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post threshold warning notifications (80%, 90%, 100% plan quota) and promoted ongoing live sampler notifications. |
+| `android.permission.POST_PROMOTED_NOTIFICATIONS` | Normal (API 36+) | Required for Android 16+ Promoted Ongoing live status bar indicator showing real-time network transfer throughput. |
+| `android.permission.FOREGROUND_SERVICE` | Normal | Required to run `SamplerService` as a background foreground service for periodic network rate sampling and threshold checks. |
+| `android.permission.FOREGROUND_SERVICE_SPECIAL_USE` | Foreground Service Type (API 34+) | Declares the specific foreground service subtype (`data_metering_sampler`) for continuous background network traffic monitoring under modern platform restrictions. |
+| `android.permission.RECEIVE_BOOT_COMPLETED` | Normal | Allows `BootReceiver` to restore `SamplerService` and alarms immediately when the device boots, preventing unmonitored data leaks after restart. |
+
+---
+
+## Known Limitations
 
 - New traffic can take up to about 5 minutes to appear in Today (O-1).
 - "Measurement paused" only appears after the system or a vendor kills the service, and force-stopping Emberbyte stops measuring until it is opened again (N-10).
@@ -33,40 +73,49 @@ per-app data budgets, spike detection, "what if" planning, threshold alerts, enc
 - Plan alerts need the app notification setting AND the 'Plan alerts' channel enabled.
 - A VPN running over Wi-Fi is counted twice.
 
-## Privacy
+---
 
-Everything stays on your device. There are no accounts, no analytics and no cloud. The app
-requests `QUERY_ALL_PACKAGES` only to show app names and `PACKAGE_USAGE_STATS` only for per-app
-history, both optional for totals. Emberbyte never uses a VPN and cannot see which servers an app contacts.
+## Installation
+
+- **F-Droid**: Coming soon once listed in the official F-Droid repository. See [F-Droid draft recipe](docs/release/fdroiddata-io.github.khaledbahaaeldin.emberbyte.yml).
+- **GitHub Releases**: Download pre-built unsigned release APKs or maintainer-signed APKs from the [Releases](https://github.com/Khaledbahaaeldin/DataKB/releases) page.
+
+---
 
 ## Build
 
-Requirements: JDK 17 and the Android SDK with platform 37 (compileSdk 37; targetSdk 36) and build tools 36.0.0.
+### Requirements
+- JDK 17 (Eclipse Temurin recommended)
+- Android SDK Platform API 36 (Vanilla Ice Cream / API 36)
+- Android Build Tools `35.0.0`
 
-    ./gradlew assembleDebug
-    ./gradlew testDebugUnitTest :core:engine:test
+### Build Commands
+```bash
+# Debug build
+./gradlew assembleDebug
 
-Create `local.properties` with `sdk.dir=<path to your Android SDK>` (it is git-ignored).
+# Run unit tests
+./gradlew testDebugUnitTest :core:engine:test
 
-## Dependencies
+# Release APK build (deterministic & reproducible)
+./gradlew :app:assembleRelease --no-build-cache --no-daemon
+```
 
-The app currently uses Material 3 1.5.0-alpha29 (an alpha) because the Material 3 Expressive APIs are not
-public in stable 1.4.0. It will move to stable 1.5.0 when that is released. It also uses Jetpack Glance for
-home-screen widgets, and Bouncy Castle (`bcprov-jdk18on`) for Argon2id key derivation in backups.
+---
 
-## Documentation
+## Contributing
 
-Design and specs live in `docs/superpowers/specs/`; implementation plans in `docs/superpowers/plans/`.
-The backup format specification is in `docs/backup-format.md`.
+Contributions, bug reports, and suggestions are welcome!
+1. Fork the repository and create a feature branch.
+2. Ensure strict code formatting and run the verification test suite before opening a pull request:
+   ```bash
+   ./gradlew testDebugUnitTest :core:engine:test lintDebug assembleDebug
+   ```
+3. Explain why changes are needed in commit messages.
 
-## Credits
-
-The floating pill navigation bar is inspired by the design of Damantha126's
-[Floating-Navbar-M3-Flutter](https://github.com/Damantha126/Floating-Navbar-M3-Flutter) (MIT).
-The Compose implementation in this repository is original; no code was copied.
-Full third-party notices are in `NOTICE`.
+---
 
 ## Licence
 
-Emberbyte is free software, licensed under the **GNU General Public License, version 3 or (at your option) any later
-version** (SPDX: `GPL-3.0-or-later`). The licence text is in `LICENSE`; third-party credits are in `NOTICE`.
+Emberbyte is free software, licensed under the **GNU General Public License, version 3 or (at your option) any later version** (SPDX: `GPL-3.0-or-later`).
+See [LICENSE](LICENSE) for the full licence text and [NOTICE](NOTICE) for third-party software credits.

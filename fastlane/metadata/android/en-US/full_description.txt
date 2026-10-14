@@ -1,0 +1,29 @@
+Emberbyte is an open-source Android data monitor designed to give you clear control over your mobile and Wi-Fi data usage without compromising your privacy.
+
+Features:
+• Real-Time Speed & Live Sampler: Monitor your current transfer speed directly from your notification drawer.
+• Daily & Historical Totals: View total data consumption broken down by cellular and Wi-Fi networks.
+• Per-App Breakdown: See exactly how much data each application consumes across daily and 2-hour measurement windows.
+• Flexible Data Plans: Set custom billing cycles, per-SIM plan binding, add-on packs, free data windows (such as off-peak night data), and usage rollover.
+• Personalized Forecast: Predict when your data quota will run out using a curve learned from your past week of usage.
+• Usage Threshold Alerts: Receive timely warnings when reaching 50%, 80%, 90%, and 100% of your plan allowance.
+• Per-App Budgets: Configure custom mobile data budgets for specific apps with warning notifications.
+• Spike Detection: Identify unusual mobile data traffic spikes compared against a 14-day median baseline.
+• "What If" Scenario Planner: Simulate hypothetical usage changes to preview projected run-out dates.
+• Encrypted Local Backups: Export and restore your plans, budgets, and settings with password-based AES-256-GCM encryption.
+• Home Screen Widgets: Keep track of remaining data and billing cycle status directly from your home screen.
+
+Privacy Guarantee:
+Nothing leaves your device. Emberbyte operates entirely offline: no telemetry, no tracking, and no external servers. Your usage statistics and configuration stay strictly on your phone.
+
+Required Permissions & Why We Need Them:
+• Usage Access (PACKAGE_USAGE_STATS): Required to query historical per-application data transfer buckets provided by Android's NetworkStatsManager.
+• Installed Apps (QUERY_ALL_PACKAGES): Required on Android 11+ to display app names and icons alongside data usage records.
+• Phone State (READ_PHONE_STATE): Required on multi-SIM devices to read SIM subscription IDs and bind cellular traffic to the correct data plan.
+• Notifications (POST_NOTIFICATIONS): Required to deliver threshold warnings, budget alerts, spike alerts, and live transfer sampler updates.
+
+Known Limitations:
+• Dual-SIM Traffic: Per-SIM historical traffic is estimated when multiple SIM cards are active.
+• VPN Over Wi-Fi: Data routed through a VPN over Wi-Fi is counted twice by Android's network subsystem (once for the tunnel and once for the underlying interface).
+• Data Lag: New usage traffic can take up to 5 minutes to appear in system usage buckets.
+• Mobile-Only Analysis: Budgets and spike detection evaluate mobile cellular data only.
