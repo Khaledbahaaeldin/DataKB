@@ -50,6 +50,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     dataViewModel: DataViewModel,
     onBack: () -> Unit,
+    onOpenLicenses: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val settings by viewModel.uiState.collectAsStateWithLifecycle()
@@ -92,6 +93,7 @@ fun SettingsScreen(
         onBack = onBack,
         versionName = versionName,
         onOpenSource = { runCatching { uriHandler.openUri(SOURCE_URL) } },
+        onOpenLicenses = onOpenLicenses,
         onOpenBatterySettings = {
             runCatching {
                 context.startActivity(
@@ -169,6 +171,7 @@ internal fun SettingsContent(
     onOpenSource: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenLicenses: () -> Unit = {},
     dataUiState: DataUiState = DataUiState(),
     onExportCsv: (ExportRange) -> Unit = {},
     onExportJson: () -> Unit = {},
@@ -272,6 +275,7 @@ internal fun SettingsContent(
             )
         }
         item { TextButton(onClick = onOpenSource, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Text("Source code") } }
+        item { TextButton(onClick = onOpenLicenses, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Text("Open-source licences") } }
     }
 }
 

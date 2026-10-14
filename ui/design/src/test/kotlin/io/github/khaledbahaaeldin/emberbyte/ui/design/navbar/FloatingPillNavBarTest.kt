@@ -190,12 +190,16 @@ class FloatingPillNavBarTest {
     private fun showThree(
         initialSelectedId: String = "home",
         layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        reduceMotion: Boolean = false,
         onSelect: (String) -> Unit = {},
     ) {
         rule.setContent {
             var currentSelected by remember { mutableStateOf(initialSelectedId) }
             EmberbyteTheme(darkTheme = true, dynamicColor = false) {
-                CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+                CompositionLocalProvider(
+                    LocalLayoutDirection provides layoutDirection,
+                    LocalReduceMotion provides reduceMotion,
+                ) {
                     FloatingPillNavBar(
                         items = threeItems,
                         selectedId = currentSelected,
@@ -297,4 +301,34 @@ class FloatingPillNavBarTest {
         rule.waitForIdle()
         assertEquals("home", picked)
     }
+
+    @Test fun navbar_tabs_are_ordered_from_right_to_left_in_rtl() {
+        showThree("home", layoutDirection = LayoutDirection.Rtl)
+        val homeBounds = rule.onNodeWithTag("nav_home").getBoundsInRoot()
+        val appsBounds = rule.onNodeWithTag("nav_apps").getBoundsInRoot()
+        val plansBounds = rule.onNodeWithTag("nav_plans").getBoundsInRoot()
+
+        assertTrue(
+            "In RTL, Home (${homeBounds.left}) must be to the right of Apps (${appsBounds.left})",
+            homeBounds.left > appsBounds.left,
+        )
+        assertTrue(
+            "In RTL, Apps (${appsBounds.left}) must be to the right of Plans (${plansBounds.left})",
+            appsBounds.left > plansBounds.left,
+        )
+    }
+
+    @Test fun when_reduce_motion_is_true_dragging_is_disabled() {
+        var picked: String? = null
+        showThree("home", reduceMotion = true) { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // Try dragging to apps (center)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.50f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertNull("Dragging must not switch tabs when reduce motion is enabled", picked)
+    }
 }
+

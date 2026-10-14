@@ -53,6 +53,7 @@ import io.github.khaledbahaaeldin.emberbyte.placeholder.StartupPlaceholder
 import io.github.khaledbahaaeldin.emberbyte.sampler.ServiceStarter
 import io.github.khaledbahaaeldin.emberbyte.settings.ContentResolverStreamOpener
 import io.github.khaledbahaaeldin.emberbyte.settings.DataViewModel
+import io.github.khaledbahaaeldin.emberbyte.settings.LicensesScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsScreen
 import io.github.khaledbahaaeldin.emberbyte.settings.SettingsViewModel
 import io.github.khaledbahaaeldin.emberbyte.ui.design.layout.contentWidth
@@ -207,7 +208,15 @@ private fun AppScaffold(graph: AppGraph, startOnboarding: Boolean, hapticsEnable
                 val dataViewModel: DataViewModel = viewModel(
                     factory = graph.dataViewModelFactory(ContentResolverStreamOpener(context.contentResolver)),
                 )
-                SettingsScreen(viewModel, dataViewModel, onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    viewModel,
+                    dataViewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenLicenses = { navController.navigate(Routes.LICENSES) },
+                )
+            }
+            composable(Routes.LICENSES) {
+                LicensesScreen(onBack = { navController.popBackStack() })
             }
         }
         if (route != Routes.ONBOARDING) {

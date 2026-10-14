@@ -19,6 +19,24 @@ android {
     }
     buildFeatures { compose = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
+
+    sourceSets.getByName("main") {
+        res.directories.add("${project.layout.buildDirectory.get().asFile}/generated/res/licenses")
+    }
+}
+
+val generateLicensesRaw = tasks.register<Copy>("generateLicensesRaw") {
+    from(rootProject.file("NOTICE")) {
+        rename { "notice.txt" }
+    }
+    from(rootProject.file("licenses/roboto-flex-OFL.txt")) {
+        rename { "roboto_flex_ofl.txt" }
+    }
+    into(layout.buildDirectory.dir("generated/res/licenses/raw"))
+}
+
+tasks.named("preBuild") {
+    dependsOn(generateLicensesRaw)
 }
 
 kotlin { jvmToolchain(17) }
