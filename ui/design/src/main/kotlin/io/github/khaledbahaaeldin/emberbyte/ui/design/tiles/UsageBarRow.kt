@@ -54,12 +54,11 @@ fun UsageBarRow(
         } else "Daily usage"
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .semantics { this.contentDescription = summary },
-        )
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { this.contentDescription = summary },
+    ) {
 
         val count = points.size
         val totalNeeded = (count * 48).dp + ((count - 1).coerceAtLeast(0) * 8).dp

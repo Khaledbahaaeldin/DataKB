@@ -170,9 +170,9 @@ fun DataSection(
 private fun ActionRow(
     title: String,
     subtitle: String?,
-    enabled: Boolean = true,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier
