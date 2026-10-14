@@ -7,6 +7,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Offset
@@ -29,8 +30,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.LocalReduceMotion
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -171,5 +177,124 @@ class FloatingPillNavBarTest {
         assertNull(picked)
         rule.onNodeWithTag("nav_plans").performClick()
         assertEquals("plans", picked)
+    }
+
+    // ---- 3-item navbar accessibility & drag (M6 Task P2) ----
+
+    private val threeItems = listOf(
+        NavBarItem("home", "Home", Icons.Rounded.Home, NavAccent.Primary),
+        NavBarItem("apps", "Apps", Icons.Rounded.Apps, NavAccent.Tertiary),
+        NavBarItem("plans", "Plans", Icons.Rounded.AccountBalanceWallet, NavAccent.Secondary),
+    )
+
+    private fun showThree(
+        initialSelectedId: String = "home",
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        onSelect: (String) -> Unit = {},
+    ) {
+        rule.setContent {
+            var currentSelected by remember { mutableStateOf(initialSelectedId) }
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+                    FloatingPillNavBar(
+                        items = threeItems,
+                        selectedId = currentSelected,
+                        onSelect = {
+                            currentSelected = it
+                            onSelect(it)
+                        },
+                        visible = true,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test fun three_items_are_role_tab_with_selected_state_and_name_and_touch_target_at_least_48dp() {
+        showThree("home")
+        threeItems.forEach { item ->
+            val selected = item.id == "home"
+            val tabNode = rule.onNodeWithTag("nav_${item.id}")
+            tabNode.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+            if (selected) tabNode.assertIsSelected() else tabNode.assertIsNotSelected()
+
+            val semantics = tabNode.fetchSemanticsNode()
+            val hasName = semantics.config.getOrNull(SemanticsProperties.Text)?.isNotEmpty() == true ||
+                semantics.config.getOrNull(SemanticsProperties.ContentDescription)?.isNotEmpty() == true
+            assertTrue("Tab ${item.id} must expose an accessible name on its semantics node", hasName)
+
+            val widthDp = with(rule.density) { semantics.size.width.toDp() }
+            val heightDp = with(rule.density) { semantics.size.height.toDp() }
+            assertTrue("Touch target width ($widthDp) must be >= 48.dp", widthDp >= 47.9.dp)
+            assertTrue("Touch target height ($heightDp) must be >= 48.dp", heightDp >= 47.9.dp)
+        }
+    }
+
+    @Test fun three_items_selection_by_click_for_each_index() {
+        var picked: String? = null
+        showThree("home") { picked = it }
+        rule.onNodeWithTag("nav_apps").performClick()
+        assertEquals("apps", picked)
+
+        rule.onNodeWithTag("nav_plans").performClick()
+        assertEquals("plans", picked)
+
+        rule.onNodeWithTag("nav_home").performClick()
+        assertEquals("home", picked)
+    }
+
+    @Test fun three_items_drag_snap_lands_on_the_right_item_for_each_index() {
+        var picked: String? = null
+        showThree("home") { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // Drag to apps (center)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.50f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("apps", picked)
+
+        // Drag to plans (right)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.85f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
+
+        // Drag to home (left)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.85f, centerY), end = Offset(width * 0.15f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("home", picked)
+    }
+
+    @Test fun three_items_rtl_drag_snap_lands_on_the_right_item_for_each_index() {
+        var picked: String? = null
+        showThree("home", layoutDirection = LayoutDirection.Rtl) { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // In RTL, index 0 (home) is at the right, index 1 (apps) in center, index 2 (plans) at the left.
+        // Drag from home (right) to plans (left)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.85f, centerY), end = Offset(width * 0.15f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
+
+        // Drag from plans (left) to apps (center)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.50f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("apps", picked)
+
+        // Drag from apps (center) to home (right)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.50f, centerY), end = Offset(width * 0.85f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("home", picked)
     }
 }

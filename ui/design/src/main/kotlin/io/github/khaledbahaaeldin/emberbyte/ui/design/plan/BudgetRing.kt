@@ -78,7 +78,7 @@ fun BudgetRing(
         if (state != BudgetStateUi.Ok) {
             Icon(
                 imageVector = if (state == BudgetStateUi.Exceeded) Icons.Rounded.Error else Icons.Rounded.Warning,
-                contentDescription = null,
+                contentDescription = if (state == BudgetStateUi.Exceeded) "Over the cap" else "Nearly used up",
                 tint = color,
                 modifier = Modifier.align(Alignment.TopEnd).size(size / 4),
             )

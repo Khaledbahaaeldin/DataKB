@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.FilterChip
@@ -32,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -211,7 +214,7 @@ internal fun SettingsContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { TextButton(onClick = onOpenBatterySettings) { Text("Battery settings") } }
+        item { TextButton(onClick = onOpenBatterySettings, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Text("Battery settings") } }
         item { SectionTitle("Appearance") }
         item {
             SwitchRow("Dynamic colour", "Use your wallpaper colours (Android 12 and newer)", settings.useDynamicColor) {
@@ -232,11 +235,13 @@ internal fun SettingsContent(
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     selected = settings.unitSystem == UnitSystem.DECIMAL,
                     onClick = { onUpdate { s -> s.copy(unitSystem = UnitSystem.DECIMAL) } },
                     label = { Text("Decimal (GB)") },
                 )
                 FilterChip(
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     selected = settings.unitSystem == UnitSystem.BINARY,
                     onClick = { onUpdate { s -> s.copy(unitSystem = UnitSystem.BINARY) } },
                     label = { Text("Binary (GiB)") },
@@ -266,7 +271,7 @@ internal fun SettingsContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { TextButton(onClick = onOpenSource) { Text("Source code") } }
+        item { TextButton(onClick = onOpenSource, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Text("Source code") } }
     }
 }
 
@@ -292,6 +297,7 @@ private fun SwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
+            .semantics(mergeDescendants = true) {}
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -302,7 +308,12 @@ private fun SwitchRow(
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            enabled = enabled,
+            modifier = Modifier.clearAndSetSemantics {},
+        )
     }
 }
 

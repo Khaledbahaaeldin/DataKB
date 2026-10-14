@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -254,10 +255,12 @@ private fun NavItem(
             }
             .graphicsLayer { translationX = dragOffset() }
             .height(48.dp)
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .clip(CircleShape)
             .background(background)
             .animateContentSize(if (reduceMotion) snap<IntSize>() else motion.fastSpatialSpec<IntSize>())
             .selectable(selected = selected, onClick = onClick, role = Role.Tab)
+            .semantics { contentDescription = item.label }
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

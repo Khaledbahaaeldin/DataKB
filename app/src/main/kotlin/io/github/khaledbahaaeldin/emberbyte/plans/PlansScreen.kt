@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -60,7 +61,10 @@ internal fun PlansContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Plans", style = MaterialTheme.typography.headlineMedium)
-                FilledTonalButton(onClick = onNewPlan) {
+                FilledTonalButton(
+                    onClick = onNewPlan,
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                ) {
                     Text("New plan")
                 }
             }
@@ -73,7 +77,10 @@ internal fun PlansContent(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
                     )
-                    Button(onClick = onNewPlan) {
+                    Button(
+                        onClick = onNewPlan,
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    ) {
                         Text("Set up your first plan")
                     }
                 }
@@ -84,7 +91,10 @@ internal fun PlansContent(
             }
             if (state.archivedCards.isNotEmpty()) {
                 item {
-                    TextButton(onClick = { onEvent(PlansEvent.ToggleArchived) }) {
+                    TextButton(
+                        onClick = { onEvent(PlansEvent.ToggleArchived) },
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    ) {
                         Text(if (state.showArchived) "Hide archived" else "Show archived (${state.archivedCards.size})")
                     }
                 }

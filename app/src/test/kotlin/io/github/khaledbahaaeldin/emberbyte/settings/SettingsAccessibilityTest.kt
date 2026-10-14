@@ -1,0 +1,108 @@
+package io.github.khaledbahaaeldin.emberbyte.settings
+
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import io.github.khaledbahaaeldin.emberbyte.common.assertNoTouchTargetSmallerThan48dp
+import io.github.khaledbahaaeldin.emberbyte.data.Settings
+import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class SettingsAccessibilityTest {
+    @get:Rule val rule = createComposeRule()
+
+    private fun show(settings: Settings = Settings(), dataUiState: DataUiState = DataUiState()) {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                SettingsContent(
+                    settings = settings,
+                    onUpdate = {},
+                    onBack = {},
+                    versionName = "1.0.0",
+                    onOpenSource = {},
+                    onOpenBatterySettings = {},
+                    dataUiState = dataUiState,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun switches_in_settings_are_merged_with_their_labels_into_one_clickable_node_with_role_switch() {
+        show(Settings(liveNotificationEnabled = true, useDynamicColor = false))
+
+        // "Live notification" should be a single toggleable node merging the text and the switch
+        val liveNode = rule.onNodeWithText("Live notification")
+        liveNode.assertIsDisplayed()
+        liveNode.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
+        liveNode.assertIsOn()
+
+        // In the unmerged tree, there should not be a duplicate switch node without the label
+        val unmergedLiveNodes = rule.onAllNodesWithText("Live notification", useUnmergedTree = true)
+        unmergedLiveNodes.assertCountEquals(1)
+
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("Dynamic colour"))
+        val dynamicColorNode = rule.onNodeWithText("Dynamic colour")
+        dynamicColorNode.assertIsDisplayed()
+        dynamicColorNode.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
+        dynamicColorNode.assertIsOff()
+    }
+
+    @Test
+    fun settings_touch_targets_are_at_least_48dp() {
+        show()
+        assertNoTouchTargetSmallerThan48dp(rule)
+    }
+
+    @Test
+    fun data_dialogs_touch_targets_are_at_least_48dp() {
+        // Passphrase dialog
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                CreateBackupPassphraseDialog(onDismiss = {}, onCreate = {})
+            }
+        }
+        assertNoTouchTargetSmallerThan48dp(rule)
+    }
+
+    @Test
+    fun restore_dialogs_touch_targets_are_at_least_48dp() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                RestoreWarningDialog(onDismiss = {}, onConfirm = {})
+            }
+        }
+        assertNoTouchTargetSmallerThan48dp(rule)
+    }
+
+    @Test
+    fun csv_range_dialog_touch_targets_are_at_least_48dp() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                CsvRangeDialog(onDismiss = {}, onSelectRange = {})
+            }
+        }
+        assertNoTouchTargetSmallerThan48dp(rule)
+    }
+}

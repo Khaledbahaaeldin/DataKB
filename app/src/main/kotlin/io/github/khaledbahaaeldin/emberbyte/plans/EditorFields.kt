@@ -3,6 +3,9 @@ package io.github.khaledbahaaeldin.emberbyte.plans
 import android.annotation.SuppressLint
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -44,7 +47,7 @@ fun DateField(
 
     OutlinedButton(
         onClick = { open = true },
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
     ) {
         Text("$label: $dateFormatted")
     }
@@ -63,12 +66,16 @@ fun DateField(
                         }
                         open = false
                     },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 ) {
                     Text("OK")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { open = false }) {
+                TextButton(
+                    onClick = { open = false },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                ) {
                     Text("Cancel")
                 }
             },
@@ -94,7 +101,7 @@ fun TimeField(
 
     OutlinedButton(
         onClick = { open = true },
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
     ) {
         Text("$label $timeFormatted")
     }
@@ -114,12 +121,16 @@ fun TimeField(
                         onChange(LocalTime.of(timePickerState.hour, timePickerState.minute))
                         open = false
                     },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 ) {
                     Text("OK")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { open = false }) {
+                TextButton(
+                    onClick = { open = false },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                ) {
                     Text("Cancel")
                 }
             },

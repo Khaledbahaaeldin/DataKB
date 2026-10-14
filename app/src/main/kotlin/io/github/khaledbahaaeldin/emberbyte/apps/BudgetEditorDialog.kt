@@ -22,7 +22,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.engine.model.BudgetPeriod
@@ -47,19 +51,30 @@ fun BudgetEditorDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Limit field
+                val limitError = editor.errors["limitBytes"]
                 OutlinedTextField(
                     value = editor.limitText,
                     onValueChange = { onEvent(AppDetailEvent.SetBudgetLimit(it)) },
                     label = { Text("Limit") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    isError = editor.errors.containsKey("limitBytes"),
+                    isError = limitError != null,
                     supportingText = {
-                        editor.errors["limitBytes"]?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error)
+                        limitError?.let {
+                            Text(
+                                it,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                            )
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            if (limitError != null) {
+                                error(limitError)
+                            }
+                        },
                 )
 
                 // MB / GB chips

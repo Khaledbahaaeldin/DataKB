@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -14,11 +15,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,7 +45,10 @@ fun CsvRangeDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) { Text("Cancel") }
         },
     )
 }
@@ -66,6 +73,11 @@ fun CreateBackupPassphraseDialog(
 ) {
     var passphrase by remember { mutableStateOf("") }
     var repeatPassphrase by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     val tooShort = passphrase.isNotEmpty() && passphrase.length < 8
     val mismatch = repeatPassphrase.isNotEmpty() && passphrase != repeatPassphrase
@@ -83,7 +95,7 @@ fun CreateBackupPassphraseDialog(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                 )
                 if (tooShort) {
                     Text(
@@ -117,12 +129,16 @@ fun CreateBackupPassphraseDialog(
                     onCreate(chars)
                 },
                 enabled = canCreate,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
             ) {
                 Text("Create")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) { Text("Cancel") }
         },
     )
 }
@@ -132,6 +148,8 @@ fun RestoreWarningDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val focusRequester = remember { FocusRequester() }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Restore backup") },
@@ -139,10 +157,22 @@ fun RestoreWarningDialog(
             Text("Restore replaces your plans, budgets and history on this device. Continue?")
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Continue") }
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.yield()
+                focusRequester.requestFocus()
+            }
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .focusRequester(focusRequester),
+            ) { Text("Continue") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) { Text("Cancel") }
         },
     )
 }
@@ -153,6 +183,11 @@ fun RestorePassphraseDialog(
     onRestore: (CharArray) -> Unit,
 ) {
     var passphrase by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -166,7 +201,7 @@ fun RestorePassphraseDialog(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                 )
             }
         },
@@ -177,12 +212,53 @@ fun RestorePassphraseDialog(
                     onRestore(chars)
                 },
                 enabled = passphrase.isNotEmpty(),
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
             ) {
                 Text("Restore")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    title: String,
+    message: String,
+    confirmLabel: String = "Delete",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).focusRequester(focusRequester),
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) {
+                Text("Cancel")
+            }
         },
     )
 }
