@@ -11,7 +11,18 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = null
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -37,6 +48,17 @@ val generateLicensesRaw = tasks.register<Copy>("generateLicensesRaw") {
 
 tasks.named("preBuild") {
     dependsOn(generateLicensesRaw)
+}
+
+tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
+    dependsOn("assembleRelease")
+}
+
+val verifyReleaseApk = tasks.register("verifyReleaseApk") {
+    description = "Verifies the unsigned release APK matches contract requirements"
+    group = "verification"
+    dependsOn("assembleRelease")
+    dependsOn(tasks.matching { it.name == "testDebugUnitTest" })
 }
 
 kotlin { jvmToolchain(17) }
