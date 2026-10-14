@@ -50,8 +50,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     dataViewModel: DataViewModel,
     onBack: () -> Unit,
-    onOpenLicenses: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onOpenLicenses: () -> Unit = {},
 ) {
     val settings by viewModel.uiState.collectAsStateWithLifecycle()
     val dataUiState by dataViewModel.uiState.collectAsStateWithLifecycle()

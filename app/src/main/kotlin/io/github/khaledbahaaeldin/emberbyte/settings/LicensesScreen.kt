@@ -1,7 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.settings
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -26,19 +25,17 @@ import io.github.khaledbahaaeldin.emberbyte.common.ScreenHeader
 fun LicensesScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    noticeContent: String = run {
-        val context = LocalContext.current
-        remember(context) {
-            context.resources.openRawResource(R.raw.notice).bufferedReader().use { it.readText() }
-        }
-    },
-    robotoFlexContent: String = run {
-        val context = LocalContext.current
-        remember(context) {
-            context.resources.openRawResource(R.raw.roboto_flex_ofl).bufferedReader().use { it.readText() }
-        }
-    },
+    noticeContent: String? = null,
+    robotoFlexContent: String? = null,
 ) {
+    val resources = LocalResources.current
+    val actualNotice = noticeContent ?: remember(resources) {
+        resources.openRawResource(R.raw.notice).bufferedReader().use { it.readText() }
+    }
+    val actualRobotoFlex = robotoFlexContent ?: remember(resources) {
+        resources.openRawResource(R.raw.roboto_flex_ofl).bufferedReader().use { it.readText() }
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
@@ -58,7 +55,7 @@ fun LicensesScreen(
         item {
             SelectionContainer {
                 Text(
-                    text = noticeContent,
+                    text = actualNotice,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth(),
@@ -82,7 +79,7 @@ fun LicensesScreen(
         item {
             SelectionContainer {
                 Text(
-                    text = robotoFlexContent,
+                    text = actualRobotoFlex,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth(),
