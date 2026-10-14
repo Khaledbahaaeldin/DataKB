@@ -10,6 +10,9 @@ import io.github.khaledbahaaeldin.emberbyte.engine.model.Plan
 import io.github.khaledbahaaeldin.emberbyte.engine.model.PlanState
 import io.github.khaledbahaaeldin.emberbyte.engine.model.Rollover
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
+import java.lang.invoke.MethodHandle
+import java.lang.invoke.MethodHandles
+import java.lang.invoke.MethodType
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -19,17 +22,31 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.runners.model.FrameworkMethod
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.annotation.RealObject
+import org.robolectric.internal.bytecode.InstrumentationConfiguration
+import org.robolectric.internal.bytecode.Interceptor
+import org.robolectric.internal.bytecode.MethodRef
+import org.robolectric.internal.bytecode.MethodSignature
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowNotification
+import org.robolectric.util.Function
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@RunWith(LiveNotificationRobolectricTestRunner::class)
+@Config(
+    sdk = [35],
+    shadows = [
+        ShadowProgressStyle::class,
+        ShadowProgressStyleSegment::class,
+        ShadowLiveNotificationBuilder::class,
+        ShadowLiveNotification::class,
+    ],
+)
 class LiveNotificationTest {
     @Test fun text_shows_today_and_speed() {
         val text = liveNotificationText(1_240_000_000L, 4_200_000L, ByteUnits.DECIMAL, showSpeed = true)
@@ -121,7 +138,6 @@ class LiveNotificationTest {
     }
 
     @Test
-    @Config(shadows = [ShadowProgressStyle::class, ShadowProgressStyleSegment::class, ShadowLiveNotificationBuilder::class])
     fun live_update_at_sdk_36_has_progress_style_and_promoted_ongoing() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val text = liveNotificationText(
@@ -137,10 +153,11 @@ class LiveNotificationTest {
         assertEquals("android.app.Notification\$ProgressStyle", notification.extras.getString(Notification.EXTRA_TEMPLATE))
         assertEquals(630, notification.extras.getInt(Notification.EXTRA_PROGRESS))
         assertEquals(1000, notification.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
+        assertEquals(1000, notification.extras.getInt("android.progressSegments"))
         val shortCritical = try {
             notification.shortCriticalText
         } catch (_: NoSuchMethodError) {
-            notification.extras.getString("android.shortCriticalText")
+            notification.extras.getCharSequence("android.shortCriticalText")?.toString()
         }
         assertEquals("3.2 GB", shortCritical)
 
@@ -225,7 +242,10 @@ class LiveNotificationTest {
             1024L * 1024L * 1024L,
             1024L * 1024L * 1024L * 1024L,
         )
-        val samples = listOf(0.0, 0.1, 0.5, 1.0, 1.05, 3.2, 9.9, 9.99, 10.0, 12.0, 99.0, 99.9, 100.0, 850.0, 999.0, 999.9)
+        val samples = listOf(
+            0.0, 0.1, 0.5, 1.0, 1.05, 3.2, 9.9, 9.99, 10.0, 12.0, 99.0, 99.9, 100.0, 850.0, 999.0, 999.9,
+            1_000.0, 5_000.0, 10_000.0, 50_000.0, 100_000.0,
+        )
 
         for (mult in multipliers) {
             for (s in samples) {
@@ -241,6 +261,16 @@ class LiveNotificationTest {
                 assertTrue("Binary chip '$chip' for $bytes exceeds 7 chars", chip.length <= 7)
             }
         }
+        val maxDecimalChip = formatProgressChip(Long.MAX_VALUE, ByteUnits.DECIMAL)
+        assertTrue("Max decimal chip '$maxDecimalChip' exceeds 7 chars", maxDecimalChip.length <= 7)
+        val maxBinaryChip = formatProgressChip(Long.MAX_VALUE, ByteUnits.BINARY)
+        assertTrue("Max binary chip '$maxBinaryChip' exceeds 7 chars", maxBinaryChip.length <= 7)
+    }
+
+    @Test
+    fun chip_caps_at_last_unit_for_huge_decimal_values() {
+        assertEquals("999 TB", formatProgressChip(10_000L * 1_000_000_000_000L, ByteUnits.DECIMAL))
+        assertEquals("999 TiB", formatProgressChip(10_000L * 1024L * 1024L * 1024L * 1024L, ByteUnits.BINARY))
     }
 
     @Test
@@ -306,11 +336,16 @@ class LiveNotificationTest {
 
 @Implements(Notification.ProgressStyle::class)
 class ShadowProgressStyle {
-    @field:RealObject
-    lateinit var realStyle: Notification.ProgressStyle
+    @RealObject
+    private lateinit var realStyle: Notification.ProgressStyle
 
+    @get:Implementation
     var progress: Int = 0
-    var progressMax: Int = 1000
+
+    val segments = mutableListOf<Notification.ProgressStyle.Segment>()
+
+    @Implementation
+    protected fun __constructor__() {}
 
     @Implementation
     fun setProgress(progress: Int): Notification.ProgressStyle {
@@ -320,17 +355,46 @@ class ShadowProgressStyle {
 
     @Implementation
     fun addProgressSegment(segment: Notification.ProgressStyle.Segment): Notification.ProgressStyle {
+        this.segments.add(segment)
         return realStyle
     }
+
+    @Implementation
+    fun getProgressSegments(): List<Notification.ProgressStyle.Segment> = segments.toList()
+
+    @Implementation
+    fun getProgressMax(): Int = segments.sumOf { (Shadow.extract<ShadowProgressStyleSegment>(it)).length }
 }
 
 @Implements(Notification.ProgressStyle.Segment::class)
-class ShadowProgressStyleSegment
+class ShadowProgressStyleSegment {
+    @get:Implementation
+    var length: Int = 0
+
+    @Implementation
+    protected fun __constructor__(length: Int) {
+        this.length = length
+    }
+}
+
+@Implements(Notification::class)
+class ShadowLiveNotification : ShadowNotification() {
+    @RealObject
+    private lateinit var realNotification: Notification
+
+    @get:Implementation
+    val shortCriticalText: String?
+        get() = realNotification.extras.getCharSequence("android.shortCriticalText")?.toString()
+
+    @get:Implementation
+    val isRequestPromotedOngoing: Boolean
+        get() = realNotification.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, false)
+}
 
 @Implements(Notification.Builder::class)
 class ShadowLiveNotificationBuilder {
-    @field:RealObject
-    lateinit var realBuilder: Notification.Builder
+    @RealObject
+    private lateinit var realBuilder: Notification.Builder
 
     private var style: Notification.Style? = null
 
@@ -343,14 +407,116 @@ class ShadowLiveNotificationBuilder {
     @Implementation
     fun build(): Notification {
         val notification: Notification = Shadow.directlyOn(realBuilder, Notification.Builder::class.java, "build")
+        notification.extras.putAll(realBuilder.extras)
         if (style != null) {
             notification.extras.putString(Notification.EXTRA_TEMPLATE, style!!::class.java.name)
             if (style is Notification.ProgressStyle) {
-                val shadow = Shadow.extract<ShadowProgressStyle>(style)
-                notification.extras.putInt(Notification.EXTRA_PROGRESS, shadow.progress)
-                notification.extras.putInt(Notification.EXTRA_PROGRESS_MAX, shadow.progressMax)
+                val shadowStyle = Shadow.extract<ShadowProgressStyle>(style)
+                notification.extras.putInt(Notification.EXTRA_PROGRESS, shadowStyle.progress)
+                val max = shadowStyle.getProgressMax()
+                notification.extras.putInt(Notification.EXTRA_PROGRESS_MAX, max)
+                notification.extras.putInt("android.progressSegments", max)
             }
         }
         return notification
+    }
+}
+
+class LiveNotificationRobolectricTestRunner(testClass: Class<*>) : RobolectricTestRunner(testClass) {
+    override fun findInterceptors(): Collection<Interceptor> {
+        val list = ArrayList(super.findInterceptors())
+        list.add(Api36NotificationInterceptor())
+        return list
+    }
+
+    override fun createClassLoaderConfig(method: FrameworkMethod): InstrumentationConfiguration {
+        val builder = InstrumentationConfiguration.Builder(super.createClassLoaderConfig(method))
+        builder.addInstrumentedClass("io.github.khaledbahaaeldin.emberbyte.sampler.LiveNotificationBuilder")
+        builder.addInstrumentedClass("io.github.khaledbahaaeldin.emberbyte.sampler.LiveNotificationTest")
+        return builder.build()
+    }
+}
+
+class Api36NotificationInterceptor : Interceptor(
+    MethodRef("android.app.Notification\$Builder", "setShortCriticalText"),
+    MethodRef("android.app.Notification\$Builder", "setRequestPromotedOngoing"),
+    MethodRef("android.app.Notification", "getShortCriticalText"),
+    MethodRef("android.app.Notification", "isRequestPromotedOngoing"),
+) {
+    override fun handle(methodSignature: MethodSignature): Function<Any, Any> {
+        return Function { _, value, params ->
+            when (methodSignature.methodName) {
+                "setShortCriticalText" -> NotificationApi36InterceptionBridge.setShortCriticalText(value, params?.getOrNull(0))
+                "setRequestPromotedOngoing" -> NotificationApi36InterceptionBridge.setRequestPromotedOngoing(value, params?.getOrNull(0) as? Boolean ?: true)
+                "getShortCriticalText" -> NotificationApi36InterceptionBridge.getShortCriticalText(value)
+                "isRequestPromotedOngoing" -> NotificationApi36InterceptionBridge.isRequestPromotedOngoing(value)
+                else -> null
+            }
+        }
+    }
+
+    override fun getMethodHandle(methodName: String, type: MethodType): MethodHandle {
+        val lookup = MethodHandles.lookup()
+        val bridgeClass = Class.forName(
+            "io.github.khaledbahaaeldin.emberbyte.sampler.NotificationApi36InterceptionBridge",
+            true,
+            Thread.currentThread().contextClassLoader,
+        )
+        val handle = when (methodName) {
+            "setShortCriticalText" -> lookup.findStatic(
+                bridgeClass,
+                "setShortCriticalText",
+                MethodType.methodType(Any::class.java, Any::class.java, Any::class.java),
+            )
+            "setRequestPromotedOngoing" -> lookup.findStatic(
+                bridgeClass,
+                "setRequestPromotedOngoing",
+                MethodType.methodType(Any::class.java, Any::class.java, Boolean::class.javaPrimitiveType),
+            )
+            "getShortCriticalText" -> lookup.findStatic(
+                bridgeClass,
+                "getShortCriticalText",
+                MethodType.methodType(String::class.java, Any::class.java),
+            )
+            "isRequestPromotedOngoing" -> lookup.findStatic(
+                bridgeClass,
+                "isRequestPromotedOngoing",
+                MethodType.methodType(Boolean::class.javaPrimitiveType, Any::class.java),
+            )
+            else -> throw NoSuchMethodException(methodName)
+        }
+        return handle.asType(type)
+    }
+}
+
+object NotificationApi36InterceptionBridge {
+    @JvmStatic
+    fun setShortCriticalText(builder: Any, text: Any?): Any {
+        if (builder is Notification.Builder) {
+            builder.extras.putCharSequence("android.shortCriticalText", text as? CharSequence)
+        }
+        return builder
+    }
+
+    @JvmStatic
+    fun setRequestPromotedOngoing(builder: Any, request: Boolean): Any {
+        if (builder is Notification.Builder) {
+            builder.extras.putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, request)
+        }
+        return builder
+    }
+
+    @JvmStatic
+    fun getShortCriticalText(notification: Any): String? {
+        return if (notification is Notification) {
+            notification.extras.getCharSequence("android.shortCriticalText")?.toString()
+        } else null
+    }
+
+    @JvmStatic
+    fun isRequestPromotedOngoing(notification: Any): Boolean {
+        return if (notification is Notification) {
+            notification.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, false)
+        } else false
     }
 }

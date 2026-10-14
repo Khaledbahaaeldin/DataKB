@@ -60,7 +60,7 @@ fun formatProgressChip(bytes: Long, units: ByteUnits): String {
             }
             formatted.toPlainString() to nextUnit
         } else {
-            if (index == units.labels.lastIndex && units == ByteUnits.BINARY && r >= BigDecimal(1000)) {
+            if (index == units.labels.lastIndex && r >= BigDecimal(1000)) {
                 r = BigDecimal(999)
             }
             r.toPlainString() to units.labels[index]
@@ -130,11 +130,13 @@ fun liveNotificationText(
     )
 }
 
-@SuppressLint("NewApi", "InlinedApi")
 class LiveNotificationBuilder(
     private val context: Context,
     private val sdkInt: Int = Build.VERSION.SDK_INT,
 ) {
+    // Android Lint cannot track that the member property `sdkInt` (defaulting to Build.VERSION.SDK_INT)
+    // guards the call to the API 36 helper method.
+    @SuppressLint("NewApi")
     fun build(text: LiveNotificationText): Notification {
         val open = PendingIntent.getActivity(
             context,
@@ -159,7 +161,9 @@ class LiveNotificationBuilder(
             .build()
     }
 
+    // setRequestPromotedOngoing was finalized across API 36/36.1; lint flags it as 36.1 while compileSdk is 37.
     @RequiresApi(36)
+    @SuppressLint("NewApi")
     private fun buildLiveUpdateNotification(
         context: Context,
         text: LiveNotificationText,
@@ -171,7 +175,7 @@ class LiveNotificationBuilder(
             .setProgress(progressUnits)
             .addProgressSegment(Notification.ProgressStyle.Segment(1000))
 
-        val builder = Notification.Builder(context, NotificationChannels.LIVE)
+        return Notification.Builder(context, NotificationChannels.LIVE)
             .setSmallIcon(R.drawable.ic_stat_ember)
             .setContentTitle(text.title)
             .setContentText(text.text)
@@ -183,18 +187,8 @@ class LiveNotificationBuilder(
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(open)
             .setStyle(style)
-
-        try {
-            builder.setShortCriticalText(progress.chip)
-        } catch (_: NoSuchMethodError) {}
-
-        try {
-            builder.setRequestPromotedOngoing(true)
-        } catch (_: NoSuchMethodError) {}
-
-        val notification = builder.build()
-        notification.extras.putString("android.shortCriticalText", progress.chip)
-        notification.extras.putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, true)
-        return notification
+            .setShortCriticalText(progress.chip)
+            .setRequestPromotedOngoing(true)
+            .build()
     }
 }
