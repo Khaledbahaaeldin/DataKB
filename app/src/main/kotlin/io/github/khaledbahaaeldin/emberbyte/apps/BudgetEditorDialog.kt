@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -22,10 +23,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.error
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -64,7 +63,6 @@ fun BudgetEditorDialog(
                             Text(
                                 it,
                                 color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                             )
                         }
                     },
@@ -83,8 +81,7 @@ fun BudgetEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     listOf(CapUnit.MB, CapUnit.GB).forEach { unit ->
-                        FilterChip(
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        EmberbyteFilterChip(
                             selected = editor.unit == unit,
                             onClick = { onEvent(AppDetailEvent.SetBudgetUnit(unit)) },
                             label = {
@@ -102,14 +99,12 @@ fun BudgetEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    FilterChip(
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    EmberbyteFilterChip(
                         selected = editor.period == BudgetPeriod.DAILY,
                         onClick = { onEvent(AppDetailEvent.SetBudgetPeriod(BudgetPeriod.DAILY)) },
                         label = { Text("Daily") },
                     )
-                    FilterChip(
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    EmberbyteFilterChip(
                         selected = editor.period == BudgetPeriod.CYCLE,
                         onClick = { onEvent(AppDetailEvent.SetBudgetPeriod(BudgetPeriod.CYCLE)) },
                         label = { Text("Plan cycle") },
@@ -177,8 +172,7 @@ fun BudgetEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     listOf(50, 80, 90).forEach { pct ->
-                        FilterChip(
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        EmberbyteFilterChip(
                             selected = editor.warnAtPercent == pct,
                             onClick = { onEvent(AppDetailEvent.SetBudgetWarn(pct)) },
                             label = {

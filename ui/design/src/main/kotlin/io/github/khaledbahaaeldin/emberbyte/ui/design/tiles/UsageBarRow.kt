@@ -39,7 +39,7 @@ fun UsageBarRow(
     scrollKey: Any? = null,
     openAtEnd: Boolean = true,
     summaryDescription: String? = null,
-    contentPadding: PaddingValues = PaddingValues(0.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 4.dp),
 ) {
     val max = (points.maxOfOrNull { it.bytes } ?: 0L).coerceAtLeast(1L)
     val summary = summaryDescription ?: run {
@@ -57,7 +57,7 @@ fun UsageBarRow(
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .size(1.dp)
+                .matchParentSize()
                 .semantics { this.contentDescription = summary },
         )
 

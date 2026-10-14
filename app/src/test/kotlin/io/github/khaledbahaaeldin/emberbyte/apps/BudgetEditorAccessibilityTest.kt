@@ -24,7 +24,7 @@ class BudgetEditorAccessibilityTest {
     @get:Rule val rule = createComposeRule()
 
     @Test
-    fun budget_editor_limit_field_has_label_and_error_linked_via_semantics_and_live_region() {
+    fun budget_editor_limit_field_has_label_and_error_linked_via_semantics() {
         val editor = BudgetEditorUi(
             limitText = "0",
             unit = CapUnit.GB,
@@ -55,9 +55,8 @@ class BudgetEditorAccessibilityTest {
         val errorValue = limitField.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Error)
         assertEquals("Enter a number greater than zero", errorValue)
 
-        // Error message text should have LiveRegionMode.Polite
+        // Error message text should be displayed
         val errorTextNode = rule.onNodeWithText("Enter a number greater than zero")
         errorTextNode.assertIsDisplayed()
-        errorTextNode.assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 }

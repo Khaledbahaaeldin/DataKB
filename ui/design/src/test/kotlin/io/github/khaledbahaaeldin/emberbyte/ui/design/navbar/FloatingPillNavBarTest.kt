@@ -167,14 +167,14 @@ class FloatingPillNavBarTest {
         rule.onNodeWithTag("pill_nav_bar").assertIsDisplayed()
     }
 
-    @Test fun reduce_motion_disables_the_drag_but_taps_still_select() {
+    @Test fun reduce_motion_keeps_drag_selection_and_taps_still_select() {
         var picked: String? = null
         show("home", reduceMotion = true) { picked = it }
         rule.onNodeWithTag("pill_nav_bar").performTouchInput {
             swipe(start = Offset(30f, centerY), end = Offset(width - 12f, centerY), durationMillis = 300)
         }
         rule.waitForIdle()
-        assertNull(picked)
+        assertEquals("extra", picked)
         rule.onNodeWithTag("nav_plans").performClick()
         assertEquals("plans", picked)
     }
@@ -318,17 +318,60 @@ class FloatingPillNavBarTest {
         )
     }
 
-    @Test fun when_reduce_motion_is_true_dragging_is_disabled() {
+    @Test
+    fun navbar_item_spring_and_pill_follow_snap_when_reduce_motion_is_true() {
+        var capturedSize: androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize>? = null
+        var capturedColor: androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color>? = null
+        var capturedFollow: androidx.compose.animation.core.AnimationSpec<Float>? = null
+
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                CompositionLocalProvider(LocalReduceMotion provides true) {
+                    FloatingPillNavBar(
+                        items = items,
+                        selectedId = "home",
+                        onSelect = {},
+                        visible = true,
+                        onMotionResolved = { size, color, follow ->
+                            capturedSize = size
+                            capturedColor = color
+                            capturedFollow = follow
+                        },
+                    )
+                }
+            }
+        }
+
+        assertTrue("Item size spec must be SnapSpec when reduce motion is enabled", capturedSize is androidx.compose.animation.core.SnapSpec)
+        assertTrue("Item color spec must be SnapSpec when reduce motion is enabled", capturedColor is androidx.compose.animation.core.SnapSpec)
+        assertTrue("Pill follow spec must be SnapSpec when reduce motion is enabled", capturedFollow is androidx.compose.animation.core.SnapSpec)
+    }
+
+    @Test
+    fun horizontal_drag_from_item_0_to_item_2_with_reduce_motion_selects_plans() {
         var picked: String? = null
         showThree("home", reduceMotion = true) { picked = it }
         val bar = rule.onNodeWithTag("pill_nav_bar")
 
-        // Try dragging to apps (center)
         bar.performTouchInput {
-            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.50f, centerY), durationMillis = 200)
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.85f, centerY), durationMillis = 200)
         }
         rule.waitForIdle()
-        assertNull("Dragging must not switch tabs when reduce motion is enabled", picked)
+        assertEquals("plans", picked)
+    }
+
+    @Test
+    fun rtl_horizontal_drag_with_reduce_motion_selects_plans() {
+        var picked: String? = null
+        showThree("home", layoutDirection = LayoutDirection.Rtl, reduceMotion = true) { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // In RTL, home is at right (0.85f), plans is at left (0.15f)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.85f, centerY), end = Offset(width * 0.15f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
     }
 }
 

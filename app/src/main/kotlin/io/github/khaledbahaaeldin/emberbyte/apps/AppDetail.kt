@@ -437,7 +437,11 @@ fun AppDetailContent(
             }
         }
         item {
-            val weekSummary = "${spokenBytes(state.totalBytes, state.units)} used in the last 7 days"
+            val weekSummary = run {
+                val highest = state.bars.maxByOrNull { it.bytes }
+                if (highest != null) "Daily usage, last 7 days, highest ${highest.description}"
+                else "Daily usage, last 7 days"
+            }
             UsageBarRow(
                 points = state.bars,
                 selectedIndex = null,

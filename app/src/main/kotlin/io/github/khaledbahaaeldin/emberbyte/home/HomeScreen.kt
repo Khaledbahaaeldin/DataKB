@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -91,11 +92,10 @@ internal fun HomeContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     state.planChips.forEach { chip ->
-                        FilterChip(
+                        EmberbyteFilterChip(
                             selected = chip.selected,
                             onClick = { onEvent(HomeEvent.SelectPlan(chip.id)) },
                             label = { Text(chip.name) },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                         )
                     }
                 }

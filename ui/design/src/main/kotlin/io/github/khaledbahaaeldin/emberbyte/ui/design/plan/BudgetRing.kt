@@ -53,7 +53,7 @@ fun BudgetRing(
         BudgetStateUi.Warning -> scheme.tertiary
         BudgetStateUi.Exceeded -> scheme.error
     }
-    val track = scheme.surfaceContainerHighest
+    val track = scheme.outline
     val description = buildString {
         append("$descNumber percent of the plan used")
         when (state) {

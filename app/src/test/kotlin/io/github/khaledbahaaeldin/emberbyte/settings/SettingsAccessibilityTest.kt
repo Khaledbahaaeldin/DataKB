@@ -17,6 +17,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import io.github.khaledbahaaeldin.emberbyte.common.assertNoTouchTargetSmallerThan48dp
 import io.github.khaledbahaaeldin.emberbyte.data.Settings
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
@@ -70,6 +73,7 @@ class SettingsAccessibilityTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h3000dp")
     fun settings_touch_targets_are_at_least_48dp() {
         show()
         assertNoTouchTargetSmallerThan48dp(rule)
@@ -104,5 +108,36 @@ class SettingsAccessibilityTest {
             }
         }
         assertNoTouchTargetSmallerThan48dp(rule)
+    }
+
+    @Test
+    fun create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable() {
+        var created = false
+        var dismissed = false
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            CompositionLocalProvider(
+                LocalDensity provides Density(density = 2.625f, fontScale = 2f),
+            ) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    CreateBackupPassphraseDialog(
+                        onDismiss = { dismissed = true },
+                        onCreate = { created = true },
+                    )
+                }
+            }
+        }
+        rule.mainClock.advanceTimeByFrame()
+
+        // Cancel button is displayed and clickable
+        val cancelButton = rule.onNodeWithText("Cancel")
+        cancelButton.assertIsDisplayed()
+        cancelButton.performClick()
+        assertTrue(dismissed)
+
+        // Create button is displayed
+        val createButton = rule.onNodeWithText("Create")
+        createButton.assertIsDisplayed()
+        rule.mainClock.autoAdvance = true
     }
 }

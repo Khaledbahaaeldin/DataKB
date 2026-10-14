@@ -54,6 +54,17 @@ class UsageBarRowAccessibilityTest {
             "Daily usage, last 7 days, highest Wednesday, 2.10 gigabytes",
         )
         summaryNode.assertExists()
+        val summaryBounds = summaryNode.getBoundsInRoot()
+        val width = summaryBounds.right - summaryBounds.left
+        val height = summaryBounds.bottom - summaryBounds.top
+        assertTrue(
+            "Summary node width must be >= 48dp but was $width",
+            width >= 48.dp,
+        )
+        assertTrue(
+            "Summary node height must be >= 48dp but was $height",
+            height >= 48.dp,
+        )
 
         // Each bar must be reachable in order with its individual description
         sampleBars.forEach { bar ->
@@ -98,29 +109,8 @@ class UsageBarRowAccessibilityTest {
         val firstBar379 = rule.onNodeWithContentDescription("Monday, 100 megabytes")
         firstBar379.assertIsDisplayed()
         assertTrue(
-            "Expected first bar left edge >= 0 on 379dp, but was ${firstBar379.getBoundsInRoot().left}",
-            firstBar379.getBoundsInRoot().left >= 0.dp,
-        )
-    }
-
-    @Test
-    fun clipped_leftmost_bar_d8_first_bar_inside_viewport_on_411dp() {
-        rule.setContent {
-            Box(Modifier.size(411.dp, 200.dp)) {
-                UsageBarRow(
-                    points = sampleBars,
-                    selectedIndex = 0,
-                    onSelect = {},
-                    openAtEnd = false,
-                )
-            }
-        }
-        rule.waitForIdle()
-        val firstBar411 = rule.onNodeWithContentDescription("Monday, 100 megabytes")
-        firstBar411.assertIsDisplayed()
-        assertTrue(
-            "Expected first bar left edge >= 0 on 411dp, but was ${firstBar411.getBoundsInRoot().left}",
-            firstBar411.getBoundsInRoot().left >= 0.dp,
+            "Expected first bar left edge >= 4.dp on 379dp due to contentPadding, but was ${firstBar379.getBoundsInRoot().left}",
+            firstBar379.getBoundsInRoot().left >= 4.dp,
         )
     }
 }

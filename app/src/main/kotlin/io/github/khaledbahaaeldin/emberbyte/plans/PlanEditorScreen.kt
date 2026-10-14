@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,10 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.error
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -190,14 +189,13 @@ internal fun PlanEditorContent(
                         isError = whatIfError != null,
                         supportingText = whatIfError?.let {
                             {
-                                Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                Text(it)
                             }
                         },
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for (unit in listOf(CapUnit.MB, CapUnit.GB)) {
-                            FilterChip(
-                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                            EmberbyteFilterChip(
                                 selected = state.whatIf.unit == unit,
                                 onClick = { onEvent(PlanEditorEvent.SetWhatIfUnit(unit)) },
                                 label = { Text(unit.label, softWrap = false) },
@@ -230,7 +228,7 @@ internal fun PlanEditorContent(
                     isError = nameError != null,
                     supportingText = nameError?.let {
                         {
-                            Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                            Text(it)
                         }
                     },
                 )
@@ -252,6 +250,7 @@ internal fun PlanEditorContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
                             .selectable(
                                 selected = isSelected,
                                 role = Role.RadioButton,
@@ -286,14 +285,13 @@ internal fun PlanEditorContent(
                     isError = capError != null,
                     supportingText = capError?.let {
                         {
-                            Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                            Text(it)
                         }
                     },
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (unit in CapUnit.entries) {
-                        FilterChip(
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        EmberbyteFilterChip(
                             selected = state.form.capUnit == unit,
                             onClick = { onEvent(PlanEditorEvent.SetCapUnit(unit)) },
                             label = { Text(unit.label, softWrap = false) },
@@ -307,6 +305,10 @@ internal fun PlanEditorContent(
                         selected = state.form.cycleKind == CycleKind.Monthly,
                         onClick = { onEvent(PlanEditorEvent.SetCycleKind(CycleKind.Monthly)) },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = MaterialTheme.colorScheme.primary,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
                     ) {
                         Text("Monthly")
                     }
@@ -314,6 +316,10 @@ internal fun PlanEditorContent(
                         selected = state.form.cycleKind == CycleKind.EveryNDays,
                         onClick = { onEvent(PlanEditorEvent.SetCycleKind(CycleKind.EveryNDays)) },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = MaterialTheme.colorScheme.primary,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
                     ) {
                         Text("Every N days")
                     }
@@ -341,7 +347,7 @@ internal fun PlanEditorContent(
                             isError = dayError != null,
                             supportingText = dayError?.let {
                                 {
-                                    Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                    Text(it)
                                 }
                             },
                         )
@@ -367,7 +373,7 @@ internal fun PlanEditorContent(
                             isError = daysError != null,
                             supportingText = daysError?.let {
                                 {
-                                    Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                    Text(it)
                                 }
                             },
                         )
@@ -386,20 +392,17 @@ internal fun PlanEditorContent(
 
                 Text("Rollover", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    EmberbyteFilterChip(
                         selected = state.form.rolloverKind == RolloverKind.None,
                         onClick = { onEvent(PlanEditorEvent.SetRolloverKind(RolloverKind.None)) },
                         label = { Text("None") },
                     )
-                    FilterChip(
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    EmberbyteFilterChip(
                         selected = state.form.rolloverKind == RolloverKind.Full,
                         onClick = { onEvent(PlanEditorEvent.SetRolloverKind(RolloverKind.Full)) },
                         label = { Text("Full") },
                     )
-                    FilterChip(
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    EmberbyteFilterChip(
                         selected = state.form.rolloverKind == RolloverKind.Capped,
                         onClick = { onEvent(PlanEditorEvent.SetRolloverKind(RolloverKind.Capped)) },
                         label = { Text("Capped") },
@@ -423,14 +426,13 @@ internal fun PlanEditorContent(
                         isError = rolloverError != null,
                         supportingText = rolloverError?.let {
                             {
-                                Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                Text(it)
                             }
                         },
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for (unit in CapUnit.entries) {
-                            FilterChip(
-                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                            EmberbyteFilterChip(
                                 selected = state.form.rolloverCapUnit == unit,
                                 onClick = { onEvent(PlanEditorEvent.SetRolloverUnit(unit)) },
                                 label = { Text(unit.label, softWrap = false) },
@@ -457,7 +459,7 @@ internal fun PlanEditorContent(
                         isError = labelError != null,
                         supportingText = labelError?.let {
                             {
-                                Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                Text(it)
                             }
                         },
                     )
@@ -478,14 +480,13 @@ internal fun PlanEditorContent(
                         isError = amountError != null,
                         supportingText = amountError?.let {
                             {
-                                Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                Text(it)
                             }
                         },
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for (unit in CapUnit.entries) {
-                            FilterChip(
-                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                            EmberbyteFilterChip(
                                 selected = addOn.unit == unit,
                                 onClick = { onEvent(PlanEditorEvent.UpdateAddOn(index, addOn.copy(unit = unit))) },
                                 label = { Text(unit.label, softWrap = false) },
@@ -507,7 +508,6 @@ internal fun PlanEditorContent(
                             text = it,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                         )
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -549,7 +549,7 @@ internal fun PlanEditorContent(
                         isError = ruleLabelError != null,
                         supportingText = ruleLabelError?.let {
                             {
-                                Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                Text(it)
                             }
                         },
                     )
@@ -567,14 +567,13 @@ internal fun PlanEditorContent(
                             DayOfWeek.SUNDAY to "Sun",
                         )
                         for ((day, label) in dayLabels) {
-                            FilterChip(
+                            EmberbyteFilterChip(
                                 selected = day in rule.days,
                                 onClick = {
                                     val nextDays = if (day in rule.days) rule.days - day else rule.days + day
                                     onEvent(PlanEditorEvent.UpdateFreeRule(index, rule.copy(days = nextDays)))
                                 },
                                 label = { Text(label, softWrap = false) },
-                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                             )
                         }
                     }
@@ -583,7 +582,6 @@ internal fun PlanEditorContent(
                             text = it,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                         )
                     }
                     TimeField(
@@ -601,7 +599,6 @@ internal fun PlanEditorContent(
                             text = it,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                         )
                     }
                     val pkgError = state.errors["freeRule.$index.packageName"]
@@ -623,7 +620,7 @@ internal fun PlanEditorContent(
                         isError = pkgError != null,
                         supportingText = pkgError?.let {
                             {
-                                Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                                Text(it)
                             }
                         },
                     )
@@ -646,8 +643,7 @@ internal fun PlanEditorContent(
                 Text("Alert me at", style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (percent in listOf(50, 80, 90, 100)) {
-                        FilterChip(
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        EmberbyteFilterChip(
                             selected = percent in state.form.alertThresholds,
                             onClick = { onEvent(PlanEditorEvent.ToggleThreshold(percent)) },
                             label = { Text("$percent%", softWrap = false, maxLines = 1) },

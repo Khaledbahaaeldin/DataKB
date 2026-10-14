@@ -1,8 +1,10 @@
 package io.github.khaledbahaaeldin.emberbyte.apps
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.common.assertNoTouchTargetSmallerThan48dp
 import io.github.khaledbahaaeldin.emberbyte.engine.model.BudgetPeriod
 import io.github.khaledbahaaeldin.emberbyte.plans.CapUnit
@@ -10,6 +12,7 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ByteUnits
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BarUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BudgetStateUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,6 +73,22 @@ class AppDetailAccessibilityTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h3000dp")
+    fun app_detail_chart_exposes_summary_node() {
+        show()
+        val summaryNode = rule.onNodeWithContentDescription(
+            "Daily usage, last 7 days, highest Wednesday, 2.10 gigabytes",
+        )
+        summaryNode.assertExists()
+        val summaryBounds = summaryNode.getBoundsInRoot()
+        val width = summaryBounds.right - summaryBounds.left
+        val height = summaryBounds.bottom - summaryBounds.top
+        assertTrue("Summary node width must be >= 48dp but was $width", width >= 48.dp)
+        assertTrue("Summary node height must be >= 48dp but was $height", height >= 48.dp)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h3000dp")
     fun app_detail_touch_targets_are_at_least_48dp() {
         show()
         assertNoTouchTargetSmallerThan48dp(rule)

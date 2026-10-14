@@ -50,4 +50,34 @@ class MorphingNumberTest {
         rule.onNodeWithContentDescription("213 megabytes used today").assertIsDisplayed()
         rule.onAllNodesWithText("2", useUnmergedTree = true).assertCountEquals(0)
     }
+
+    @Test
+    fun morphing_number_tween_and_live_state_snap_and_disabled_when_reduce_motion_is_true() {
+        var capturedLive: Boolean? = null
+        var capturedSpec: androidx.compose.animation.core.AnimationSpec<Float>? = null
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    io.github.khaledbahaaeldin.emberbyte.ui.design.theme.LocalReduceMotion provides true,
+                ) {
+                    MorphingNumber(
+                        bytes = 1_240_000_000L,
+                        throughputBps = 20_000_000L,
+                        units = ByteUnits.DECIMAL,
+                        contentDescription = "1.24 gigabytes used today",
+                        animate = true,
+                        onMotionResolved = { live, spec ->
+                            capturedLive = live
+                            capturedSpec = spec
+                        },
+                    )
+                }
+            }
+        }
+        org.junit.Assert.assertEquals(false, capturedLive)
+        org.junit.Assert.assertTrue(
+            "Intensity animation spec must be SnapSpec when reduce motion is enabled",
+            capturedSpec is androidx.compose.animation.core.SnapSpec,
+        )
+    }
 }

@@ -56,6 +56,7 @@ class AppsAccessibilityTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h3000dp")
     fun apps_touch_targets_are_at_least_48dp() {
         show()
         assertNoTouchTargetSmallerThan48dp(rule)

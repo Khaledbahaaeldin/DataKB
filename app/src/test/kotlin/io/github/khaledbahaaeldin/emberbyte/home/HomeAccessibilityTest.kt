@@ -116,6 +116,22 @@ class HomeAccessibilityTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h3000dp")
+    fun home_chart_exposes_summary_node_with_highest_day() {
+        show()
+        val summaryNode = rule.onNodeWithContentDescription(
+            "Daily usage, last 7 days, highest Wednesday, 2.10 gigabytes",
+        )
+        summaryNode.assertExists()
+        val summaryBounds = summaryNode.getBoundsInRoot()
+        val width = summaryBounds.right - summaryBounds.left
+        val height = summaryBounds.bottom - summaryBounds.top
+        assertTrue("Summary node width must be >= 48dp but was $width", width >= 48.dp)
+        assertTrue("Summary node height must be >= 48dp but was $height", height >= 48.dp)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h3000dp")
     fun home_touch_targets_are_at_least_48dp() {
         show()
         assertNoTouchTargetSmallerThan48dp(rule)

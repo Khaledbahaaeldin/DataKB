@@ -16,6 +16,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -131,11 +132,10 @@ private fun ChipRow(content: @Composable () -> Unit) {
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
+    EmberbyteFilterChip(
         selected = selected,
         onClick = onClick,
         label = { ForceLtr { Text(label) } },
-        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
     )
 }
 

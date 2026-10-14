@@ -82,14 +82,19 @@ fun MorphingNumber(
     contentDescription: String,
     modifier: Modifier = Modifier,
     animate: Boolean = true,
+    onMotionResolved: ((Boolean, androidx.compose.animation.core.AnimationSpec<Float>) -> Unit)? = null,
 ) {
     val live = animate && !LocalReduceMotion.current
     val formatted = remember(bytes, units) { formatBytes(bytes, units) }
     val motion = MaterialTheme.motionScheme
 
+    val intensitySpec: androidx.compose.animation.core.AnimationSpec<Float> =
+        if (LocalReduceMotion.current) androidx.compose.animation.core.snap() else motion.defaultEffectsSpec()
+    onMotionResolved?.invoke(live, intensitySpec)
+
     val intensity by animateFloatAsState(
         targetValue = if (live) throughputIntensity(throughputBps) else 0f,
-        animationSpec = motion.defaultEffectsSpec(),
+        animationSpec = intensitySpec,
         label = "numberIntensity",
     )
     val step = (intensity * AXIS_STEPS).roundToInt()

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -237,14 +238,12 @@ internal fun SettingsContent(
         item { SectionTitle("Units") }
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                EmberbyteFilterChip(
                     selected = settings.unitSystem == UnitSystem.DECIMAL,
                     onClick = { onUpdate { s -> s.copy(unitSystem = UnitSystem.DECIMAL) } },
                     label = { Text("Decimal (GB)") },
                 )
-                FilterChip(
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                EmberbyteFilterChip(
                     selected = settings.unitSystem == UnitSystem.BINARY,
                     onClick = { onUpdate { s -> s.copy(unitSystem = UnitSystem.BINARY) } },
                     label = { Text("Binary (GiB)") },

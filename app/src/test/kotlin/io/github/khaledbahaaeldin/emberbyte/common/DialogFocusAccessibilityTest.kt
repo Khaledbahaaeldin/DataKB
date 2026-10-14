@@ -13,8 +13,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorContent
 import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorForm
 import io.github.khaledbahaaeldin.emberbyte.plans.PlanEditorUiState
@@ -33,86 +35,51 @@ class DialogFocusAccessibilityTest {
     @get:Rule val rule = createComposeRule()
 
     @Test
-    fun passphrase_dialog_moves_focus_in_on_open_and_returns_focus_on_dismiss() {
+    fun settings_create_backup_dialog_moves_focus_in_and_returns_focus_to_trigger_on_dismiss() {
         rule.setContent {
             EmberbyteTheme(darkTheme = true, dynamicColor = false) {
-                var openDialog by remember { mutableStateOf(false) }
-                val triggerRequester = remember { FocusRequester() }
-
-                Box {
-                    Button(
-                        onClick = { openDialog = true },
-                        modifier = Modifier.focusRequester(triggerRequester),
-                    ) {
-                        Text("Open Passphrase Dialog")
-                    }
-
-                    if (openDialog) {
-                        CreateBackupPassphraseDialog(
-                            onDismiss = {
-                                openDialog = false
-                                triggerRequester.requestFocus()
-                            },
-                            onCreate = { openDialog = false },
-                        )
-                    }
-                }
+                io.github.khaledbahaaeldin.emberbyte.settings.DataSection(
+                    uiState = io.github.khaledbahaaeldin.emberbyte.settings.DataUiState(),
+                    onExportCsv = {},
+                    onExportJson = {},
+                    onCreateBackup = {},
+                    onRestoreChosen = {},
+                    onRestoreBackup = {},
+                    onClearMessage = {},
+                )
             }
         }
 
-        // Open dialog
-        rule.onNodeWithText("Open Passphrase Dialog").performClick()
-        rule.waitForIdle()
-
-        // Passphrase text field must be focused inside dialog
+        rule.onNodeWithText("Create backup").performClick()
         rule.onNodeWithText("Passphrase").assertIsFocused()
-
-        // Dismiss dialog
         rule.onNodeWithText("Cancel").performClick()
-        rule.waitForIdle()
-
-        // Focus must return to triggering button
-        rule.onNodeWithText("Open Passphrase Dialog").assertIsFocused()
+        rule.onNodeWithText("Create backup").assertIsFocused()
     }
 
     @Test
-    fun restore_dialog_moves_focus_in_on_open_and_returns_focus_on_dismiss() {
+    @Config(qualifiers = "w411dp-h3000dp")
+    fun settings_restore_backup_dialog_moves_focus_in_and_returns_focus_to_trigger_on_dismiss() {
         rule.setContent {
             EmberbyteTheme(darkTheme = true, dynamicColor = false) {
-                var openDialog by remember { mutableStateOf(false) }
-                val triggerRequester = remember { FocusRequester() }
-
-                Box {
-                    Button(
-                        onClick = { openDialog = true },
-                        modifier = Modifier.focusRequester(triggerRequester),
-                    ) {
-                        Text("Open Restore Dialog")
-                    }
-
-                    if (openDialog) {
-                        RestoreWarningDialog(
-                            onDismiss = {
-                                openDialog = false
-                                triggerRequester.requestFocus()
-                            },
-                            onConfirm = { openDialog = false },
-                        )
-                    }
-                }
+                io.github.khaledbahaaeldin.emberbyte.settings.SettingsContent(
+                    settings = io.github.khaledbahaaeldin.emberbyte.data.Settings(),
+                    onUpdate = {},
+                    onBack = {},
+                    versionName = "1.0.0",
+                    onOpenSource = {},
+                    onOpenBatterySettings = {},
+                    dataUiState = io.github.khaledbahaaeldin.emberbyte.settings.DataUiState(),
+                )
             }
         }
 
-        rule.onNodeWithText("Open Restore Dialog").performClick()
-        rule.waitForIdle()
+        rule.onNodeWithText("Restore backup").performClick()
 
-        // Inside dialog, Continue action must be focused
         rule.onNodeWithText("Continue").assertIsFocused()
 
         rule.onNodeWithText("Cancel").performClick()
-        rule.waitForIdle()
 
-        rule.onNodeWithText("Open Restore Dialog").assertIsFocused()
+        rule.onNodeWithText("Restore backup").assertIsFocused()
     }
 
     @Test
@@ -135,7 +102,7 @@ class DialogFocusAccessibilityTest {
         }
 
         // Click Back button with dirty form triggers discard dialog
-        rule.onNodeWithText("Back", substring = true).performClick()
+        rule.onNodeWithContentDescription("Back").performClick()
         rule.waitForIdle()
 
         // Focus inside discard dialog
@@ -146,6 +113,6 @@ class DialogFocusAccessibilityTest {
         rule.waitForIdle()
 
         // Focus returns to the Back button
-        rule.onNodeWithText("Back", substring = true).assertIsFocused()
+        rule.onNodeWithContentDescription("Back").assertIsFocused()
     }
 }

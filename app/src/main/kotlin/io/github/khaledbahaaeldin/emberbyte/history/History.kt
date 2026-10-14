@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.onEach
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -141,9 +143,18 @@ class HistoryViewModel(
 
     val uiState: StateFlow<HistoryUiState> = combine(dates, granularity) { date, g -> date to g }
         .flatMapLatest { (date, g) ->
+            selectedBar.value = null
             val zone = clock.zone
+            var lastPoints: List<Any>? = null
+            val pointsFlow = usage.observeSeries(rangeForHistory(g, date, zone), g)
+                .onEach { pts ->
+                    if (lastPoints != null && lastPoints != pts) {
+                        selectedBar.value = null
+                    }
+                    lastPoints = pts
+                }
             combine(
-                usage.observeSeries(rangeForHistory(g, date, zone), g),
+                pointsFlow,
                 settings.observe(),
                 permissions.observe(),
                 selectedBar,
@@ -182,23 +193,20 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, modifier: Mod
         item { ScreenHeader("History", onBack) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+                EmberbyteFilterChip(
                     selected = state.granularity == Granularity.DAY,
                     onClick = { viewModel.onEvent(HistoryEvent.SetGranularity(Granularity.DAY)) },
                     label = { Text("Day") },
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 )
-                FilterChip(
+                EmberbyteFilterChip(
                     selected = state.granularity == Granularity.WEEK,
                     onClick = { viewModel.onEvent(HistoryEvent.SetGranularity(Granularity.WEEK)) },
                     label = { Text("Week") },
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 )
-                FilterChip(
+                EmberbyteFilterChip(
                     selected = state.granularity == Granularity.MONTH,
                     onClick = { viewModel.onEvent(HistoryEvent.SetGranularity(Granularity.MONTH)) },
                     label = { Text("Month") },
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 )
             }
         }
