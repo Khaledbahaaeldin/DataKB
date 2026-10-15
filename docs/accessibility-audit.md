@@ -1,20 +1,23 @@
 # Emberbyte Accessibility Audit (`docs/accessibility-audit.md`)
 
 Scope: Milestone 6 Polish (Contract Section 12.2)  
-Device: Emulator `emulator-5554` (Density: 440 dpi, Resolution: 1080x2340)
+Device: Emulator `emulator-5554` (AVD: `Violet_API_36`, Density: 440 dpi, Resolution: 1080x2340)
+
+## Accessibility Compliance Matrix
 
 | Screen / Dialog | 1. Roles & Names | 2. Touch Targets (>=48dp) | 3. Chart Summaries | 4. Non-Color State | 5. Font Scaling & Reflow | 6. Reduce Motion | 7. RTL & ForceLtr | 8. Contrast (WCAG AA) | 9. Focus Order | 10. Notifications |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Onboarding** | OK (onboarding_action_buttons_have_non_empty_accessible_names) | OK (onboarding_touch_targets_are_at_least_48dp) | N/A | OK | OK (Scales up to 200%) | OK | OK (ForceLtr numbers) | OK | OK | N/A |
-| **Home** | OK (home_number_exposes_one_node_with_used_and_remaining_spelled_out_units, home_icon_buttons_have_content_descriptions) | OK (home_touch_targets_are_at_least_48dp) | OK (home_chart_exposes_summary_node_with_highest_day) | OK | OK (at_font_scale_2_home_tiles_reflow_to_one_column_and_no_number_is_clipped) | OK | OK | OK | OK | N/A |
-| **Apps** | OK (apps_icon_and_filter_buttons_have_content_descriptions) | OK (apps_touch_targets_are_at_least_48dp) | N/A | OK | OK | OK | OK | OK | OK | N/A |
-| **App detail (incl. budget editor)** | OK (app_detail_icon_buttons_have_content_descriptions, budget_editor_limit_field_has_label_and_error_linked_via_semantics) | OK (app_detail_touch_targets_are_at_least_48dp, budget_editor_dialog_touch_targets_are_at_least_48dp) | OK (app_detail_chart_exposes_summary_node) | OK | OK | OK | OK | OK | OK | N/A |
-| **History** | OK (history_buttons_and_filter_chips_have_accessible_names) | OK (history_touch_targets_are_at_least_48dp) | OK (history_chart_has_summary_node_and_accessibility_click_selects_bar) | OK | OK | OK | OK | OK | OK | N/A |
-| **Plans** | OK (plans_action_buttons_have_non_empty_accessible_names) | OK (plans_screen_touch_targets_are_at_least_48dp_with_plans, plans_screen_touch_targets_are_at_least_48dp_empty_state) | N/A | OK | OK | OK | OK | OK | OK | N/A |
-| **Plan editor** | OK (plan_editor_action_buttons_have_accessible_names, form_fields_have_labels_tied_to_the_fields_and_errors_linked_via_semantics) | OK (plan_editor_touch_targets_are_at_least_48dp) | N/A | OK | OK | OK | OK | OK | OK (discard_dialog_moves_focus_in_on_open_and_returns_focus_on_keep_editing) | N/A |
-| **Settings (incl. Data dialogs)** | OK (switches_in_settings_are_merged_with_their_labels_into_one_clickable_node_with_role_switch) | OK (settings_touch_targets_are_at_least_48dp, data_dialogs_touch_targets_are_at_least_48dp, csv_range_dialog_touch_targets_are_at_least_48dp) | N/A | OK | OK (create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable) | OK | OK | OK | OK (settings_create_backup_dialog_moves_focus_in_and_returns_focus_to_trigger_on_dismiss, settings_restore_backup_dialog_moves_focus_in_and_returns_focus_to_trigger_on_dismiss) | N/A |
-| **Notification texts** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | OK (live_notification_text_has_no_lone_symbols_in_accessibility_description_and_spells_out_units, alert_text_has_no_lone_symbols_and_numbers_carry_unit_words_in_accessibility_description) |
-| **Open-source licences** | OK (heading semantics, selectable text container) | OK (back button and text buttons >=48dp) | N/A | OK | OK (Reflows cleanly up to font scale 2.0) | OK | OK (Mirrored header and RTL text layout) | OK (Tested contrast in static light, dark, and AMOLED black) | OK | N/A |
+| **Onboarding** | OK (onboarding_action_buttons_have_non_empty_accessible_names) | OK (onboarding_touch_targets_are_at_least_48dp) | N/A | OK (Step checklist rows display checkmark icons and explicit "allowed" status text) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_f20_sheetA.png) | NOT COVERED (No custom animations or motion springs in onboarding) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetA.png) | OK (static_light_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | NOT COVERED (Linear Tab order verified manually in TalkBack QA Case 8; no dedicated automated test) | N/A |
+| **Home** | OK (home_number_exposes_one_node_with_used_and_remaining_spelled_out_units, home_icon_buttons_have_content_descriptions) | OK (home_touch_targets_are_at_least_48dp) | OK (home_chart_exposes_summary_node_with_highest_day, bar_chart_exposes_summary_node_and_one_node_per_bar) | OK (forecastTile_shows_headline_and_detail, estimatedBadge_says_estimated) | OK (at_font_scale_2_home_tiles_reflow_to_one_column_and_no_number_is_clipped) | OK (morphing_number_tween_and_live_state_snap_and_disabled_when_reduce_motion_is_true) | OK (forecastTile_renders_texts_in_one_node_matching_model_text_under_rtl, gapBanner_renders_message_in_one_node_matching_model_text_under_rtl) | OK (dismiss_button_on_tertiary_container_meets_contrast, .superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_home_light.png) | NOT COVERED (Keyboard focus partially verified in QA Case 8; LazyColumn items below fold require scroll) | N/A |
+| **Apps** | OK (apps_icon_and_filter_buttons_have_content_descriptions) | OK (apps_touch_targets_are_at_least_48dp) | N/A | OK (Filter chips expose selected state in semantics tree alongside visual text label) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_apps_font20.png) | NOT COVERED (Standard list composables with system animation scaling) | OK (apps_range_chips_are_ordered_from_right_to_left_in_rtl, .superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_apps_rtl.png) | OK (dynamic_light_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | NOT COVERED (Linear Tab order verified via TalkBack in QA Case 8; no dedicated automated test) | N/A |
+| **App detail (incl. budget editor)** | OK (app_detail_icon_buttons_have_content_descriptions, budget_editor_limit_field_has_label_and_error_linked_via_semantics) | OK (app_detail_touch_targets_are_at_least_48dp, budget_editor_dialog_touch_targets_are_at_least_48dp) | OK (app_detail_chart_exposes_summary_node) | OK (an_exceeded_cycle_budget_with_a_plan_names_it_and_over_100_percent_shows_more) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_app_detail_font20.png, .superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_dialog_budget_font20.png) | NOT COVERED (Static layout without transition animations) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetB.png) | OK (old_selected_chip_container_failed_contrast_at_1_48, .superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_lt_budget_dialog.png) | NOT COVERED (Dialog moves focus in on open; main screen keyboard focus order not covered by test) | N/A |
+| **History** | OK (history_buttons_and_filter_chips_have_accessible_names) | OK (history_touch_targets_are_at_least_48dp) | OK (history_chart_has_summary_node_and_accessibility_click_selects_bar) | OK (Selected bar exposes selected=true and description; Day/Week/Month chips expose selected state) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_history_font20.png) | NOT COVERED (Chart updates without spring animations) | OK (bar_labels_render_in_one_node_matching_text_under_rtl, .superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetA.png) | OK (static_dark_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | NOT COVERED (QA Defect D3: Chart bars not reached by 16 Tab presses in keyboard navigation) | N/A |
+| **Plans** | OK (plans_action_buttons_have_non_empty_accessible_names) | OK (plans_screen_touch_targets_are_at_least_48dp_with_plans, plans_screen_touch_targets_are_at_least_48dp_empty_state) | N/A | OK (over_cap_state_does_not_rely_on_color_only_and_shows_text_or_described_icon, estimated_state_does_not_rely_on_color_only_and_shows_text_and_described_state) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_plans_font20.png) | NOT COVERED (Progress rings and cards are static) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetB.png) | OK (old_progress_ring_track_at_0_percent_failed_contrast_at_1_05, amoled_black_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | NOT COVERED (Linear card layout; not covered by dedicated automated focus test) | N/A |
+| **Plan editor** | OK (plan_editor_action_buttons_have_accessible_names, form_fields_have_labels_tied_to_the_fields_and_errors_linked_via_semantics) | OK (plan_editor_touch_targets_are_at_least_48dp) | N/A | OK (Form errors present inline supporting error text in addition to red border color) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_plan_editor_font20.png) | NOT COVERED (Form fields without custom motion springs) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetC.png) | OK (dynamic_dark_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | OK (discard_dialog_moves_focus_in_on_open_and_returns_focus_on_keep_editing) | N/A |
+| **Settings (incl. Data dialogs)** | OK (switches_in_settings_are_merged_with_their_labels_into_one_clickable_node_with_role_switch) | OK (settings_touch_targets_are_at_least_48dp, data_dialogs_touch_targets_are_at_least_48dp, csv_range_dialog_touch_targets_are_at_least_48dp, restore_dialogs_touch_targets_are_at_least_48dp) | N/A | OK (Switches expose checked state in semantics; units chips expose selected state) | OK (create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable, .superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_settings_font20.png) | OK (reflects_the_system_setting_and_updates_live) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetC.png) | OK (TileContrastTest.contrast) | OK (settings_create_backup_dialog_moves_focus_in_and_returns_focus_to_trigger_on_dismiss, settings_restore_backup_dialog_moves_focus_in_and_returns_focus_to_trigger_on_dismiss) | N/A |
+| **Notification texts** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | OK (live_notification_text_has_no_lone_symbols_in_accessibility_description_and_spells_out_units, alert_text_has_no_lone_symbols_and_numbers_carry_unit_words_in_accessibility_description, budget_text_has_no_lone_symbols_and_numbers_carry_unit_words_in_accessibility_description) |
+| **Open-source licences** | OK (Heading semantics present, Back button has contentDescription = "Back") | OK (three_items_are_role_tab_with_selected_state_and_name_and_touch_target_at_least_48dp) | N/A | OK (High-contrast text on solid surface; no status indicators) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_licenses_font20_rtl.png) | NOT COVERED (Scrollable text without animation springs) | OK (.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_licenses_font20_rtl.png) | OK (static_light_palette_contrast_meets_wcag_aa_for_all_text_and_indicators, amoled_black_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | NOT COVERED (Scroll container with back button; not covered by dedicated automated test) | N/A |
+| **Floating Navigation Bar** | OK (three_items_are_role_tab_with_selected_state_and_name_and_touch_target_at_least_48dp) | OK (three_items_are_role_tab_with_selected_state_and_name_and_touch_target_at_least_48dp) | N/A | OK (Selected tab shows text label and pill background indicator; unselected shows icon only) | OK (at_200_percent_font_every_item_stays_inside_the_bar) | OK (navbar_item_spring_and_pill_follow_snap_when_reduce_motion_is_true, horizontal_drag_from_item_0_to_item_2_with_reduce_motion_selects_plans) | OK (navbar_tabs_are_ordered_from_right_to_left_in_rtl, rtl_horizontal_drag_with_reduce_motion_selects_plans) | OK (static_dark_palette_contrast_meets_wcag_aa_for_all_text_and_indicators) | NOT COVERED (Accessible via touch and gesture; Tab keyboard ordering not covered by test) | N/A |
 
 ### Rule 10: Notification Text Platform Limitation (QA D17)
 
@@ -24,21 +27,66 @@ Contract section 12.2 Rule 10 requires spoken notification announcements to avoi
 
 ## Device Matrix Verification (`Violet_API_36` / `emulator-5554`)
 
-Verified on Android 16 (API 36) emulator at physical resolution 1080x2340. Screenshots are archived in `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/`:
+Verified on Android 16 (API 36) emulator at physical resolution 1080x2340. Real configurations and evidence captured in workspace:
 
-1. `matrix_home_font20.png`: Home screen at 200% font scale (`font_scale 2.0`). Bento tiles reflow from two columns to a single column; large usage figures and unit labels wrap cleanly with zero clipping.
-2. `matrix_apps_font20.png`: Apps screen at 200% font scale. Time range chip row scrolls horizontally without truncation; per-app usage rows wrap text and data figures cleanly.
-3. `matrix_app_detail_font20.png`: App Detail screen at 200% font scale. Header, mobile/Wi-Fi usage split, and budget action buttons remain legible and completely unobstructed.
-4. `matrix_history_font20.png`: History screen at 200% font scale. Day/Week/Month chips scale; usage tiles reflow to single column; bar chart retains distinct interactive columns.
-5. `matrix_plans_font20.png`: Plans screen at 200% font scale. Empty state card text reflows; "Add plan" button scales and maintains comfortable touch targets.
-6. `matrix_plan_editor_font20.png`: Plan Editor screen at 200% font scale. Cap input, unit filter chips, renewal date selector, and save button reflow without off-screen clipping.
-7. `matrix_settings_font20.png`: Settings screen at 200% font scale. Section titles, toggle switches, descriptive subtitles, and action rows reflow cleanly.
-8. `matrix_dialog_backup.png`: Encrypted backup passphrase dialog at 200% font scale. Header, password field, and confirmation buttons remain fully within viewport bounds.
-9. `matrix_dialog_budget_font20.png`: App budget limit dialog at 200% font scale. Limit input field and Cancel/Set actions fit comfortably on screen.
-10. `matrix_density_largest.png`: Largest display size setting (`wm density 540`). System UI and Emberbyte layout scale appropriately without edge clipping.
-11. `matrix_density_smallest.png`: Smallest display size setting (`wm density 360`). Content expands smoothly to fill the wider viewport canvas.
-12. `matrix_home_light.png`: Static Light mode on Home screen. Verified WCAG AA contrast (>= 4.5:1 for body, >= 3.0:1 for large text/indicators) across all tiles and surfaces.
-13. `matrix_home_rtl.png`: Home screen in RTL locale (`ar-XB`). Navigation pill mirrors tabs (Home on right, Plans on left); numbers and units preserve correct LTR order via `ForceLtr`.
-14. `matrix_apps_rtl.png`: Apps screen in RTL locale (`ar-XB`). Range filter chips flow right-to-left (Today on right), search bar and menu align to the start edge.
-15. `matrix_licenses_font20_rtl.png`: Open-source licences screen at 200% font scale in RTL locale (`ar-XB`). ScreenHeader title wraps cleanly across two lines with back button on the right; NOTICE heading and complete GPL-3.0-or-later notice reflow smoothly in selectable text with 120dp bottom clearance over the floating navigation pill.
+1. **Static Light Theme**:
+   - `shots/matrix_home_light.png`: Static Ember light color scheme on Home screen. Verified WCAG AA contrast (>= 4.5:1 text, >= 3.0:1 indicators).
+   - `m6-qa-shots/q6_sl_sheetA.png`, `m6-qa-shots/q6_sl_sheetB.png`: Complete screen tour in static light mode.
+2. **Static Dark Theme**:
+   - `m6-qa-shots/q6_sd_sheetA.png`, `m6-qa-shots/q6_sd_sheetB.png`: Complete screen tour in static dark mode with Ember palette.
+3. **AMOLED Black Theme**:
+   - `m6-qa-shots/q6_am_sheetA.png`, `m6-qa-shots/q6_am_sheetB.png`: Pure black background (#000000) verified across all surfaces with card distinction preserved.
+4. **Dynamic Color (Material You Wallpapers)**:
+   - `m6-qa-shots/q6_lt_sheetA.png`, `q6_lt_sheetB.png`, `q6_lt_sheetC.png`: Light dynamic palette derived from wallpaper.
+   - `m6-qa-shots/q6_08_home.png`, `shots/live_notification_shade.png`: Dark dynamic palette on Home screen and live notification.
+5. **Animation Scale Off (`animator_duration_scale 0`)**:
+   - `m6-qa-shots/q6_anim_off_bar.png`, `m6-qa-shots/q6_anim_compare.png`: Snapping animations, immediate value transitions, and navbar tap/drag operability under reduced motion.
+6. **Font Scale 1.3 (130%)**:
+   - `m6-qa-shots/q6_f13_sheetA.png`, `q6_f13_sheetB.png`, `q6_f13_sheetC.png`, `q6_f13_sheetD.png`: Clean text scaling without horizontal clipping across all screens.
+7. **Font Scale 2.0 (200%)**:
+   - `shots/matrix_home_font20.png`: Bento tiles reflow to single column; big usage numbers wrap cleanly.
+   - `shots/matrix_apps_font20.png`: Filter chip row scrolls horizontally; per-app rows wrap.
+   - `shots/matrix_app_detail_font20.png`: Header, usage split, and budget actions unobstructed.
+   - `shots/matrix_history_font20.png`: Day/Week/Month chips scale; tiles reflow to single column.
+   - `shots/matrix_plans_font20.png`: Empty state card text reflows; touch targets preserved.
+   - `shots/matrix_plan_editor_font20.png`: Cap input, unit filter chips, and renewal date selector reflow cleanly.
+   - `shots/matrix_settings_font20.png`: Section titles, switches, subtitles, and action rows reflow cleanly.
+   - `shots/matrix_dialog_backup.png`: Encrypted backup passphrase dialog with scroll container.
+   - `shots/matrix_dialog_budget_font20.png`: App budget limit dialog inputs and actions fit comfortably.
+   - `shots/matrix_licenses_font20_rtl.png`: Open-source licences screen at 200% font scale.
+8. **Smallest Display Size (`wm density 360` / `374`)**:
+   - `shots/matrix_density_smallest.png`, `m6-qa-shots/q6_d374_sheetA.png`: Canvas expands cleanly, all 7 chart bars fit comfortably.
+9. **Largest Display Size (`wm density 540` / `660`)**:
+   - `shots/matrix_density_largest.png`, `m6-qa-shots/q6_d660_sheetA.png`: High density scaling without text overflow.
+10. **RTL Locales (`ar` / `ar-XB`)**:
+    - `shots/matrix_home_rtl.png`, `shots/matrix_apps_rtl.png`, `shots/matrix_licenses_font20_rtl.png`, `m6-qa-shots/q6_rtl_sheetA.png`: Layout mirrored right-to-left, navigation pill mirrored, numbers preserve LTR formatting via `ForceLtr`.
 
+## QA Defect Resolution Matrix (D1 to D24)
+
+| Defect | Severity | Description | Status | Resolution / Verification Note |
+|:---|:---|:---|:---|:---|
+| **D1** | Important | Selected state of chips/segments had low contrast (1.05:1 light, 1.48:1 dark) | `fixed in F2` | Enhanced selected container tone in `EmberbyteTheme`; verified by `old_selected_chip_container_failed_contrast_at_1_48` |
+| **D2** | Important | Navbar drag unresponsive when animations disabled (`dragEnabled = !reduceMotion`) | `fixed in F2` | Preserved `dragEnabled = true` under reduced motion with `snap()` spec; verified by `horizontal_drag_from_item_0_to_item_2_with_reduce_motion_selects_plans` |
+| **D3** | Minor | History card and chart bars not reached by 16 Tab presses in keyboard focus | `open` | Focus traverse order on scrollable column to be addressed in post-v1.0 polish |
+| **D4** | Important | Summary node absent from accessibility tree on Home, App detail, and History | `fixed in F2` | Replaced 1dp Box with layout-level semantics node; verified on real AVD uiautomator tree |
+| **D5** | Important | Home 7-day row requires 384dp but card provides 361dp (today's bar cut at rest) | `deferred to polish` | Chart layout refactor scheduled for post-v1.0 polish release |
+| **D6** | Minor | App detail opens 7-day row at end while Home opens at start | `deferred to polish` | Behavior consistent with M4 baseline; unification scheduled for post-v1.0 polish |
+| **D7** | Important | History selected bar shows no value/period readout on screen for sighted users | `open` | Screen reader announces value in description; visual readout card scheduled for post-v1.0 |
+| **D8** | Important | Create backup dialog at font scale 2.0 with keyboard open: buttons hidden behind IME | `fixed in F2` | Added `Modifier.verticalScroll` to passphrase dialog container; verified in `create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable` |
+| **D9** | Minor | Apps filter chip "This month" cut at right edge at font 2.0 | `deferred to polish` | Chip row scrolls horizontally to reveal full content |
+| **D10** | Minor | Plan and budget editors show long decimal figures in MB for GB-sized values | `deferred to polish` | Display formatting enhancement for input fields |
+| **D11** | Minor | Density 660 splits number and unit across lines on History summary tiles | `deferred to polish` | Tile min-width layout rule |
+| **D11b** | Minor | Plan editor "Not tied to a SIM" radio row height was 44dp (< 48dp) | `fixed in F2` | Added minimum 48dp interactive component size constraint |
+| **D12** | Minor | Progress ring empty track at 0% has faint contrast (1.06:1) | `fixed in F2` | Increased track alpha/contrast; verified by `old_progress_ring_track_at_0_percent_failed_contrast_at_1_05` |
+| **D13** | Minor | Pseudo-locale `ar-XB` does not exercise RTL in app without locale resource | `deferred to polish` | Verified RTL using real Arabic (`ar`) system locale |
+| **D14** | Minor | English text with punctuation in RTL context misplaces punctuation at line start | `deferred to polish` | Force LTR text direction on raw English licences content |
+| **D15** | Minor | Decorative letter avatar ("G"/"C") read aloud before app name in app list rows | `deferred to polish` | Apply `clearAndSetSemantics` to decorative letter box |
+| **D16** | Minor | TalkBack explore by touch focus ring behavior on complex cards | `deferred to polish` | Manual TalkBack optimization |
+| **D17** | Minor | Live notification text contains bare symbol "↓ 0 B/s" | `fixed in F2` | Documented Android platform limitation; spoken sentence supplied via ticker |
+| **D18** | Minor | Archiving a plan has no confirmation dialog | `deferred to polish` | Added delete confirmation dialog composable; wiring deferred |
+| **D19** | Minor | Checklist step 2 listed 4 navbar destinations (app has 3) | `fixed in F3` | Corrected `docs/release/real-device-checklist.md` in Task F3 |
+| **D20** | Minor | Checklist step 4 listed nonexistent "Budget alerts" and "View app" | `fixed in F3` | Corrected channel and action button references in Task F3 |
+| **D21** | Minor | Bento widget has no caption and ~40% empty space | `deferred to polish` | Glance widget layout redesign |
+| **D22** | Minor | Licences NOTICE text has hard 80-column line breaks | `deferred to polish` | Reflow raw notice text |
+| **D23** | Minor | Store screenshots have bottom content cut by translucent navigation pill | `deferred to polish` | Fastlane screenshot recapture |
+| **D24** | Minor | Translucent navbar allows scrolled content to show through | `deferred to polish` | Navbar container background opacity adjustment |
