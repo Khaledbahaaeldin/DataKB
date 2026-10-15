@@ -40,7 +40,7 @@ This checklist contains manual verification procedures to be performed by a test
    - Verify each destination pill item can be directly selected with double-tap.
    - Verify TalkBack does not require drag gestures to navigate.
 4. If device haptics are enabled, observe the subtle haptic tick upon snapping between destinations.
-5. *(Note: When system animations are turned off via Remove animations / animator_duration_scale=0, drag physics are disabled by design per Contract 12.2 Rule 6; direct tapping continues to select tabs).*
+5. *(Note: When system animations are turned off via Remove animations / animator_duration_scale=0, drag-to-select remains operational and snaps immediately to the selected destination without spring oscillations; direct tapping also continues to select tabs).*
 
 - **Expected Result**: Pill tracks finger position without latency or visual stuttering across the 3 destinations. Snap physics smoothly settle onto the active tab. Direct tapping switches screens immediately. TalkBack users can activate destinations via standard double-tap.
 - [ ] **PASS / FAIL** — Drag and tap gesture on FloatingPillNavBar with and without TalkBack.

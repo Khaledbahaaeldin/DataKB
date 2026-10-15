@@ -36,9 +36,9 @@ Okio
   https://github.com/square/okio
 
 Kotlin and kotlinx libraries
-  org.jetbrains.kotlin:kotlin-stdlib, org.jetbrains.kotlinx:kotlinx-coroutines-android,
-  org.jetbrains.kotlinx:kotlinx-coroutines-core, org.jetbrains.kotlinx:kotlinx-serialization-core,
-  org.jetbrains.kotlinx:kotlinx-serialization-json
+  org.jetbrains.kotlin:kotlin-stdlib, org.jetbrains:annotations,
+  org.jetbrains.kotlinx:kotlinx-coroutines-android, org.jetbrains.kotlinx:kotlinx-coroutines-core,
+  org.jetbrains.kotlinx:kotlinx-serialization-core, org.jetbrains.kotlinx:kotlinx-serialization-json
   Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors (Apache License 2.0)
   https://kotlinlang.org/
 
@@ -160,7 +160,8 @@ AndroidX Graphics
   https://developer.android.com/reference/androidx/graphics/shapes/package-summary
 
 Other AndroidX support components
-  androidx.annotation, androidx.collection, androidx.concurrent, androidx.emoji2,
-  androidx.interpolator, androidx.profileinstaller, androidx.versionedparcelable
+  androidx.annotation, androidx.arch.core, androidx.autofill, androidx.collection,
+  androidx.concurrent, androidx.customview, androidx.emoji2, androidx.interpolator,
+  androidx.navigationevent, androidx.profileinstaller, androidx.versionedparcelable
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/jetpack

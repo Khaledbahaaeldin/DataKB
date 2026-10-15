@@ -30,3 +30,5 @@ AndroidX Window | Apache-2.0 | androidx.window:window
 AndroidX Graphics | Apache-2.0 | androidx.graphics:graphics-shapes
 Kotlin | Apache-2.0 | org.jetbrains.kotlin:kotlin-stdlib:2.4.20
 kotlinx-coroutines | Apache-2.0 | org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0
+JetBrains Annotations | Apache-2.0 | org.jetbrains:annotations
+AndroidX Support Components | Apache-2.0 | androidx.arch.core, androidx.autofill, androidx.customview, androidx.navigationevent

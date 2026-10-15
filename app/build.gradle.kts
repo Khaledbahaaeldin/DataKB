@@ -60,6 +60,9 @@ tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
     val isVerifyReleaseApk = gradle.startParameter.taskNames.any { it.contains("verifyReleaseApk") }
     if (isVerifyReleaseApk) {
         testTask?.systemProperty("emberbyte.verifyReleaseApk", "true")
+        testTask?.inputs?.file(layout.buildDirectory.file("outputs/apk/release/app-release-unsigned.apk"))
+            ?.withPathSensitivity(PathSensitivity.RELATIVE)
+            ?.optional()
     }
 }
 

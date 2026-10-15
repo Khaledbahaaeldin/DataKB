@@ -53,9 +53,14 @@ class NoticeCoversDependenciesTest {
                     "shaded protobuf" -> listOf("protobuf", "Protocol Buffers")
                     "JetBrains Compose Multiplatform" -> listOf("JetBrains Compose", "org.jetbrains.compose")
                     "kotlinx-serialization" -> listOf("kotlinx-serialization", "kotlinx.serialization")
+                    "JetBrains Annotations" -> listOf("org.jetbrains:annotations")
+                    "AndroidX Support Components" -> listOf("androidx.arch.core", "androidx.autofill", "androidx.customview", "androidx.navigationevent")
                     else -> listOf(component)
                 }
-                val covered = searchTokens.any { token -> noticeText.contains(token, ignoreCase = true) }
+                val covered = when (component) {
+                    "AndroidX Support Components" -> searchTokens.all { token -> noticeText.contains(token, ignoreCase = true) }
+                    else -> searchTokens.any { token -> noticeText.contains(token, ignoreCase = true) }
+                }
                 if (!covered) {
                     missingComponents.add(component)
                 }

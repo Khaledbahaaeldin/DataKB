@@ -12,39 +12,54 @@ import org.junit.Test
 
 class ReleaseApkVerificationTest {
 
+    internal fun resolveReleaseApk(
+        candidates: List<File>,
+        inReleaseVerification: Boolean,
+    ): File? {
+        val apk = candidates.firstOrNull { it.exists() }
+        if (apk == null) {
+            if (inReleaseVerification) {
+                throw AssertionError("Release APK verification failed: expected release APK at ${candidates.firstOrNull()?.absolutePath} was not found.")
+            } else {
+                org.junit.Assume.assumeTrue("Release APK app-release-unsigned.apk not found; skipping in local unit test run", false)
+                return null
+            }
+        }
+        return apk
+    }
+
     private fun findReleaseApk(): File {
         val candidates = listOf(
             File("build/outputs/apk/release/app-release-unsigned.apk"),
             File("app/build/outputs/apk/release/app-release-unsigned.apk"),
             File("../app/build/outputs/apk/release/app-release-unsigned.apk"),
         )
-        val apk = candidates.firstOrNull { it.exists() }
-        if (apk == null) {
-            val inReleaseVerification = System.getProperty("emberbyte.verifyReleaseApk") == "true"
-            if (inReleaseVerification) {
-                throw AssertionError("Release APK verification failed: expected release APK at ${candidates.first().absolutePath} was not found.")
-            } else {
-                org.junit.Assume.assumeTrue("Release APK app-release-unsigned.apk not found; skipping in local unit test run", false)
-                throw AssertionError("Unreachable")
-            }
-        }
-        return apk
+        return resolveReleaseApk(
+            candidates = candidates,
+            inReleaseVerification = System.getProperty("emberbyte.verifyReleaseApk") == "true",
+        ) ?: throw AssertionError("Unreachable")
+    }
+
+    @Test(expected = AssertionError::class)
+    fun release_verification_fails_loudly_when_apk_is_absent() {
+        resolveReleaseApk(
+            candidates = listOf(File("non_existent_path/app-release-unsigned.apk")),
+            inReleaseVerification = true,
+        )
     }
 
     @Test
-    fun release_verification_fails_loudly_when_apk_is_absent() {
-        val candidates = listOf(File("non_existent_path/app-release-unsigned.apk"))
-        var failedWithAssertionError = false
+    fun release_verification_skips_when_apk_is_absent_outside_verification_task() {
+        var skipped = false
         try {
-            val apk = candidates.firstOrNull { it.exists() }
-            if (apk == null) {
-                // In release verification task, an absent APK must fail loudly with AssertionError, never skip
-                throw AssertionError("Release APK app-release-unsigned.apk not found (release verification requires built APK)")
-            }
-        } catch (e: AssertionError) {
-            failedWithAssertionError = true
+            resolveReleaseApk(
+                candidates = listOf(File("non_existent_path/app-release-unsigned.apk")),
+                inReleaseVerification = false,
+            )
+        } catch (e: org.junit.AssumptionViolatedException) {
+            skipped = true
         }
-        assertTrue("Release verification must fail with AssertionError when APK is absent", failedWithAssertionError)
+        assertTrue("Expected AssumptionViolatedException when absent outside release verification", skipped)
     }
 
     @Test

@@ -34,7 +34,7 @@ app/build/outputs/apk/release/app-release-unsigned.apk
 The release build configuration is defined in [`app/build.gradle.kts`](../../app/build.gradle.kts) and [`app/proguard-rules.pro`](../../app/proguard-rules.pro):
 
 - **Shrinking & Minification**: `isMinifyEnabled = true` with R8 code shrinking and full mode optimizations.
-- **Resource Shrinking**: `isShrinkResources = true` with strict keep rules for launcher icons, notification drawables, and widget assets.
+- **Resource Shrinking**: `isShrinkResources = true`; AGP and AAPT2 automatically analyze referenced drawables, launcher icons, and widget layouts without requiring custom resource keep rules.
 - **Narrow Keep Rules**: Library consumer rules automatically protect Room entities/databases and WorkManager workers; R8 bytecode tracing preserves direct calls to Bouncy Castle Argon2 and Glance app widgets.
 - **Third-Party Dependency Licences**: Checked-in at [`docs/release/dependency-licences.txt`](dependency-licences.txt) and validated by `NoticeCoversDependenciesTest`. Generated from:
   ```bash
@@ -50,7 +50,7 @@ The release build configuration is defined in [`app/build.gradle.kts`](../../app
 
 Emberbyte is built as an open-source, reproducible Android application ready for F-Droid inclusion:
 - **Build from Source**: F-Droid build recipes fetch source code from tagged git releases and execute `./gradlew :app:assembleRelease`.
-- **Reproducible Builds**: F-Droid's verification bots build the release binary in an isolated container and compare the output against our published unsigned APK (reproducible build verification check).
+- **Reproducible Builds**: F-Droid build recipes build the application from source in an isolated environment and sign the binary with the F-Droid signing key (or verify binary reproducibility against maintainer builds when reproducible build metadata is published).
 - **Signing**: F-Droid signs the resulting APK with the official F-Droid signing key for F-Droid client users. For standalone GitHub releases, maintainers sign the unsigned release APK using `apksigner`:
   ```bash
   apksigner sign --ks <release-keystore.jks> \
@@ -107,7 +107,7 @@ To verify that two clean checkouts produce identical builds:
    - Release APK Size: ~5.96 MB (5,956,431 bytes)
    - Total Zip Entries: 1,088
    - Non-META-INF Entries Compared: 998 (100% matched)
-   - Unsigned Release APK SHA-256: `f36e56126243a3b6f09e5c005b4e6a838651801263b310be1dbc59533980a8ea`
+   - Unsigned Release APK SHA-256: `f36e56126243a3b6f09e5c005b4e6a838651801263b310be1dbc59533980a8ea` *(Note: The whole-file APK SHA-256 varies between commits and between git checkouts vs archive tarballs because AGP embeds VCS revision metadata into `META-INF/version-control-info.textproto`. Tools like `compare-apks.py` verify all functional non-META-INF zip entries match byte-for-byte).*
 
 ---
 

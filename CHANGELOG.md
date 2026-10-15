@@ -18,5 +18,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Streamed Data Export**: Memory-efficient streaming export of historical usage metrics and plans to CSV and JSON formats.
 - **Encrypted Local Backups**: Full backup and restore of plans, budgets, and hourly usage history using AES-256-GCM encryption with Argon2id password-based key derivation (`.emberbyte`).
 - **Home-Screen Widgets**: Glance-based widgets displaying remaining plan balance, cycle status, and usage progress.
-- **Material 3 Expressive UI**: Dynamic color theming, pure black AMOLED dark mode, fluid motion transitions, and full accessibility support (TalkBack, font scale 2.0).
+- **Material 3 Expressive UI**: Dynamic color theming, pure black AMOLED dark mode, fluid motion transitions, and comprehensive accessibility support (TalkBack, reduced motion, scalable typography).
 - **100% On-Device Privacy**: Operates completely offline without accounts, cloud sync, or `INTERNET` permission.
