@@ -109,8 +109,8 @@ class UsageBarRowAccessibilityTest {
         val firstBar379 = rule.onNodeWithContentDescription("Monday, 100 megabytes")
         firstBar379.assertIsDisplayed()
         assertTrue(
-            "Expected first bar left edge >= 4.dp on 379dp due to contentPadding, but was ${firstBar379.getBoundsInRoot().left}",
-            firstBar379.getBoundsInRoot().left >= 4.dp,
+            "Expected first bar left edge >= 0.dp on 379dp, but was ${firstBar379.getBoundsInRoot().left}",
+            firstBar379.getBoundsInRoot().left >= 0.dp,
         )
     }
 }

@@ -92,12 +92,22 @@ class TileContrastTest {
         assertContrast("$schemeName tertiary / surfaceContainerHigh (ring arc warning)", s.tertiary, s.surfaceContainerHigh, minRatio = 3.0)
         assertContrast("$schemeName error / surfaceContainerHigh (ring arc error)", s.error, s.surfaceContainerHigh, minRatio = 3.0)
 
-        // Ring track at 0% (outline on card >= 3:1)
-        assertContrast("$schemeName outline / surfaceContainerHigh (ring track 0%)", s.outline, s.surfaceContainerHigh, minRatio = 3.0)
+        // Ring arcs on track (primary/tertiary/error on surfaceContainerHighest)
+        assertContrast("$schemeName primary / surfaceContainerHighest (ring arc on track)", s.primary, s.surfaceContainerHighest, minRatio = 3.0)
+        assertContrast("$schemeName tertiary / surfaceContainerHighest (ring arc warning on track)", s.tertiary, s.surfaceContainerHighest, minRatio = 3.0)
+        assertContrast("$schemeName error / surfaceContainerHighest (ring arc error on track)", s.error, s.surfaceContainerHighest, minRatio = 3.0)
+
+        // Ring track at 0% (outline boundary on card >= 3:1)
+        assertContrast("$schemeName outline / surfaceContainerHigh (ring track 0% boundary)", s.outline, s.surfaceContainerHigh, minRatio = 3.0)
 
         // Selected chip container (primary) vs unselected container (surfaceContainer / surface >= 3:1)
         assertContrast("$schemeName primary / surfaceContainer (selected chip container)", s.primary, s.surfaceContainer, minRatio = 3.0)
         assertContrast("$schemeName primary / surface (selected chip container)", s.primary, s.surface, minRatio = 3.0)
+
+        // Unselected bar graphics on container/surface (outline boundary >= 3:1)
+        assertContrast("$schemeName outline / surface (unselected bar graphic)", s.outline, s.surface, minRatio = 3.0)
+        assertContrast("$schemeName outline / surfaceContainer (unselected bar graphic)", s.outline, s.surfaceContainer, minRatio = 3.0)
+        assertContrast("$schemeName outline / surfaceContainerHigh (unselected bar graphic)", s.outline, s.surfaceContainerHigh, minRatio = 3.0)
 
         // Indicators & graphics on surface
         assertContrast("$schemeName primary / surface", s.primary, s.surface, minRatio = 3.0)

@@ -54,7 +54,7 @@ fun BudgetRing(
         BudgetStateUi.Warning -> scheme.tertiary
         BudgetStateUi.Exceeded -> scheme.error
     }
-    val track = scheme.outline
+    val track = scheme.surfaceContainerHighest
     val description = buildString {
         append("$descNumber percent of the plan used")
         when (state) {
@@ -72,6 +72,9 @@ fun BudgetRing(
             val inset = stroke.width / 2
             val arcSize = Size(this.size.width - stroke.width, this.size.height - stroke.width)
             drawArc(track, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
+            if (sweep == 0f) {
+                drawArc(scheme.outline, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(width = 1.5.dp.toPx()))
+            }
             if (sweep > 0f) drawArc(color, -90f, 360f * sweep, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
         }
         val fontScale = LocalDensity.current.fontScale

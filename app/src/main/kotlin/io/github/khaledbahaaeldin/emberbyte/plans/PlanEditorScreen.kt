@@ -308,6 +308,8 @@ internal fun PlanEditorContent(
                         colors = SegmentedButtonDefaults.colors(
                             activeContainerColor = MaterialTheme.colorScheme.primary,
                             activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     ) {
                         Text("Monthly")
@@ -319,6 +321,8 @@ internal fun PlanEditorContent(
                         colors = SegmentedButtonDefaults.colors(
                             activeContainerColor = MaterialTheme.colorScheme.primary,
                             activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     ) {
                         Text("Every N days")

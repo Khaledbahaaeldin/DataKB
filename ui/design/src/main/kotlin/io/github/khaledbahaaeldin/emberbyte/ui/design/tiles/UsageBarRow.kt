@@ -1,6 +1,7 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.tiles
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +40,7 @@ fun UsageBarRow(
     scrollKey: Any? = null,
     openAtEnd: Boolean = true,
     summaryDescription: String? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 4.dp),
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val max = (points.maxOfOrNull { it.bytes } ?: 0L).coerceAtLeast(1L)
     val summary = summaryDescription ?: run {
@@ -113,6 +114,13 @@ fun UsageBarRow(
                                 color = if (isSelected) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.primaryContainer,
                                 shape = MaterialTheme.shapes.small,
+                            )
+                            .then(
+                                if (!isSelected) {
+                                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape = MaterialTheme.shapes.small)
+                                } else {
+                                    Modifier
+                                }
                             ),
                     )
                     ForceLtr {
