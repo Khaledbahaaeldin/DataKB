@@ -1,0 +1,32 @@
+# Emberbyte Runtime Dependencies and Licences
+# Generated from Gradle releaseRuntimeClasspath across :app, :core:data, :core:engine, and :ui:design
+# Generating command:
+#   ./gradlew :app:dependencies --configuration releaseRuntimeClasspath
+#
+# Format: Component | Licence | Group / Artifact
+okio | Apache-2.0 | com.squareup.okio:okio:3.9.1
+kotlinx-serialization | Apache-2.0 | org.jetbrains.kotlinx:kotlinx-serialization-core/json:1.7.3
+guava listenablefuture | Apache-2.0 | com.google.guava:listenablefuture:1.0
+jspecify | Apache-2.0 | org.jspecify:jspecify:1.0.0
+JetBrains Compose Multiplatform | Apache-2.0 | org.jetbrains.compose.* via dev.chrisbanes.haze
+shaded protobuf | BSD-3-Clause | androidx.datastore / androidx.glance external-protobuf
+Bouncy Castle | MIT | org.bouncycastle:bcprov-jdk18on:1.86
+Haze | Apache-2.0 | dev.chrisbanes.haze:haze:2.0.1
+Roboto Flex | OFL-1.1 | font asset
+Jetpack Compose | Apache-2.0 | androidx.compose.*
+Material 3 | Apache-2.0 | androidx.compose.material3:1.5.0-alpha29
+AndroidX Room | Apache-2.0 | androidx.room:room-runtime:2.8.5
+AndroidX WorkManager | Apache-2.0 | androidx.work:work-runtime-ktx:2.12.0
+AndroidX Glance | Apache-2.0 | androidx.glance:glance-appwidget:1.1.1
+AndroidX DataStore | Apache-2.0 | androidx.datastore:datastore-preferences:1.2.1
+AndroidX Core | Apache-2.0 | androidx.core:core-ktx:1.19.1
+AndroidX Lifecycle | Apache-2.0 | androidx.lifecycle:lifecycle-runtime:2.11.0
+AndroidX Activity | Apache-2.0 | androidx.activity:activity-compose
+AndroidX Navigation | Apache-2.0 | androidx.navigation:navigation-compose
+AndroidX SQLite | Apache-2.0 | androidx.sqlite:sqlite
+AndroidX Startup | Apache-2.0 | androidx.startup:startup-runtime:1.1.1
+AndroidX Tracing | Apache-2.0 | androidx.tracing:tracing:2.0.3
+AndroidX Window | Apache-2.0 | androidx.window:window
+AndroidX Graphics | Apache-2.0 | androidx.graphics:graphics-shapes
+Kotlin | Apache-2.0 | org.jetbrains.kotlin:kotlin-stdlib:2.4.20
+kotlinx-coroutines | Apache-2.0 | org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0

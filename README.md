@@ -20,16 +20,16 @@ encrypted local backups.
 
 ## Features
 
-- **Live Speed Indicator**: Ongoing foreground notification displaying real-time download and upload transfer rates.
+- **Live Speed Indicator**: Ongoing foreground notification displaying real-time download speed and remaining plan data.
 - **Totals by Mobile & Wi-Fi**: Clear separation of cellular mobile data and Wi-Fi network consumption.
 - **Per-App History**: Breakdown of data usage per application across daily and 2-hour measurement windows.
-- **Flexible Data Plans with Forecast & Alerts**: Custom billing cycles (monthly or every N days), SIM binding, add-on quota packs, free data windows (e.g. night data), and usage rollover (capped or uncapped). Predicts run-out dates based on your learned hourly usage curve and alerts at 50%, 80%, 90%, and 100% quota.
+- **Flexible Data Plans with Forecast & Alerts**: Custom billing cycles (monthly or every N days), SIM binding, add-on quota packs, free data windows (e.g. night data), and usage rollover (capped or uncapped). Predicts run-out dates based on your learned hourly usage curve over the last 28 days and alerts at 50%, 80%, 90%, and 100% quota.
 - **Home-Screen Widgets**: Jetpack Glance widgets displaying remaining data, progress, and renewal days.
 - **Per-App Data Budgets**: Set daily or billing-cycle cellular budgets per application with warning notifications.
 - **Spike Detector**: Alerts when an app consumes an unusual surge of mobile data against a 14-day median baseline.
 - **"What If" Scenario Planner**: Explore how hypothetical extra daily usage alters your projected run-out date.
 - **CSV and JSON Streamed Export**: Stream historical traffic metrics without memory spikes.
-- **Encrypted Local Backup & Restore**: Secure `.emberbyte` archive backups protected with Argon2id and AES-256-GCM.
+- **Encrypted Local Backup & Restore**: Secure `.emberbyte` archive backups of plans, budgets, and hourly usage protected with Argon2id and AES-256-GCM.
 
 > [!NOTE]
 > An in-depth packet inspection feature ("Live Lens") was explored during development and discarded due to CPU and battery constraints; see [ADR 0001: Discard Live Lens](docs/adr/0001-discard-live-lens.md). Emberbyte avoids VPN tunnels entirely.
@@ -52,11 +52,13 @@ Every permission declared in [`AndroidManifest.xml`](app/src/main/AndroidManifes
 | `android.permission.QUERY_ALL_PACKAGES` | System / Store Policy | Required to resolve installed app names, icons, and package visibility across UIDs for data usage breakdown on Android 11+ (API 30+). |
 | `android.permission.ACCESS_NETWORK_STATE` | Normal | Required to observe active network connectivity (Wi-Fi vs Cellular vs Metered) and network capabilities. |
 | `android.permission.READ_PHONE_STATE` | Dangerous / Runtime | Required on multi-SIM devices to detect active subscription IDs and correlate cellular usage with the user's configured data plan SIM slot. |
-| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post threshold warning notifications (80%, 90%, 100% plan quota) and promoted ongoing live sampler notifications. |
-| `android.permission.POST_PROMOTED_NOTIFICATIONS` | Normal (API 36+) | Required for Android 16+ Promoted Ongoing live status bar indicator showing real-time network transfer throughput. |
+| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post threshold warning notifications (50%, 80%, 90%, 100% plan quota) and promoted ongoing live sampler notifications. |
+| `android.permission.POST_PROMOTED_NOTIFICATIONS` | Normal (API 36+) | Required for Android 16+ Promoted Ongoing live status bar indicator showing remaining plan data (e.g. 3.2 GB or 0 B). |
 | `android.permission.FOREGROUND_SERVICE` | Normal | Required to run `SamplerService` as a background foreground service for periodic network rate sampling and threshold checks. |
 | `android.permission.FOREGROUND_SERVICE_SPECIAL_USE` | Foreground Service Type (API 34+) | Declares the specific foreground service subtype (`data_metering_sampler`) for continuous background network traffic monitoring under modern platform restrictions. |
 | `android.permission.RECEIVE_BOOT_COMPLETED` | Normal | Allows `BootReceiver` to restore `SamplerService` and alarms immediately when the device boots, preventing unmonitored data leaks after restart. |
+| `android.permission.WAKE_LOCK` | Normal | Merged by AndroidX WorkManager runtime to allow background periodic maintenance and catch-up jobs to acquire wake locks during execution. |
+| `io.github.khaledbahaaeldin.emberbyte.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Signature | Merged by AndroidX Core library to protect internal dynamic broadcast receivers from unauthorized external broadcasts on modern Android versions. |
 
 ---
 
@@ -78,7 +80,7 @@ Every permission declared in [`AndroidManifest.xml`](app/src/main/AndroidManifes
 ## Installation
 
 - **F-Droid**: Coming soon once listed in the official F-Droid repository. See [F-Droid draft recipe](docs/release/fdroiddata-io.github.khaledbahaaeldin.emberbyte.yml).
-- **GitHub Releases**: Download pre-built unsigned release APKs or maintainer-signed APKs from the [Releases](https://github.com/Khaledbahaaeldin/DataKB/releases) page.
+- **GitHub Releases**: Download maintainer-signed APKs or inspect reproducible unsigned release APK artifacts on the [Releases](https://github.com/Khaledbahaaeldin/DataKB/releases) page. (Unsigned APKs are reproducible build verification artifacts and cannot be directly installed on Android devices without signing).
 
 ---
 
@@ -86,8 +88,8 @@ Every permission declared in [`AndroidManifest.xml`](app/src/main/AndroidManifes
 
 ### Requirements
 - JDK 17 (Eclipse Temurin recommended)
-- Android SDK Platform API 36 (Vanilla Ice Cream / API 36)
-- Android Build Tools `35.0.0`
+- Android SDK Platform API 37 (compileSdk 37, targeting Android 16 / API 36)
+- Android Build Tools `36.1.0` (or newer)
 
 ### Build Commands
 ```bash

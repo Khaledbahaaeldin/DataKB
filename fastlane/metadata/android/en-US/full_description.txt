@@ -1,16 +1,16 @@
 Emberbyte is an open-source Android data monitor designed to give you clear control over your mobile and Wi-Fi data usage without compromising your privacy.
 
 Features:
-• Real-Time Speed & Live Sampler: Monitor your current transfer speed directly from your notification drawer.
+• Real-Time Speed & Live Sampler: Monitor your download speed and remaining plan data directly from your notification drawer.
 • Daily & Historical Totals: View total data consumption broken down by cellular and Wi-Fi networks.
 • Per-App Breakdown: See exactly how much data each application consumes across daily and 2-hour measurement windows.
 • Flexible Data Plans: Set custom billing cycles, per-SIM plan binding, add-on packs, free data windows (such as off-peak night data), and usage rollover.
-• Personalized Forecast: Predict when your data quota will run out using a curve learned from your past week of usage.
+• Personalized Forecast: Predict when your data quota will run out using an hourly consumption curve learned over the last 28 days.
 • Usage Threshold Alerts: Receive timely warnings when reaching 50%, 80%, 90%, and 100% of your plan allowance.
 • Per-App Budgets: Configure custom mobile data budgets for specific apps with warning notifications.
 • Spike Detection: Identify unusual mobile data traffic spikes compared against a 14-day median baseline.
 • "What If" Scenario Planner: Simulate hypothetical usage changes to preview projected run-out dates.
-• Encrypted Local Backups: Export and restore your plans, budgets, and settings with password-based AES-256-GCM encryption.
+• Encrypted Local Backups: Export and restore your plans, budgets, and hourly usage history with password-based AES-256-GCM encryption.
 • Home Screen Widgets: Keep track of remaining data and billing cycle status directly from your home screen.
 
 Privacy Guarantee:

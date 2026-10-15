@@ -30,37 +30,137 @@ Haze (backdrop blur)
   Chris Banes (Apache License 2.0)
   https://github.com/chrisbanes/haze
 
-Jetpack Compose and Material 3
-  androidx.compose.ui, androidx.compose.material3, androidx.compose.material.icons
+Okio
+  com.squareup.okio:okio
+  Copyright 2013 Square, Inc. (Apache License 2.0)
+  https://github.com/square/okio
+
+Kotlin and kotlinx libraries
+  org.jetbrains.kotlin:kotlin-stdlib, org.jetbrains.kotlinx:kotlinx-coroutines-android,
+  org.jetbrains.kotlinx:kotlinx-coroutines-core, org.jetbrains.kotlinx:kotlinx-serialization-core,
+  org.jetbrains.kotlinx:kotlinx-serialization-json
+  Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors (Apache License 2.0)
+  https://kotlinlang.org/
+
+JetBrains Compose Multiplatform
+  org.jetbrains.compose.runtime, org.jetbrains.compose.ui, org.jetbrains.compose.animation
+  Copyright 2020-2024 JetBrains s.r.o. and contributors (Apache License 2.0)
+  https://github.com/JetBrains/compose-multiplatform
+
+Guava ListenableFuture
+  com.google.guava:listenablefuture
+  Copyright (C) 2018 The Guava Authors (Apache License 2.0)
+  https://github.com/google/guava
+
+JSpecify
+  org.jspecify:jspecify
+  Copyright 2020 The JSpecify Authors (Apache License 2.0)
+  https://jspecify.dev/
+
+Protocol Buffers (shaded inside AndroidX DataStore and AndroidX Glance)
+  datastore-preferences-external-protobuf, glance-appwidget-external-protobuf
+  Copyright 2008 Google Inc. All rights reserved. (BSD 3-Clause License)
+  https://github.com/protocolbuffers/protobuf
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+      * Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+      * Redistributions in binary form must reproduce the above
+  copyright notice, this list of conditions and the following disclaimer
+  in the documentation and/or other materials provided with the
+  distribution.
+      * Neither the name of Google Inc. nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+AndroidX Jetpack Compose and Material 3
+  androidx.compose.ui, androidx.compose.material3, androidx.compose.material.icons,
+  androidx.compose.animation, androidx.compose.foundation, androidx.compose.runtime
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/jetpack/compose
 
 AndroidX Room
-  androidx.room:room-runtime, androidx.room:room-ktx
+  androidx.room:room-runtime, androidx.room:room-ktx, androidx.room:room-common
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/training/data-storage/room
 
 AndroidX WorkManager
-  androidx.work:work-runtime-ktx
+  androidx.work:work-runtime-ktx, androidx.work:work-runtime
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/topic/libraries/architecture/workmanager
 
 AndroidX Glance
-  androidx.glance:glance-appwidget, androidx.glance:glance-material3
+  androidx.glance:glance-appwidget, androidx.glance:glance-material3, androidx.glance:glance
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/jetpack/compose/glance
 
 AndroidX DataStore
-  androidx.datastore:datastore-preferences
+  androidx.datastore:datastore-preferences, androidx.datastore:datastore-core
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/topic/libraries/architecture/datastore
 
-AndroidX Core, Lifecycle, Activity, Navigation
-  androidx.core:core-ktx, androidx.lifecycle, androidx.activity:activity-compose, androidx.navigation:navigation-compose
+AndroidX Core and SavedState
+  androidx.core:core-ktx, androidx.savedstate:savedstate
   Copyright The Android Open Source Project (Apache License 2.0)
   https://developer.android.com/jetpack
 
-Kotlin and kotlinx libraries
-  org.jetbrains.kotlin:kotlin-stdlib, org.jetbrains.kotlinx:kotlinx-coroutines-android, org.jetbrains.kotlinx:kotlinx-coroutines-core
-  Copyright JetBrains s.r.o. and Kotlin Programming Language contributors (Apache License 2.0)
-  https://kotlinlang.org/
+AndroidX Lifecycle
+  androidx.lifecycle:lifecycle-runtime, androidx.lifecycle:lifecycle-viewmodel
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/jetpack
+
+AndroidX Activity
+  androidx.activity:activity-compose
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/jetpack
+
+AndroidX Navigation
+  androidx.navigation:navigation-compose
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/jetpack
+
+AndroidX SQLite
+  androidx.sqlite:sqlite, androidx.sqlite:sqlite-framework
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/reference/androidx/sqlite/db/package-summary
+
+AndroidX Startup
+  androidx.startup:startup-runtime
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/topic/libraries/app-startup
+
+AndroidX Tracing
+  androidx.tracing:tracing, androidx.tracing:tracing-ktx
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/reference/androidx/tracing/package-summary
+
+AndroidX Window
+  androidx.window:window, androidx.window:window-core
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/reference/androidx/window/package-summary
+
+AndroidX Graphics
+  androidx.graphics:graphics-shapes, androidx.graphics:graphics-path
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/reference/androidx/graphics/shapes/package-summary
+
+Other AndroidX support components
+  androidx.annotation, androidx.collection, androidx.concurrent, androidx.emoji2,
+  androidx.interpolator, androidx.profileinstaller, androidx.versionedparcelable
+  Copyright The Android Open Source Project (Apache License 2.0)
+  https://developer.android.com/jetpack

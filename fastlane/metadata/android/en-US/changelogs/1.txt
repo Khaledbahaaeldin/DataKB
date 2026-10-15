@@ -1,5 +1,5 @@
 Initial release of Emberbyte:
-• Live transfer speed indicator & sampler
+• Live download speed indicator & sampler
 • Daily and per-app mobile and Wi-Fi usage history
 • Custom billing cycles, per-SIM binding, add-ons, and rollover
 • Predictive quota run-out forecast and threshold alerts

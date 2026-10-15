@@ -12,18 +12,18 @@ This checklist contains manual verification procedures to be performed by a test
 
 **Goal**: Verify that blind and low-vision users using Google TalkBack receive clear, contextual spoken feedback without focus traps, missing descriptions, or unintelligible symbols.
 
-1. Enable TalkBack in **Settings > Accessibility > TalkBack**.
+1. Ensure Usage Access is granted and at least one plan is configured. Enable TalkBack in **Settings > Accessibility > TalkBack**.
 2. Launch Emberbyte from the home screen.
 3. Swipe right repeatedly to traverse each screen in linear reading order:
    - **Home Screen**: Spoken announcements for speed gauge ("Live speed ... bytes per second"), remaining quota, forecast sentence, chart summaries, and top app tiles.
-   - **Apps Screen**: Traverse the time window filter chips ("Today", "Last 7 days", "This cycle") and individual application items with data usage descriptions.
+   - **Apps Screen**: Traverse the time window filter chips ("Today", "7 days", "This month") and network filter chips ("All", "Mobile", "Wi-Fi"), then individual application items with data usage descriptions.
    - **App Detail Screen**: Focus on the usage breakdown, the 7-day bar chart (verifying day-by-day spoken values), data budget ring, and spike indicators.
    - **Plans Screen & Plan Editor**: Verify accessible names on all form fields (Plan Name, Cap input, Cycle interval, Alert threshold toggles), error summaries, and the Save button.
    - **Settings Screen**: Verify all settings toggles speak their state (checked/unchecked) and summary text, and open the "Open-source licences" screen to ensure the full text is scrollable and readable.
 4. Verify that decorative icons are ignored by TalkBack and that interactive touch targets measure at least 48x48 dp.
 
-- **Expected Result**: Focus traversal follows intuitive top-to-bottom reading order on all 5 screens. Spoken announcements are grammatical, concise, and informative. No elements read raw internal IDs, "unlabelled button", or unhandled symbols.
-- [ ] **PASS / FAIL** — TalkBack navigation on all 5 screens.
+- **Expected Result**: Focus traversal follows intuitive top-to-bottom reading order on all core screens. Spoken announcements are grammatical, concise, and informative. No elements read raw internal IDs, "unlabelled button", or unhandled symbols.
+- [ ] **PASS / FAIL** — TalkBack navigation on all core screens.
 
 ---
 
@@ -32,7 +32,7 @@ This checklist contains manual verification procedures to be performed by a test
 **Goal**: Verify physical touch ergonomics, drag physics, and accessibility alternatives on `FloatingPillNavBar`.
 
 1. Place your thumb on the floating navigation pill at the bottom of the screen.
-2. Drag horizontally across destinations (Home, Apps, Plans, Settings) and release:
+2. Drag horizontally across the three destinations (Home, Apps, Plans; Settings is accessed via the top-right gear icon on Home) and release:
    - Test free drag with smooth finger tracking.
    - Test quick flick/fling gesture to snap to adjacent items.
    - Test tapping directly on each destination icon.
@@ -40,26 +40,30 @@ This checklist contains manual verification procedures to be performed by a test
    - Verify each destination pill item can be directly selected with double-tap.
    - Verify TalkBack does not require drag gestures to navigate.
 4. If device haptics are enabled, observe the subtle haptic tick upon snapping between destinations.
+5. *(Note: When system animations are turned off via Remove animations / animator_duration_scale=0, drag physics are disabled by design per Contract 12.2 Rule 6; direct tapping continues to select tabs).*
 
-- **Expected Result**: Pill tracks finger position without latency or visual stuttering. Snap physics smoothly settle onto the active tab. Direct tapping switches screens immediately. TalkBack users can activate destinations via standard double-tap.
+- **Expected Result**: Pill tracks finger position without latency or visual stuttering across the 3 destinations. Snap physics smoothly settle onto the active tab. Direct tapping switches screens immediately. TalkBack users can activate destinations via standard double-tap.
 - [ ] **PASS / FAIL** — Drag and tap gesture on FloatingPillNavBar with and without TalkBack.
 
 ---
 
-### Step 3: Glance AppWidget Integration (`HeroWidget`)
+### Step 3: Glance AppWidget Integration (`HeroWidget` and `BentoWidget`)
 
 **Goal**: Verify homescreen widget pin, layout scaling, periodic updates, and deep linking on third-party device launchers.
 
 1. Long-press on the device home launcher screen and select **Widgets**.
-2. Locate **Emberbyte** in the widget picker and add the **Hero Widget** (2x2 or 4x2 Bento layout).
-3. Resize the widget across available grid sizes supported by the launcher (e.g., 2x2, 3x2, 4x2, 4x3).
+2. Locate **Emberbyte** in the widget picker. Notice both available widgets:
+   - **Emberbyte: today** (Hero Widget, 2x2 responsive)
+   - **Emberbyte: overview** (Bento Widget, 4x2 responsive)
+3. Add both widgets to the home screen and resize across supported grid configurations.
 4. Verify data rendering:
-   - Widget displays current data usage, cycle remaining quota, and top apps.
-   - Tap directly on the widget to ensure it immediately launches Emberbyte into the Home screen or relevant detail view.
-5. Generate cellular traffic (e.g., download a test file or stream audio for 1–2 minutes) and observe widget update cadence.
+   - Hero Widget displays current data usage, cycle remaining quota, and cycle status.
+   - Bento Widget displays remaining data, cycle status, real-time download rate, and top applications.
+   - Tap directly on either widget to ensure it immediately launches Emberbyte into the Home screen.
+5. Generate cellular or Wi-Fi traffic and observe widget update cadence.
 
-- **Expected Result**: Widget renders without truncation across different grid sizes. Content mirrors in-app data accurately. Tapping the widget cleanly opens the app without delay.
-- [ ] **PASS / FAIL** — Glance HeroWidget homescreen pin, resize, and deep-link behavior.
+- **Expected Result**: Both widgets render without truncation across grid sizes. Content mirrors in-app data accurately. Tapping each widget cleanly opens the app without delay.
+- [ ] **PASS / FAIL** — Glance HeroWidget and BentoWidget homescreen pin, resize, and deep-link behavior.
 
 ---
 
@@ -71,12 +75,12 @@ This checklist contains manual verification procedures to be performed by a test
 2. Set a plan quota with alert thresholds enabled at 50%, 80%, 90%, and 100%.
 3. Generate mobile traffic on the budgeted app until the warning threshold is crossed.
 4. Verify notification delivery in the system notification shade:
-   - Check channel name (`Plan alerts` or `Budget alerts`).
+   - Check channel name (`Plan alerts` for quota and budget alerts, or `Spike alerts` for traffic spikes).
    - Verify alert sound, vibration, and heads-up banner if configured.
-   - Verify notification action buttons ("Data settings", "View app").
+   - Verify notification action button ("Data settings" opening system data restrictions).
 5. Tap the notification and verify it opens directly to the targeted app details screen (`emberbyte://apps/{package}`).
 
-- **Expected Result**: Alerts trigger promptly upon crossing configured percentage thresholds. Tapping the notification takes the user directly to the corresponding screen. Consecutive duplicate notifications are suppressed.
+- **Expected Result**: Alerts trigger promptly upon crossing configured percentage thresholds under `Plan alerts`. Tapping the notification takes the user directly to the corresponding screen. Consecutive duplicate notifications are suppressed.
 - [ ] **PASS / FAIL** — Budget and plan quota alert notifications and deep actions.
 
 ---
@@ -92,10 +96,10 @@ This checklist contains manual verification procedures to be performed by a test
 3. Pull down the status bar and observe the ongoing Emberbyte notification:
    - On Android 16+: Check for promoted ongoing style with status-bar chip showing remaining data (e.g. `13.8 GB` or `0 B`).
    - Check progress bar indicator reflecting current cycle consumption percentage.
-4. Start active network traffic and verify live speed updates (e.g., "↓ 1.2 MB/s · ↑ 45 KB/s") update at most once per second without notification flashing or sound spam.
+4. Start active network traffic and verify live speed updates (e.g., "5.34 GB left · ↓ 1.2 MB/s", showing download speed only) update at most once per second without notification flashing or sound spam.
 5. Tap the notification to confirm it opens the Home screen.
 
-- **Expected Result**: On Android 16+, notification shows native ProgressStyle with short critical text chip. On older releases, ongoing notification updates smoothly without flicker. Home intent opens cleanly.
+- **Expected Result**: On Android 16+, notification shows native ProgressStyle with short critical text chip indicating remaining data. On older releases, ongoing notification updates smoothly without flicker. Home intent opens cleanly.
 - [ ] **PASS / FAIL** — Live update notification and Android 16 status-bar chip.
 
 ---

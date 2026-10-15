@@ -51,7 +51,16 @@ tasks.named("preBuild") {
 }
 
 tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
-    dependsOn("assembleRelease")
+    val testTask = this as? Test
+    inputs.dir(rootProject.file("fastlane")).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file("NOTICE")).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file("docs/release/dependency-licences.txt")).withPathSensitivity(PathSensitivity.RELATIVE)
+    mustRunAfter(tasks.matching { it.name == "packageRelease" })
+
+    val isVerifyReleaseApk = gradle.startParameter.taskNames.any { it.contains("verifyReleaseApk") }
+    if (isVerifyReleaseApk) {
+        testTask?.systemProperty("emberbyte.verifyReleaseApk", "true")
+    }
 }
 
 val verifyReleaseApk = tasks.register("verifyReleaseApk") {
@@ -59,6 +68,14 @@ val verifyReleaseApk = tasks.register("verifyReleaseApk") {
     group = "verification"
     dependsOn("assembleRelease")
     dependsOn(tasks.matching { it.name == "testDebugUnitTest" })
+    inputs.file(layout.buildDirectory.file("outputs/apk/release/app-release-unsigned.apk"))
+    doLast {
+        val apkFile = layout.buildDirectory.file("outputs/apk/release/app-release-unsigned.apk").get().asFile
+        if (!apkFile.exists() || apkFile.length() == 0L) {
+            throw GradleException("Release APK does not exist or is empty at ${apkFile.absolutePath}")
+        }
+        logger.lifecycle("Release APK verified: ${apkFile.name} (${apkFile.length()} bytes)")
+    }
 }
 
 kotlin { jvmToolchain(17) }

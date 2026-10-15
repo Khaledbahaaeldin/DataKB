@@ -119,6 +119,19 @@ class StoreMetadataTest {
         // Does NOT mention VPN, Lens, cloud, or account as features
         assertFalse("full_description must not mention Lens", lower.contains("lens"))
 
+        // Check the whole description except the Known Limitations section
+        val descriptionWithoutLimitations = if (fullDesc.contains("Known Limitations:")) {
+            fullDesc.substringBefore("Known Limitations:")
+        } else {
+            fullDesc
+        }
+        val forbiddenRegex = Regex("""\b(vpn|lens|cloud|account)s?\b""", RegexOption.IGNORE_CASE)
+        val forbiddenMatch = forbiddenRegex.find(descriptionWithoutLimitations)
+        assertFalse(
+            "full_description outside limitations section must not mention forbidden words (vpn, lens, cloud, account); found '${forbiddenMatch?.value}'",
+            forbiddenMatch != null
+        )
+
         val featuresSection = if (fullDesc.contains("Features:")) {
             fullDesc.substringAfter("Features:").substringBefore("\n\n")
         } else {
@@ -138,6 +151,25 @@ class StoreMetadataTest {
         assertFalse("Must not advertise VPN service", lower.contains("vpn service"))
         assertFalse("Must not advertise cloud storage/sync", lower.contains("cloud sync") || lower.contains("cloud storage") || lower.contains("cloud backup"))
         assertFalse("Must not advertise user accounts", lower.contains("create an account") || lower.contains("user account") || lower.contains("sign in") || lower.contains("log in"))
+    }
+
+    @Test
+    fun audit_mutant_g2_cloud_account_sync_with_vpn_is_killed() {
+        val fullDescFile = File(findMetadataDir(), "full_description.txt")
+        val fullDesc = fullDescFile.readText(Charsets.UTF_8)
+        // Audit mutant G2: "Cloud account sync with VPN." added outside bullet/limitations
+        val mutatedDescription = "Cloud account sync with VPN.\n" + fullDesc
+        val descriptionWithoutLimitations = if (mutatedDescription.contains("Known Limitations:")) {
+            mutatedDescription.substringBefore("Known Limitations:")
+        } else {
+            mutatedDescription
+        }
+        val forbiddenRegex = Regex("""\b(vpn|lens|cloud|account)s?\b""", RegexOption.IGNORE_CASE)
+        val match = forbiddenRegex.find(descriptionWithoutLimitations)
+        assertTrue(
+            "Mutant G2 containing 'Cloud account sync with VPN.' must be detected and killed",
+            match != null && listOf("cloud", "account", "vpn").contains(match.value.lowercase())
+        )
     }
 
     @Test

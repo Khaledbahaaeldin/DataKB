@@ -24,6 +24,9 @@ SourceCode: https://github.com/Khaledbahaaeldin/DataKB
 IssueTracker: https://github.com/Khaledbahaaeldin/DataKB/issues
 Changelog: https://github.com/Khaledbahaaeldin/DataKB/blob/main/CHANGELOG.md
 
+RepoType: git
+Repo: https://github.com/Khaledbahaaeldin/DataKB.git
+
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
 CurrentVersion: 1.0.0
