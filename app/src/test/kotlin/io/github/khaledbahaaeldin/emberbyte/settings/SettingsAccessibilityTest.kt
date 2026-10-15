@@ -16,6 +16,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
@@ -131,13 +132,13 @@ class SettingsAccessibilityTest {
 
         // Cancel button is displayed and clickable
         val cancelButton = rule.onNodeWithText("Cancel")
-        cancelButton.assertIsDisplayed()
+        cancelButton.performScrollTo().assertIsDisplayed()
         cancelButton.performClick()
         assertTrue(dismissed)
 
         // Create button is displayed
         val createButton = rule.onNodeWithText("Create")
-        createButton.assertIsDisplayed()
+        createButton.performScrollTo().assertIsDisplayed()
         rule.mainClock.autoAdvance = true
     }
 }
