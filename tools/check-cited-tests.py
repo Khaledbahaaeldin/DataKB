@@ -80,8 +80,9 @@ def find_test_definitions(repo_root: str) -> Tuple[Set[str], Set[str], Dict[str,
                 if cls_name not in class_funs:
                     class_funs[cls_name] = set()
 
-            # Find functions: fun <name> or fun `<name>`
-            for m in re.finditer(r'fun\s+(?:`([^`\n]+)`|([A-Za-z0-9_]+))', content):
+            # Find functions annotated with @Test
+            # Matches @Test ... fun <name> or @Test ... fun `<name>`
+            for m in re.finditer(r'@(?:[A-Za-z0-9_.]+\.)?Test\b(?:[^\{;]*?)\bfun\s+(?:`([^`\n]+)`|([A-Za-z0-9_]+))', content, re.DOTALL):
                 fn_name = m.group(1) or m.group(2)
                 all_funs.add(fn_name)
                 for cls_name in file_classes:
@@ -209,10 +210,12 @@ def main():
 
     total_checked = 0
     missing: List[Tuple[str, str, int]] = []
+    missing_files: List[str] = []
 
     for file_arg in sys.argv[1:]:
         if not os.path.exists(file_arg):
             print(f"File not found: {file_arg}", file=sys.stderr)
+            missing_files.append(file_arg)
             continue
 
         cited = extract_cited_tests(file_arg)
@@ -224,10 +227,8 @@ def main():
                 cls_name, method_name = token.split(".", 1)
                 if cls_name in class_funs and method_name in class_funs[cls_name]:
                     exists = True
-                elif cls_name in all_classes and method_name in all_funs:
-                    exists = True
-                elif method_name in all_funs:
-                    exists = True
+                else:
+                    exists = False
             elif token in all_funs:
                 exists = True
             elif token in all_classes:
@@ -236,10 +237,13 @@ def main():
             if not exists:
                 missing.append((token, file_arg, line_num))
 
-    if missing:
-        print(f"FAIL: Found {len(missing)} missing cited test(s) among {total_checked} checked:")
-        for token, fpath, line_num in missing:
-            print(f"  Missing: `{token}` cited at {fpath}:{line_num}")
+    if missing_files or missing:
+        if missing_files:
+            print(f"FAIL: {len(missing_files)} input file(s) not found: {missing_files}", file=sys.stderr)
+        if missing:
+            print(f"FAIL: Found {len(missing)} missing cited test(s) among {total_checked} checked:")
+            for token, fpath, line_num in missing:
+                print(f"  Missing: `{token}` cited at {fpath}:{line_num}")
         sys.exit(1)
     else:
         print(f"PASS: All {total_checked} cited test(s) verified across {len(sys.argv) - 1} file(s).")
