@@ -126,6 +126,13 @@ class FloatingPillNavBarTest {
         }
     }
 
+    @Test fun selected_tab_has_no_content_description_because_it_has_visible_text() {
+        show("home")
+        val homeNode = rule.onNodeWithTag("nav_home").fetchSemanticsNode()
+        val desc = homeNode.config.getOrNull(SemanticsProperties.ContentDescription)
+        assertTrue("Selected tab should not set contentDescription because visible text is present", desc.isNullOrEmpty())
+    }
+
     @Test fun the_bar_is_a_tablist_container_with_a_description() {
         show("home")
         rule.onNodeWithTag("pill_nav_bar")

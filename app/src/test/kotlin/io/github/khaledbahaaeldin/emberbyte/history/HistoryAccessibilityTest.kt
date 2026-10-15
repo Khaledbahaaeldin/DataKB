@@ -111,6 +111,74 @@ class HistoryAccessibilityTest {
     }
 
     @Test
+    fun selected_bar_persists_when_series_bytes_update_and_resets_on_granularity_change() {
+        val clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), zone)
+        val baseDate = LocalDate.of(2026, 9, 24)
+        val initialPoints = (0 until 14).map { dayOffset ->
+            val d = baseDate.plusDays(dayOffset.toLong())
+            val instant = d.atStartOfDay(zone).toInstant()
+            val bytes = if (dayOffset == 13) 2_100_000_000L else 100_000_000L
+            UsagePoint(instant, bytes, 0L)
+        }
+        val pointsFlow = kotlinx.coroutines.flow.MutableStateFlow(initialPoints)
+        val usage = object : io.github.khaledbahaaeldin.emberbyte.data.UsageRepository {
+            override fun observeLiveSpeed() = kotlinx.coroutines.flow.emptyFlow<io.github.khaledbahaaeldin.emberbyte.engine.model.LiveSpeed>()
+            override fun observeToday(filter: io.github.khaledbahaaeldin.emberbyte.engine.model.UsageFilter) =
+                flowOf(io.github.khaledbahaaeldin.emberbyte.engine.model.DayUsage(today, 0L, 0L))
+            override fun observeSeries(
+                range: io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange,
+                granularity: Granularity,
+                filter: io.github.khaledbahaaeldin.emberbyte.engine.model.UsageFilter,
+            ) = pointsFlow
+            override fun observeApps(
+                range: io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange,
+                filter: io.github.khaledbahaaeldin.emberbyte.engine.model.UsageFilter,
+                sort: io.github.khaledbahaaeldin.emberbyte.engine.model.AppSort,
+            ) = kotlinx.coroutines.flow.emptyFlow<List<io.github.khaledbahaaeldin.emberbyte.engine.model.AppUsage>>()
+            override fun observeAppSeries(
+                packageName: String,
+                range: io.github.khaledbahaaeldin.emberbyte.engine.model.DateRange,
+                granularity: Granularity,
+            ) = kotlinx.coroutines.flow.emptyFlow<List<UsagePoint>>()
+            override fun observeCoverage() = kotlinx.coroutines.flow.emptyFlow<io.github.khaledbahaaeldin.emberbyte.engine.model.CoverageStatus>()
+            override suspend fun refreshNow() = io.github.khaledbahaaeldin.emberbyte.engine.model.Outcome.Success(Unit)
+        }
+
+        val vm = HistoryViewModel(
+            usage = usage,
+            settings = FakeSettingsRepository(),
+            permissions = FakePermissionRepository(PermissionState(usageAccess = true, notifications = true, phoneState = true)),
+            clock = clock,
+            locale = Locale.ENGLISH,
+            dates = flowOf(today),
+        )
+
+        show(vm)
+        rule.waitForIdle()
+
+        // 1. Select the last bar
+        val barNode = rule.onNodeWithContentDescription("Wednesday, 7 October, 2.10 gigabytes")
+        barNode.performClick()
+        rule.waitForIdle()
+        assertEquals(13, vm.uiState.value.selectedIndex)
+
+        // 2. Points update (bytes increase on the last bar, simulating sampler update)
+        val updatedPoints = initialPoints.mapIndexed { idx, pt ->
+            if (idx == 13) pt.copy(mobileBytes = pt.mobileBytes + 50_000_000L) else pt
+        }
+        pointsFlow.value = updatedPoints
+        rule.waitForIdle()
+
+        // Selection should NOT be wiped out by live points update
+        assertEquals(13, vm.uiState.value.selectedIndex)
+
+        // 3. User switches granularity to Week -> selection resets to null
+        rule.onNodeWithText("Week").performClick()
+        rule.waitForIdle()
+        org.junit.Assert.assertNull(vm.uiState.value.selectedIndex)
+    }
+
+    @Test
     fun history_buttons_and_filter_chips_have_accessible_names() {
         show()
         rule.onNodeWithContentDescription("Back").assertIsDisplayed()

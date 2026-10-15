@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.Text
@@ -145,13 +144,14 @@ class HistoryViewModel(
         .flatMapLatest { (date, g) ->
             selectedBar.value = null
             val zone = clock.zone
-            var lastPoints: List<Any>? = null
+            var lastKeys: List<java.time.Instant>? = null
             val pointsFlow = usage.observeSeries(rangeForHistory(g, date, zone), g)
                 .onEach { pts ->
-                    if (lastPoints != null && lastPoints != pts) {
+                    val keys = pts.map { it.start }
+                    if (lastKeys != null && lastKeys != keys) {
                         selectedBar.value = null
                     }
-                    lastPoints = pts
+                    lastKeys = keys
                 }
             combine(
                 pointsFlow,

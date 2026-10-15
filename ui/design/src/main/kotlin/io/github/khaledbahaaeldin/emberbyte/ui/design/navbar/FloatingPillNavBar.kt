@@ -225,6 +225,8 @@ private fun PillSurface(
                     item = item,
                     selected = index == shownIndex,
                     dragOffset = { if (index == shownIndex) followDx else 0f },
+                    sizeSpec = sizeSpec,
+                    colorSpec = colorSpec,
                     onBounds = { start, end ->
                         starts[index] = start
                         ends[index] = end
@@ -246,22 +248,22 @@ private fun NavItem(
     item: NavBarItem,
     selected: Boolean,
     dragOffset: () -> Float,
+    sizeSpec: androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize>,
+    colorSpec: androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color>,
     onBounds: (start: Float, end: Float) -> Unit,
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val (container, content) = item.accent.colors(scheme)
-    val reduceMotion = LocalReduceMotion.current
-    val motion = MaterialTheme.motionScheme
 
     val background by animateColorAsState(
         targetValue = if (selected) container else Color.Transparent,
-        animationSpec = FloatingPillNavMotion.itemColorSpec(reduceMotion, motion),
+        animationSpec = colorSpec,
         label = "navItemBackground",
     )
     val foreground by animateColorAsState(
         targetValue = if (selected) content else scheme.onSurfaceVariant,
-        animationSpec = FloatingPillNavMotion.itemColorSpec(reduceMotion, motion),
+        animationSpec = colorSpec,
         label = "navItemForeground",
     )
 
@@ -277,7 +279,7 @@ private fun NavItem(
             .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .clip(CircleShape)
             .background(background)
-            .animateContentSize(FloatingPillNavMotion.itemSizeSpec(reduceMotion, motion))
+            .animateContentSize(sizeSpec)
             .selectable(selected = selected, onClick = onClick, role = Role.Tab)
             .semantics { if (!selected) contentDescription = item.label }
             .padding(horizontal = 14.dp),

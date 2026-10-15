@@ -107,4 +107,14 @@ class TilesTest {
         rule.onNode(hasText("Video"))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Mobile 600 megabytes, Wi-Fi 400 megabytes"))
     }
+
+    @Test fun appRow_avatar_letter_is_hidden_from_semantics() {
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                AppRow(AppRowUi("com.yt", "YouTube", 610_000_000L, 0L), ByteUnits.DECIMAL, onClick = {})
+            }
+        }
+        // "Y" is the avatar initial; clearAndSetSemantics ensures it is decorative and not present in semantics
+        rule.onNodeWithText("Y").assertDoesNotExist()
+    }
 }
