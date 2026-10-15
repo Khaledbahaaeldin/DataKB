@@ -130,23 +130,75 @@ fun liveNotificationText(
     )
 }
 
-class LiveNotificationBuilder(
+enum class LiveNotificationStyle {
+    COMPAT,
+    PROGRESS_AND_CHIP,
+    PROMOTED,
+}
+
+fun resolveLiveNotificationStyle(
+    sdkInt: Int,
+    sdkIntFull: Int,
+    hasProgress: Boolean,
+): LiveNotificationStyle {
+    if (!hasProgress || sdkInt < 36) return LiveNotificationStyle.COMPAT
+    return if (sdkInt > 36 || sdkIntFull >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+        LiveNotificationStyle.PROMOTED
+    } else {
+        LiveNotificationStyle.PROGRESS_AND_CHIP
+    }
+}
+
+interface PlatformNotificationCaller {
+    fun setProgressStyle(builder: Notification.Builder, fractionUsed: Float): Notification.Builder
+    fun setShortCriticalText(builder: Notification.Builder, chip: String): Notification.Builder
+    fun setRequestPromotedOngoing(builder: Notification.Builder, request: Boolean): Notification.Builder
+}
+
+internal object DefaultPlatformNotificationCaller : PlatformNotificationCaller {
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    override fun setProgressStyle(builder: Notification.Builder, fractionUsed: Float): Notification.Builder {
+        val progressUnits = (fractionUsed * 1000f).roundToInt()
+        val style = Notification.ProgressStyle()
+            .setProgress(progressUnits)
+            .addProgressSegment(Notification.ProgressStyle.Segment(1000))
+        return builder.setStyle(style)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    override fun setShortCriticalText(builder: Notification.Builder, chip: String): Notification.Builder {
+        return builder.setShortCriticalText(chip)
+    }
+
+    // Lint NewApi: "Call requires API level 36.1 (current min is 36): android.app.Notification.Builder#setRequestPromotedOngoing"
+    // setRequestPromotedOngoing was finalized in Android 16 QPR2 (API 36.1); @RequiresApi only accepts integer API levels.
+    @SuppressLint("NewApi")
+    override fun setRequestPromotedOngoing(builder: Notification.Builder, request: Boolean): Notification.Builder {
+        return builder.setRequestPromotedOngoing(request)
+    }
+}
+
+open class LiveNotificationBuilder(
     private val context: Context,
     private val sdkInt: Int = Build.VERSION.SDK_INT,
+    private val sdkIntFull: Int = if (Build.VERSION.SDK_INT >= 36) Build.VERSION.SDK_INT_FULL else 0,
+    private val platformCaller: PlatformNotificationCaller = DefaultPlatformNotificationCaller,
 ) {
-    // Android Lint cannot track that the member property `sdkInt` (defaulting to Build.VERSION.SDK_INT)
-    // guards the call to the API 36 helper method.
-    @SuppressLint("NewApi")
-    fun build(text: LiveNotificationText): Notification {
+    open fun build(text: LiveNotificationText): Notification {
+        val style = resolveLiveNotificationStyle(sdkInt, sdkIntFull, text.progress != null)
+        if (style == LiveNotificationStyle.COMPAT || text.progress == null) {
+            return buildStandard(text)
+        }
+        return buildLiveUpdateNotification(text, text.progress, style)
+    }
+
+    fun buildStandard(text: LiveNotificationText): Notification {
         val open = PendingIntent.getActivity(
             context,
             0,
             DeepLinks.intent(context, DeepLinks.HOME),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        if (sdkInt >= 36 && text.progress != null) {
-            return buildLiveUpdateNotification(context, text, text.progress, open)
-        }
         return NotificationCompat.Builder(context, NotificationChannels.LIVE)
             .setSmallIcon(R.drawable.ic_stat_ember)
             .setContentTitle(text.title)
@@ -161,21 +213,18 @@ class LiveNotificationBuilder(
             .build()
     }
 
-    // setRequestPromotedOngoing was finalized across API 36/36.1; lint flags it as 36.1 while compileSdk is 37.
-    @RequiresApi(36)
-    @SuppressLint("NewApi")
     private fun buildLiveUpdateNotification(
-        context: Context,
         text: LiveNotificationText,
         progress: LiveProgress,
-        open: PendingIntent,
+        style: LiveNotificationStyle,
     ): Notification {
-        val progressUnits = (progress.fractionUsed * 1000f).roundToInt()
-        val style = Notification.ProgressStyle()
-            .setProgress(progressUnits)
-            .addProgressSegment(Notification.ProgressStyle.Segment(1000))
-
-        return Notification.Builder(context, NotificationChannels.LIVE)
+        val open = PendingIntent.getActivity(
+            context,
+            0,
+            DeepLinks.intent(context, DeepLinks.HOME),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val builder = Notification.Builder(context, NotificationChannels.LIVE)
             .setSmallIcon(R.drawable.ic_stat_ember)
             .setContentTitle(text.title)
             .setContentText(text.text)
@@ -184,11 +233,17 @@ class LiveNotificationBuilder(
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setCategory(Notification.CATEGORY_SERVICE)
-            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(open)
-            .setStyle(style)
-            .setShortCriticalText(progress.chip)
-            .setRequestPromotedOngoing(true)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= 31) {
+            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        }
+
+        platformCaller.setProgressStyle(builder, progress.fractionUsed)
+        platformCaller.setShortCriticalText(builder, progress.chip)
+        if (style == LiveNotificationStyle.PROMOTED) {
+            platformCaller.setRequestPromotedOngoing(builder, true)
+        }
+        return builder.build()
     }
 }
