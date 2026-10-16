@@ -58,23 +58,37 @@ class BudgetRingTest {
         rule.onNodeWithText("49%").assertIsDisplayed()
     }
 
-    @Test
-    fun large_font_scale_scales_down_label_to_fit_inside_ring_bounds() {
+    // Robolectric measures text with a stub font (a "137%" label is 5 px wide), so a width assertion can never fail.
+    // The cap is therefore asserted on what it controls: the effective size (sp x fontScale) the label is drawn at.
+    private fun labelSizes(fontScale: Float, text: String): Pair<Float, Float> {
+        var baseSp = 0f
         rule.setContent {
             val density = LocalDensity.current
-            CompositionLocalProvider(
-                LocalDensity provides Density(density.density, fontScale = 2f),
-            ) {
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
                 EmberbyteTheme(darkTheme = true, dynamicColor = false) {
-                    BudgetRing(1.37f, BudgetStateUi.Exceeded, percentText = "137%")
+                    baseSp = androidx.compose.material3.MaterialTheme.typography.labelLarge.fontSize.value
+                    BudgetRing(1.37f, BudgetStateUi.Exceeded, percentText = text)
                 }
             }
         }
-        val node = rule.onNodeWithText("137%", useUnmergedTree = true).assertIsDisplayed()
-        val widthDp = with(rule.density) { node.fetchSemanticsNode().size.width.toDp() }
-        // Inner chord width is ~40dp; without font scaling, width would be > 40dp
-        assertTrue("Label width ($widthDp) must be <= 40.dp", widthDp <= 40.dp)
+        val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        val node = rule.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
+        node.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        val drawnSp = results.first().layoutInput.style.fontSize.value
+        return (drawnSp * fontScale) to (baseSp * fontScale)
+    }
+
+    @Test
+    fun at_font_scale_2_a_long_label_is_drawn_no_larger_than_1_3_times_the_base_size() {
+        val (drawn, uncapped) = labelSizes(fontScale = 2f, text = "137%")
+        // Uncapped it would be base x 2.0; the ring caps it at base x 1.3 so it stays inside the stroke.
+        assertTrue("drawn $drawn must be <= 1.3 x base (${uncapped / 2f * 1.3f + 0.01f})", drawn <= uncapped / 2f * 1.3f + 0.01f)
+        assertTrue("drawn $drawn must be smaller than the uncapped $uncapped", drawn < uncapped - 1f)
+    }
+
+    @Test
+    fun at_font_scale_1_the_label_keeps_its_normal_size() {
+        val (drawn, uncapped) = labelSizes(fontScale = 1f, text = "137%")
+        assertTrue("drawn $drawn must equal the base size $uncapped", kotlin.math.abs(drawn - uncapped) < 0.01f)
     }
 }
-
-
