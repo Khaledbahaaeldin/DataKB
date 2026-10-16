@@ -793,11 +793,20 @@ No active plan, or `liveNotificationEnabled == false` (the minimal "Measuring" n
 `LiveNotificationBuilder.build(text)`:
 - `Build.VERSION.SDK_INT >= 36` AND `text.progress != null`: build with the platform `android.app.Notification.Builder(context, NotificationChannels.LIVE)`
   (NOT `NotificationCompat`, which has no `ProgressStyle`): `setStyle(Notification.ProgressStyle().setProgress(round(fractionUsed * 1000)).addProgressSegment(Notification.ProgressStyle.Segment(1000)))`,
-  `setShortCriticalText(chip)`, `setRequestPromotedOngoing(true)`, plus everything the standard notification already has (small icon `ic_stat_ember`, title,
+  `setShortCriticalText(chip)`, plus everything the standard notification already has (small icon `ic_stat_ember`, title,
   text, ongoing, only-alert-once, no timestamp, `CATEGORY_SERVICE`, foreground-service behaviour immediate, the Home content intent). No custom `RemoteViews`,
   no colorization (they disqualify promotion). The class and method names above were checked in the API 37 `android.jar`.
+- **API levels are not all 36.** `Notification.ProgressStyle`, `Notification.Builder.setShortCriticalText` and `NotificationManager.canPostPromotedNotifications()` exist
+  since API 36 (Android 16, `Build.VERSION_CODES.BAKLAVA`). `Notification.Builder.setRequestPromotedOngoing(boolean)` and the permission
+  `POST_PROMOTED_NOTIFICATIONS` exist only since **API 36.1** (`Build.VERSION_CODES_FULL.BAKLAVA_1`); the API 36 `android.jar` does not contain the method, so calling it
+  on a 36.0 device throws `NoSuchMethodError` (an `Error`, which `Exception` handlers do not catch; the sampler service is `START_STICKY`, so the process would crash in a loop).
+  Therefore: the ProgressStyle notification with the chip is built when `SDK_INT >= 36`; `setRequestPromotedOngoing(true)` is called ONLY when
+  `Build.VERSION.SDK_INT >= 36 && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1` (`SDK_INT_FULL` exists since API 36). No reflection, no `catch (Error)`:
+  the version guard is the protection, and a unit test proves each call is made only at the versions that have it. Both values are injectable into
+  `LiveNotificationBuilder` (default: the real ones) so the tests can run every combination (35, 36.0, 36.1, 37) on the JVM; unit tests run on JDK 17, where Robolectric has no
+  API 36 platform, so the proof that the REAL platform accepts the calls is the device dump on a 36.1+ emulator (and the guard test for 36.0).
 - Every other case: the existing `NotificationCompat` notification, unchanged (API 29 to 35 behave exactly as today).
-- The manifest declares `android.permission.POST_PROMOTED_NOTIFICATIONS` (normal permission, no prompt). Whether Android promotes the notification is the
+- The manifest declares `android.permission.POST_PROMOTED_NOTIFICATIONS` (normal permission, no prompt; an unknown permission on 36.0 is ignored). Whether Android promotes the notification is the
   system's decision (`NotificationManager.canPostPromotedNotifications()`, and the user's per-app switch); the app never asks the user to enable it, never
   fails when it is off (the notification is then an ordinary ongoing one that still shows the progress bar), and never loops on it.
 - Update rate stays at most once per second. The progress value is quantised to 0.1% steps (0 to 1000) so a tiny change does not re-post.
