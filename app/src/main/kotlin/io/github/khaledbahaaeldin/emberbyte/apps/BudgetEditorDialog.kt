@@ -1,19 +1,25 @@
 package io.github.khaledbahaaeldin.emberbyte.apps
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -27,6 +33,8 @@ import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.github.khaledbahaaeldin.emberbyte.engine.model.BudgetPeriod
 import io.github.khaledbahaaeldin.emberbyte.plans.CapUnit
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
@@ -38,16 +46,43 @@ fun BudgetEditorDialog(
     planOptions: List<PlanOptionUi>,
     onEvent: (AppDetailEvent) -> Unit,
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = { onEvent(AppDetailEvent.CloseBudgetEditor) },
-        title = { Text(if (editor.isEdit) "Edit budget" else "Set budget") },
-        text = {
-            Column(
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .padding(horizontal = 24.dp, vertical = 24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+
+
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .widthIn(max = 560.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 6.dp,
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = if (editor.isEdit) "Edit budget" else "Set budget",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+
                 // Limit field
                 val limitError = editor.errors["limitBytes"]
                 OutlinedTextField(
@@ -189,24 +224,28 @@ fun BudgetEditorDialog(
                 editor.errors["form"]?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(
+                            onClick = { onEvent(AppDetailEvent.CloseBudgetEditor) },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        ) {
+                            Text("Cancel")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            onClick = { onEvent(AppDetailEvent.SaveBudget) },
+                            enabled = !editor.saving,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        ) {
+                            Text("Save")
+                        }
+                    }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onEvent(AppDetailEvent.SaveBudget) },
-                enabled = !editor.saving,
-                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = { onEvent(AppDetailEvent.CloseBudgetEditor) },
-                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-            ) {
-                Text("Cancel")
-            }
-        },
-    )
+        }
+    }
 }
+

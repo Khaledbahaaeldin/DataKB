@@ -1,16 +1,22 @@
 package io.github.khaledbahaaeldin.emberbyte.ui.design.plan
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BudgetStateUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -51,4 +57,24 @@ class BudgetRingTest {
         rule.onNodeWithContentDescription("49 percent of the plan used").assertIsDisplayed()
         rule.onNodeWithText("49%").assertIsDisplayed()
     }
+
+    @Test
+    fun large_font_scale_scales_down_label_to_fit_inside_ring_bounds() {
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 2f),
+            ) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    BudgetRing(1.37f, BudgetStateUi.Exceeded, percentText = "137%")
+                }
+            }
+        }
+        val node = rule.onNodeWithText("137%", useUnmergedTree = true).assertIsDisplayed()
+        val widthDp = with(rule.density) { node.fetchSemanticsNode().size.width.toDp() }
+        // Inner chord width is ~40dp; without font scaling, width would be > 40dp
+        assertTrue("Label width ($widthDp) must be <= 40.dp", widthDp <= 40.dp)
+    }
 }
+
+

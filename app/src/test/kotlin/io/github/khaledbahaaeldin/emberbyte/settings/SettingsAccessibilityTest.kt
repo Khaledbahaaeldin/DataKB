@@ -13,9 +13,12 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onAllNodesWithText
+
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.runtime.CompositionLocalProvider
@@ -115,7 +118,6 @@ class SettingsAccessibilityTest {
     fun create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable() {
         var created = false
         var dismissed = false
-        rule.mainClock.autoAdvance = false
         rule.setContent {
             CompositionLocalProvider(
                 LocalDensity provides Density(density = 2.625f, fontScale = 2f),
@@ -128,17 +130,34 @@ class SettingsAccessibilityTest {
                 }
             }
         }
-        rule.mainClock.advanceTimeByFrame()
 
-        // Cancel button is displayed and clickable
+        val rootHeight = rule.onAllNodes(isRoot()).fetchSemanticsNodes().maxOf { it.size.height }
+        val imeHeightPx = (rootHeight * 0.40f).toInt()
+        val imeTopPx = rootHeight - imeHeightPx
+
+        io.github.khaledbahaaeldin.emberbyte.common.injectImeInsets(imeHeightPx)
+        rule.waitForIdle()
+
+        // Cancel button is displayed and clickable above IME
         val cancelButton = rule.onNodeWithText("Cancel")
         cancelButton.performScrollTo().assertIsDisplayed()
+        val cancelBounds = cancelButton.fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "Cancel button bottom (${cancelBounds.bottom}) must be <= IME top ($imeTopPx)",
+            cancelBounds.bottom <= imeTopPx,
+        )
         cancelButton.performClick()
         assertTrue(dismissed)
 
-        // Create button is displayed
+        // Create button is displayed above IME
         val createButton = rule.onNodeWithText("Create")
         createButton.performScrollTo().assertIsDisplayed()
-        rule.mainClock.autoAdvance = true
+        val createBounds = createButton.fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "Create button bottom (${createBounds.bottom}) must be <= IME top ($imeTopPx)",
+            createBounds.bottom <= imeTopPx,
+        )
     }
 }
+
+

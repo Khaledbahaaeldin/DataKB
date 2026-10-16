@@ -36,3 +36,42 @@ fun assertNoTouchTargetSmallerThan48dp(rule: ComposeContentTestRule) {
         violations.isEmpty(),
     )
 }
+
+fun injectImeInsets(imeHeightPx: Int) {
+    val insets = androidx.core.view.WindowInsetsCompat.Builder()
+        .setInsets(
+            androidx.core.view.WindowInsetsCompat.Type.ime(),
+            androidx.core.graphics.Insets.of(0, 0, 0, imeHeightPx),
+        )
+        .setVisible(androidx.core.view.WindowInsetsCompat.Type.ime(), true)
+        .build()
+
+    fun updateHolderForView(view: android.view.View) {
+        try {
+            val holderClass = Class.forName("androidx.compose.foundation.layout.WindowInsetsHolder")
+            val companion = holderClass.getField("Companion").get(null)
+            val holder = companion.javaClass.getMethod("getOrCreateFor", android.view.View::class.java).invoke(companion, view)
+            holderClass.getMethod("update", androidx.core.view.WindowInsetsCompat::class.java, Int::class.javaPrimitiveType)
+                .invoke(holder, insets, 0)
+        } catch (_: Throwable) {}
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(view, insets)
+    }
+
+    val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+    if (dialog != null) {
+        dialog.window?.decorView?.let { decorView ->
+            updateHolderForView(decorView)
+            if (decorView is android.view.ViewGroup) {
+                fun traverse(vg: android.view.ViewGroup) {
+                    for (i in 0 until vg.childCount) {
+                        val child = vg.getChildAt(i)
+                        updateHolderForView(child)
+                        if (child is android.view.ViewGroup) traverse(child)
+                    }
+                }
+                traverse(decorView)
+            }
+        }
+    }
+}
+
