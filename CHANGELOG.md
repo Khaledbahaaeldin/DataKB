@@ -17,6 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **"What If" Scenario Planner**: Projection of quota run-out dates under hypothetical additional daily consumption.
 - **Streamed Data Export**: Memory-efficient streaming export of historical usage metrics and plans to CSV and JSON formats.
 - **Encrypted Local Backups**: Full backup and restore of plans, budgets, and hourly usage history using AES-256-GCM encryption with Argon2id password-based key derivation (`.emberbyte`).
-- **Home-Screen Widgets**: Glance-based widgets displaying remaining plan balance, cycle status, and usage progress.
-- **Material 3 Expressive UI**: Dynamic color theming, pure black AMOLED dark mode, fluid motion transitions, and comprehensive accessibility support (TalkBack, reduced motion, scalable typography).
+- **Home-Screen Widgets**: Glance-based widgets displaying today's usage, remaining data or run-out forecast caption, transfer speed, and top apps.
+- **Material 3 Expressive UI**: Dynamic color theming, pure black AMOLED dark mode, fluid motion transitions, and verified accessibility (reduced-motion support on navbar and morphing numbers, touch targets >= 48 dp, 3:1+ contrast across 5 palettes, focus return on passphrase and backup dialogs, screen-reader semantics for charts, dialog layout at font scale 2.0 with keyboard open).
 - **100% On-Device Privacy**: Operates completely offline without accounts, cloud sync, or `INTERNET` permission.

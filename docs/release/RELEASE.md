@@ -6,7 +6,7 @@ This document describes how to build, verify, and release reproducible unsigned 
 
 ## 1. Reproducible Build Instructions
 
-Emberbyte release builds are deterministic. Clean checkouts of the same commit yield byte-for-byte identical unzipped APK contents (excluding standard zip archive timestamp metadata).
+Emberbyte release builds are deterministic for the same commit. Because Android Gradle Plugin (AGP) embeds git revision metadata into `META-INF/version-control-info.textproto`, the outer whole-file APK SHA-256 and exact size vary across different commits. For independent clean builds of the same commit, the tool `tools/compare-apks.py` proves functional byte-identity across all non-META-INF entries.
 
 ### Prerequisites
 - **JDK**: Eclipse Temurin OpenJDK 17 (`java -version` -> `17.x.x`)
@@ -104,10 +104,12 @@ To verify that two clean checkouts produce identical builds:
    *(Note: The traditional `unzip` + `diff -r` approach silently drops 178 entries whose names differ only by case on case-insensitive filesystems like Windows and macOS APFS; `tools/compare-apks.py` inspects the zip central directory directly).*
 
    **Verified Baseline Figures**:
-   - Release APK Size: ~5.96 MB (5,956,431 bytes)
+   - Release APK Size: ~5.96 MB (5,956,467 bytes)
    - Total Zip Entries: 1,088
    - Non-META-INF Entries Compared: 998 (100% matched)
-   - Unsigned Release APK SHA-256: `f36e56126243a3b6f09e5c005b4e6a838651801263b310be1dbc59533980a8ea` *(Note: The whole-file APK SHA-256 varies between commits and between git checkouts vs archive tarballs because AGP embeds VCS revision metadata into `META-INF/version-control-info.textproto`. Tools like `compare-apks.py` verify all functional non-META-INF zip entries match byte-for-byte).*
+   - Current Unsigned Release APK SHA-256: `084201b0149ef3ae783750b5bf2fdb625ee47c3e4661c7daa2478af3511fcbb7`
+   
+   *(Note: The whole-file APK SHA-256 and size vary between commits because AGP embeds VCS revision metadata into `META-INF/version-control-info.textproto`. The python script `tools/compare-apks.py` inspects the zip central directory directly and proves functional byte-identity across all 998 non-META-INF entries between independent builds of the same commit).*
 
 ---
 

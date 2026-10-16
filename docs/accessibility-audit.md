@@ -30,36 +30,36 @@ Contract section 12.2 Rule 10 requires spoken notification announcements to avoi
 Verified on Android 16 (API 36) emulator at physical resolution 1080x2340. Real configurations and evidence captured in workspace:
 
 1. **Static Light Theme**:
-   - `shots/matrix_home_light.png`: Static Ember light color scheme on Home screen. Verified WCAG AA contrast (>= 4.5:1 text, >= 3.0:1 indicators).
-   - `m6-qa-shots/q6_sl_sheetA.png`, `m6-qa-shots/q6_sl_sheetB.png`: Complete screen tour in static light mode.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_home_light.png`: Static Ember light color scheme on Home screen. Verified WCAG AA contrast (>= 4.5:1 text, >= 3.0:1 indicators).
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_sl_sheetA.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_sl_sheetB.png`: Complete screen tour in static light mode.
 2. **Static Dark Theme**:
-   - `m6-qa-shots/q6_sd_sheetA.png`, `m6-qa-shots/q6_sd_sheetB.png`: Complete screen tour in static dark mode with Ember palette.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_sd_sheetA.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_sd_sheetB.png`: Complete screen tour in static dark mode with Ember palette.
 3. **AMOLED Black Theme**:
-   - `m6-qa-shots/q6_am_sheetA.png`, `m6-qa-shots/q6_am_sheetB.png`: Pure black background (#000000) verified across all surfaces with card distinction preserved.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_am_sheetA.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_am_sheetB.png`: Pure black background (#000000) verified across all surfaces with card distinction preserved.
 4. **Dynamic Color (Material You Wallpapers)**:
-   - `m6-qa-shots/q6_lt_sheetA.png`, `q6_lt_sheetB.png`, `q6_lt_sheetC.png`: Light dynamic palette derived from wallpaper.
-   - `m6-qa-shots/q6_08_home.png`, `shots/live_notification_shade.png`: Dark dynamic palette on Home screen and live notification.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_lt_sheetA.png`, `q6_lt_sheetB.png`, `q6_lt_sheetC.png`: Light dynamic palette derived from wallpaper.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_08_home.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/live_notification_shade.png`: Dark dynamic palette on Home screen and live notification.
 5. **Animation Scale Off (`animator_duration_scale 0`)**:
-   - `m6-qa-shots/q6_anim_off_bar.png`, `m6-qa-shots/q6_anim_compare.png`: Snapping animations, immediate value transitions, and navbar tap/drag operability under reduced motion.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_anim_off_bar.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_anim_compare.png`: Snapping animations, immediate value transitions, and navbar tap/drag operability under reduced motion.
 6. **Font Scale 1.3 (130%)**:
-   - `m6-qa-shots/q6_f13_sheetA.png`, `q6_f13_sheetB.png`, `q6_f13_sheetC.png`, `q6_f13_sheetD.png`: Clean text scaling without horizontal clipping across all screens.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_f13_sheetA.png`, `q6_f13_sheetB.png`, `q6_f13_sheetC.png`, `q6_f13_sheetD.png`: Clean text scaling without horizontal clipping across all screens.
 7. **Font Scale 2.0 (200%)**:
-   - `shots/matrix_home_font20.png`: Bento tiles reflow to single column; big usage numbers wrap cleanly.
-   - `shots/matrix_apps_font20.png`: Filter chip row scrolls horizontally; per-app rows wrap.
-   - `shots/matrix_app_detail_font20.png`: Header, usage split, and budget actions unobstructed.
-   - `shots/matrix_history_font20.png`: Day/Week/Month chips scale; tiles reflow to single column.
-   - `shots/matrix_plans_font20.png`: Empty state card text reflows; touch targets preserved.
-   - `shots/matrix_plan_editor_font20.png`: Cap input, unit filter chips, and renewal date selector reflow cleanly.
-   - `shots/matrix_settings_font20.png`: Section titles, switches, subtitles, and action rows reflow cleanly.
-   - `shots/matrix_dialog_backup.png`: Encrypted backup passphrase dialog with scroll container.
-   - `shots/matrix_dialog_budget_font20.png`: App budget limit dialog inputs and actions fit comfortably.
-   - `shots/matrix_licenses_font20_rtl.png`: Open-source licences screen at 200% font scale.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_home_font20.png`: Bento tiles reflow to single column; big usage numbers wrap cleanly.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_apps_font20.png`: Filter chip row scrolls horizontally; per-app rows wrap.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_app_detail_font20.png`: Header, usage split, and budget actions unobstructed.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_history_font20.png`: Day/Week/Month chips scale; tiles reflow to single column.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_plans_font20.png`: Empty state card text reflows; touch targets preserved.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_plan_editor_font20.png`: Cap input, unit filter chips, and renewal date selector reflow cleanly.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_settings_font20.png`: Section titles, switches, subtitles, and action rows reflow cleanly.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_dialog_backup.png`: Encrypted backup passphrase dialog with scroll container.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_dialog_budget_font20.png`: App budget limit dialog inputs and actions fit comfortably (see also `proof_m1_set_budget_font2.png`, `proof_m1_edit_budget_font2.png`).
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_licenses_font20_rtl.png`: Open-source licences screen at 200% font scale.
 8. **Smallest Display Size (`wm density 360` / `374`)**:
-   - `shots/matrix_density_smallest.png`, `m6-qa-shots/q6_d374_sheetA.png`: Canvas expands cleanly, all 7 chart bars fit comfortably.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_density_smallest.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_d374_sheetA.png`: Canvas expands cleanly, all 7 chart bars fit comfortably.
 9. **Largest Display Size (`wm density 540` / `660`)**:
-   - `shots/matrix_density_largest.png`, `m6-qa-shots/q6_d660_sheetA.png`: High density scaling without text overflow.
+   - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_density_largest.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_d660_sheetA.png`: High density scaling without text overflow.
 10. **RTL Locales (`ar` / `ar-XB`)**:
-    - `shots/matrix_home_rtl.png`, `shots/matrix_apps_rtl.png`, `shots/matrix_licenses_font20_rtl.png`, `m6-qa-shots/q6_rtl_sheetA.png`: Layout mirrored right-to-left, navigation pill mirrored, numbers preserve LTR formatting via `ForceLtr`.
+    - `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_home_rtl.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_apps_rtl.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_licenses_font20_rtl.png`, `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/m6-qa-shots/q6_rtl_sheetA.png`: Layout mirrored right-to-left, navigation pill mirrored, numbers preserve LTR formatting via `ForceLtr`.
 
 ## QA Defect Resolution Matrix (D1 to D24)
 
@@ -72,7 +72,8 @@ Verified on Android 16 (API 36) emulator at physical resolution 1080x2340. Real 
 | **D5** | Important | Home 7-day row requires 384dp but card provides 361dp (today's bar cut at rest) | `deferred to polish` | Chart layout refactor scheduled for post-v1.0 polish release |
 | **D6** | Minor | App detail opens 7-day row at end while Home opens at start | `deferred to polish` | Behavior consistent with M4 baseline; unification scheduled for post-v1.0 polish |
 | **D7** | Important | History selected bar shows no value/period readout on screen for sighted users | `open` | Screen reader announces value in description; visual readout card scheduled for post-v1.0 |
-| **D8** | Important | Create backup dialog at font scale 2.0 with keyboard open: buttons hidden behind IME | `fixed in Fix 2` | Wrapped passphrase dialog inputs and buttons inside a scrollable Surface dialog with `fillMaxSize` and `imePadding`; verified by `create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable` |
+| **D8** | Important | Create backup dialog at font scale 2.0 with keyboard open: buttons hidden behind IME | `fixed in Fix 2` | Wrapped passphrase dialog inputs and buttons inside a scrollable Surface dialog with `fillMaxSize` and `imePadding`; verified by `create_backup_dialog_at_font_scale_2_keeps_create_and_cancel_reachable_and_clickable` and `.superpowers/sdd/2026-10-14-emberbyte-m6-polish/shots/matrix_dialog_backup.png` |
+| **M1** | Important | Budget dialogs hide Save and Cancel under keyboard at font scale 2.0 | `fixed in Item 1` | Wrapped budget editor inside a custom Dialog with `imePadding` and vertically scrolling Column; verified by `budget_dialog_at_font_scale_2_with_ime_insets_keeps_save_and_cancel_reachable` and device screenshots `proof_m1_set_budget_font2.png`, `proof_m1_edit_budget_font2.png`, `proof_m1_budget_font1.png` |
 | **D9** | Minor | Apps filter chip "This month" cut at right edge at font 2.0 | `deferred to polish` | Chip row scrolls horizontally to reveal full content |
 | **D10** | Minor | Plan and budget editors show long decimal figures in MB for GB-sized values | `deferred to polish` | Display formatting enhancement for input fields |
 | **D11** | Minor | Density 660 splits number and unit across lines on History summary tiles | `deferred to polish` | Tile min-width layout rule |
@@ -81,9 +82,8 @@ Verified on Android 16 (API 36) emulator at physical resolution 1080x2340. Real 
 | **D13** | Minor | Pseudo-locale `ar-XB` does not exercise RTL in app without locale resource | `deferred to polish` | Verified RTL using real Arabic (`ar`) system locale |
 | **D14** | Minor | English text with punctuation in RTL context misplaces punctuation at line start | `deferred to polish` | Force LTR text direction on raw English licences content |
 | **D15** | Minor | Decorative letter avatar ("G"/"C") read aloud before app name in app list rows | `fixed in F2` | Applied `clearAndSetSemantics` to decorative letter box; verified by `appRow_avatar_letter_is_hidden_from_semantics` |
-| **D16** | Minor | TalkBack explore by touch focus ring behavior on complex cards | `deferred to polish` | Manual TalkBack optimization for card item traversal |
 | **D17** | Minor | Live notification text contains bare symbol "↓ 0 B/s" | `fixed in F2` | Documented Android platform limitation; spoken sentence supplied via ticker |
-| **D18** | Minor | Archiving a plan has no confirmation dialog | `deferred to polish` | DeleteConfirmationDialog removed as unused; confirmation flow deferred to post-v1.0 polish |
+| **D18** | Minor | Archiving a plan has no confirmation dialog | `deferred to polish: no confirmation dialog exists` | The app has never had an archive confirmation dialog; confirmation flow deferred to post-v1.0 polish |
 | **D19** | Minor | Checklist step 2 listed 4 navbar destinations (app has 3) | `fixed in F3` | Corrected `docs/release/real-device-checklist.md` in Task F3 |
 | **D20** | Minor | Checklist step 4 listed nonexistent "Budget alerts" and "View app" | `fixed in F3` | Corrected channel and action button references in Task F3 |
 | **D21** | Minor | Bento widget has no caption and ~40% empty space | `deferred to polish` | Glance widget layout redesign |

@@ -24,7 +24,7 @@ encrypted local backups.
 - **Totals by Mobile & Wi-Fi**: Clear separation of cellular mobile data and Wi-Fi network consumption.
 - **Per-App History**: Breakdown of data usage per application across daily and 2-hour measurement windows.
 - **Flexible Data Plans with Forecast & Alerts**: Custom billing cycles (monthly or every N days), SIM binding, add-on quota packs, free data windows (e.g. night data), and usage rollover (capped or uncapped). Predicts run-out dates based on your learned hourly usage curve over the last 28 days and alerts at 50%, 80%, 90%, and 100% quota.
-- **Home-Screen Widgets**: Jetpack Glance widgets displaying remaining data, progress, and renewal days.
+- **Home-Screen Widgets**: Jetpack Glance widgets displaying today's usage, remaining data or run-out forecast caption, live transfer speed, and top apps.
 - **Per-App Data Budgets**: Set daily or billing-cycle cellular budgets per application with warning notifications.
 - **Spike Detector**: Alerts when an app consumes an unusual surge of mobile data against a 14-day median baseline.
 - **"What If" Scenario Planner**: Explore how hypothetical extra daily usage alters your projected run-out date.
