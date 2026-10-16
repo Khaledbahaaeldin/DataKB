@@ -71,6 +71,10 @@ def find_test_definitions(repo_root: str) -> Tuple[Set[str], Set[str], Dict[str,
             except Exception:
                 continue
 
+            # Names that appear only in comments are not tests
+            content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+            content = re.sub(r'(?<!:)//[^' + chr(10) + r']*', '', content)
+
             # Find classes, interfaces, objects
             file_classes = set()
             for m in re.finditer(r'(?:class|interface|object)\s+([A-Za-z0-9_]+)', content):
@@ -200,6 +204,42 @@ def extract_cited_tests(file_path: str) -> List[Tuple[str, int]]:
     return candidates
 
 
+IMAGE_RE = re.compile(r'[A-Za-z0-9_./\-]+\.(?:png|jpg|jpeg|webp)')
+
+
+def tracked_files(repo_root: str) -> Set[str]:
+    """Repository files that a reader of the repository can open (git-ignored folders excluded)."""
+    found: Set[str] = set()
+    skip = {".git", ".superpowers", "build", ".gradle", "node_modules"}
+    for root, dirs, files in os.walk(repo_root):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for f in files:
+            rel = os.path.relpath(os.path.join(root, f), repo_root).replace("\\", "/")
+            found.add(rel)
+    return found
+
+
+def check_image_citations(file_path: str, repo_files: Set[str]) -> List[Tuple[str, int, str]]:
+    """Image paths cited by a shipped document must exist in the repository (private QA folders cannot be cited)."""
+    problems: List[Tuple[str, int, str]] = []
+    norm = file_path.replace("\\", "/")
+    if ".superpowers/" in norm:
+        return problems  # working reports may cite their own private screenshots
+    names = {os.path.basename(f) for f in repo_files}
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as fp:
+        for line_idx, line in enumerate(fp, start=1):
+            for m in IMAGE_RE.finditer(line):
+                cited = m.group(0).replace("\\", "/")
+                if cited.startswith(".superpowers/") or "/.superpowers/" in cited:
+                    problems.append((cited, line_idx, "points into the git-ignored .superpowers folder"))
+                elif "/" in cited:
+                    if cited not in repo_files:
+                        problems.append((cited, line_idx, "does not exist in the repository"))
+                elif cited not in names:
+                    problems.append((cited, line_idx, "no file of that name exists in the repository"))
+    return problems
+
+
 def main():
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <markdown-file...>")
@@ -211,12 +251,17 @@ def main():
     total_checked = 0
     missing: List[Tuple[str, str, int]] = []
     missing_files: List[str] = []
+    bad_images: List[Tuple[str, str, int, str]] = []
+    repo_files = tracked_files(repo_root)
 
-    for file_arg in sys.argv[1:]:
+    for file_arg in [a for a in sys.argv[1:] if a != "--allow-empty"]:
         if not os.path.exists(file_arg):
             print(f"File not found: {file_arg}", file=sys.stderr)
             missing_files.append(file_arg)
             continue
+
+        for cited_path, line_num, why in check_image_citations(file_arg, repo_files):
+            bad_images.append((cited_path, file_arg, line_num, why))
 
         cited = extract_cited_tests(file_arg)
         for token, line_num in cited:
@@ -237,13 +282,22 @@ def main():
             if not exists:
                 missing.append((token, file_arg, line_num))
 
-    if missing_files or missing:
+    if total_checked == 0 and not missing_files and "--allow-empty" not in sys.argv:
+        print("FAIL: no test citation was found in the input file(s); a document with nothing to check proves nothing "
+              "(pass --allow-empty to accept that).", file=sys.stderr)
+        sys.exit(1)
+
+    if missing_files or missing or bad_images:
         if missing_files:
             print(f"FAIL: {len(missing_files)} input file(s) not found: {missing_files}", file=sys.stderr)
         if missing:
             print(f"FAIL: Found {len(missing)} missing cited test(s) among {total_checked} checked:")
             for token, fpath, line_num in missing:
                 print(f"  Missing: `{token}` cited at {fpath}:{line_num}")
+        if bad_images:
+            print(f"FAIL: {len(bad_images)} cited image(s) a reader cannot open:")
+            for cited_path, fpath, line_num, why in bad_images:
+                print(f"  Image `{cited_path}` cited at {fpath}:{line_num} {why}")
         sys.exit(1)
     else:
         print(f"PASS: All {total_checked} cited test(s) verified across {len(sys.argv) - 1} file(s).")
