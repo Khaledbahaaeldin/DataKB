@@ -1,0 +1,139 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Themes: one layout in four of the twelve presets, plus the Appearance screen</title><style>html,body{margin:0;background:#1f1f1f;color:#e8eaed;font-family:system-ui,sans-serif}body{padding:24px 20px 60px}h2{font-size:26px;margin:0 0 6px}.subtitle{color:#9aa0a6;font-size:14px;line-height:1.5;max-width:900px}.card{border-radius:16px;background:#2a2a2a;padding:10px;cursor:default}.cards{display:block}.mock-note{font-size:12px;color:#9aa0a6;margin-bottom:12px}</style></head><body><div class="mock-note">Design mockup for the Emberbyte expressive redesign. Fonts load from Google Fonts (Roboto Flex). Approved choice is stated in README.md next to this file.</div><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=swap">
+<style>
+.th { font-family:'Roboto Flex', system-ui, sans-serif; }
+.th .row { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+.th .col2 { width:272px; }
+.th .tag2 { display:inline-block; font:600 11px system-ui; letter-spacing:.05em; text-transform:uppercase; padding:3px 9px; border-radius:99px; background:#3c4043; color:#e8eaed; margin-bottom:8px; }
+.th .ph { position:relative; width:272px; height:560px; border-radius:32px; border:6px solid #0b0b0d; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+.th .sb { height:22px; padding:7px 16px 0; display:flex; justify-content:space-between; font:600 10px system-ui; opacity:.85; }
+.th .pd { padding:0 13px; }
+.th .hd { display:flex; align-items:center; justify-content:space-between; height:42px; }
+.th .ib { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.th .nw { display:flex; align-items:flex-end; gap:6px; margin-top:4px; }
+.th .num { font-size:112px; line-height:.82; letter-spacing:-3px; font-variation-settings:'wght' 800,'wdth' 36,'opsz' 144; }
+.th .bdg { position:relative; width:62px; height:62px; margin-bottom:4px; flex:none; }
+.th .bdg span { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:17px; font-variation-settings:'wght' 850,'wdth' 110; }
+.th .lf { margin-top:10px; font-size:14px; font-weight:600; }
+.th .lf small { font-weight:500; font-size:11px; }
+.th .r2 { display:flex; gap:8px; margin-top:8px; }
+.th .t1 { flex:1.05; height:92px; border-radius:32px 32px 32px 10px; padding:11px 12px; }
+.th .t2 { flex:1; height:92px; border-radius:10px 32px 32px 32px; padding:11px 12px; }
+.th .k { font-weight:600; font-size:11px; opacity:.8; }
+.th .v { font-size:24px; line-height:1.05; margin-top:4px; font-variation-settings:'wght' 800,'wdth' 90; }
+.th .s { font-size:10.5px; opacity:.8; margin-top:3px; }
+.th .nt { margin-top:8px; border-radius:24px; padding:10px 12px; }
+.th .br { display:flex; height:15px; border-radius:99px; overflow:hidden; gap:3px; margin-top:8px; }
+.th .nv { position:absolute; left:10px; right:10px; bottom:10px; height:50px; border-radius:26px; display:flex; align-items:center; justify-content:space-around; padding:0 6px; }
+.th .nv .it { height:38px; min-width:38px; border-radius:20px; display:flex; align-items:center; justify-content:center; gap:6px; font-weight:600; font-size:12px; padding:0 12px; }
+.th .nv svg { width:18px; height:18px; }
+.th .lbl { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#a99fc2; margin:10px 2px 6px; }
+.th .seg { display:flex; background:#1d1929; border-radius:99px; padding:4px; }
+.th .seg div { flex:1; text-align:center; padding:8px 0; border-radius:99px; font-size:12.5px; font-weight:600; color:#bdb2d6; }
+.th .seg .on { background:#d0bcff; color:#2a1858; }
+.th .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.th .tc { position:relative; border-radius:20px; height:82px; padding:8px; overflow:hidden; }
+.th .tc .dot { position:absolute; right:10px; top:10px; width:16px; height:16px; border-radius:50%; }
+.th .tc .ck { position:absolute; left:8px; bottom:25px; width:16px; height:16px; border-radius:50%; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.th .tc .nm { position:absolute; left:8px; bottom:6px; font-size:9px; font-weight:700; white-space:nowrap; }
+.th .tc svg { position:absolute; left:-6px; top:-6px; opacity:.95; }
+.th .sw { display:flex; justify-content:space-between; align-items:center; background:#1d1929; border-radius:22px; padding:9px 12px; margin-top:8px; font-size:12.5px; }
+.th .sw small { opacity:.65; font-size:10.5px; }
+.th .tg { width:40px; height:22px; border-radius:99px; background:#3a3450; position:relative; flex:none; }
+.th .tg::after { content:''; position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%; background:#8d84a8; }
+.th .tg.on { background:#d0bcff; } .th .tg.on::after { left:21px; background:#2a1858; }
+.th .cp { margin:10px 3px 0; font-size:12.5px; line-height:1.4; color:#9aa0a6; font-family:system-ui,sans-serif; }
+.th .cp b { color:#e8eaed; }
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<path id="cookie" d="M94.2 50.0 L93.6 52.9 L91.9 55.5 L89.6 57.9 L87.4 60.0 L85.9 62.2 L85.1 64.6 L85.2 67.3 L85.5 70.5 L85.6 73.8 L84.9 76.8 L83.2 79.1 L80.6 80.6 L77.4 81.3 L74.2 81.6 L71.3 81.9 L68.9 82.7 L67.0 84.4 L65.2 86.7 L63.4 89.4 L61.2 91.8 L58.6 93.3 L55.7 93.6 L52.8 92.7 L50.0 91.0 L47.4 89.1 L45.0 87.7 L42.6 87.1 L40.0 87.4 L37.0 88.2 L33.8 89.0 L30.7 89.2 L27.9 88.3 L25.7 86.3 L24.3 83.5 L23.4 80.4 L22.6 77.4 L21.5 75.0 L19.8 73.2 L17.4 71.8 L14.5 70.5 L11.6 68.9 L9.4 66.8 L8.2 64.2 L8.2 61.2 L9.2 58.1 L10.6 55.2 L11.7 52.5 L12.2 50.0 L11.7 47.5 L10.6 44.8 L9.2 41.9 L8.2 38.8 L8.2 35.8 L9.4 33.2 L11.6 31.1 L14.5 29.5 L17.4 28.2 L19.8 26.8 L21.5 25.0 L22.6 22.6 L23.4 19.6 L24.3 16.5 L25.7 13.7 L27.9 11.7 L30.7 10.8 L33.8 11.0 L37.0 11.8 L40.0 12.6 L42.6 12.9 L45.0 12.3 L47.4 10.9 L50.0 9.0 L52.8 7.3 L55.7 6.4 L58.6 6.7 L61.2 8.2 L63.4 10.6 L65.2 13.3 L67.0 15.6 L68.9 17.3 L71.3 18.1 L74.2 18.4 L77.4 18.7 L80.6 19.4 L83.2 20.9 L84.9 23.2 L85.6 26.2 L85.5 29.5 L85.2 32.7 L85.1 35.4 L85.9 37.8 L87.4 40.0 L89.6 42.1 L91.9 44.5 L93.6 47.1Z"/><path id="sunny" d="M95.0 50.0 L93.5 52.1 L90.3 54.0 L88.0 55.6 L87.3 57.4 L86.5 59.1 L84.0 60.3 L80.6 60.9 L78.6 61.9 L79.4 63.9 L81.3 66.7 L82.3 69.3 L81.6 71.1 L80.8 72.9 L81.3 75.7 L82.2 79.2 L81.8 81.8 L79.2 82.2 L75.7 81.3 L72.9 80.8 L71.1 81.6 L69.3 82.3 L66.7 81.3 L63.9 79.4 L61.9 78.6 L60.9 80.6 L60.3 84.0 L59.1 86.5 L57.4 87.3 L55.6 88.0 L54.0 90.3 L52.1 93.5 L50.0 95.0 L47.9 93.5 L46.0 90.3 L44.4 88.0 L42.6 87.3 L40.9 86.5 L39.7 84.0 L39.1 80.6 L38.1 78.6 L36.1 79.4 L33.3 81.3 L30.7 82.3 L28.9 81.6 L27.1 80.8 L24.3 81.3 L20.8 82.2 L18.2 81.8 L17.8 79.2 L18.7 75.7 L19.2 72.9 L18.4 71.1 L17.7 69.3 L18.7 66.7 L20.6 63.9 L21.4 61.9 L19.4 60.9 L16.0 60.3 L13.5 59.1 L12.7 57.4 L12.0 55.6 L9.7 54.0 L6.5 52.1 L5.0 50.0 L6.5 47.9 L9.7 46.0 L12.0 44.4 L12.7 42.6 L13.5 40.9 L16.0 39.7 L19.4 39.1 L21.4 38.1 L20.6 36.1 L18.7 33.3 L17.7 30.7 L18.4 28.9 L19.2 27.1 L18.7 24.3 L17.8 20.8 L18.2 18.2 L20.8 17.8 L24.3 18.7 L27.1 19.2 L28.9 18.4 L30.7 17.7 L33.3 18.7 L36.1 20.6 L38.1 21.4 L39.1 19.4 L39.7 16.0 L40.9 13.5 L42.6 12.7 L44.4 12.0 L46.0 9.7 L47.9 6.5 L50.0 5.0 L52.1 6.5 L54.0 9.7 L55.6 12.0 L57.4 12.7 L59.1 13.5 L60.3 16.0 L60.9 19.4 L61.9 21.4 L63.9 20.6 L66.7 18.7 L69.3 17.7 L71.1 18.4 L72.9 19.2 L75.7 18.7 L79.2 17.8 L81.8 18.2 L82.2 20.8 L81.3 24.3 L80.8 27.1 L81.6 28.9 L82.3 30.7 L81.3 33.3 L79.4 36.1 L78.6 38.1 L80.6 39.1 L84.0 39.7 L86.5 40.9 L87.3 42.6 L88.0 44.4 L90.3 46.0 L93.5 47.9Z"/><path id="burst" d="M95.0 50.0 L94.7 52.0 L94.0 53.8 L92.7 55.6 L90.9 57.2 L88.6 58.5 L84.8 59.3 L87.7 61.9 L89.0 64.2 L89.8 66.5 L90.0 68.7 L89.7 70.7 L89.0 72.5 L87.8 74.1 L86.2 75.3 L84.2 76.2 L81.8 76.7 L79.1 76.7 L75.5 75.5 L76.7 79.1 L76.7 81.8 L76.2 84.2 L75.3 86.2 L74.1 87.8 L72.5 89.0 L70.7 89.7 L68.7 90.0 L66.5 89.8 L64.2 89.0 L61.9 87.7 L59.3 84.8 L58.5 88.6 L57.2 90.9 L55.6 92.7 L53.8 94.0 L52.0 94.7 L50.0 95.0 L48.0 94.7 L46.2 94.0 L44.4 92.7 L42.8 90.9 L41.5 88.6 L40.7 84.8 L38.1 87.7 L35.8 89.0 L33.5 89.8 L31.3 90.0 L29.3 89.7 L27.5 89.0 L25.9 87.8 L24.7 86.2 L23.8 84.2 L23.3 81.8 L23.3 79.1 L24.5 75.5 L20.9 76.7 L18.2 76.7 L15.8 76.2 L13.8 75.3 L12.2 74.1 L11.0 72.5 L10.3 70.7 L10.0 68.7 L10.2 66.5 L11.0 64.2 L12.3 61.9 L15.2 59.3 L11.4 58.5 L9.1 57.2 L7.3 55.6 L6.0 53.8 L5.3 52.0 L5.0 50.0 L5.3 48.0 L6.0 46.2 L7.3 44.4 L9.1 42.8 L11.4 41.5 L15.2 40.7 L12.3 38.1 L11.0 35.8 L10.2 33.5 L10.0 31.3 L10.3 29.3 L11.0 27.5 L12.2 25.9 L13.8 24.7 L15.8 23.8 L18.2 23.3 L20.9 23.3 L24.5 24.5 L23.3 20.9 L23.3 18.2 L23.8 15.8 L24.7 13.8 L25.9 12.2 L27.5 11.0 L29.3 10.3 L31.3 10.0 L33.5 10.2 L35.8 11.0 L38.1 12.3 L40.7 15.2 L41.5 11.4 L42.8 9.1 L44.4 7.3 L46.2 6.0 L48.0 5.3 L50.0 5.0 L52.0 5.3 L53.8 6.0 L55.6 7.3 L57.2 9.1 L58.5 11.4 L59.3 15.2 L61.9 12.3 L64.2 11.0 L66.5 10.2 L68.7 10.0 L70.7 10.3 L72.5 11.0 L74.1 12.2 L75.3 13.8 L76.2 15.8 L76.7 18.2 L76.7 20.9 L75.5 24.5 L79.1 23.3 L81.8 23.3 L84.2 23.8 L86.2 24.7 L87.8 25.9 L89.0 27.5 L89.7 29.3 L90.0 31.3 L89.8 33.5 L89.0 35.8 L87.7 38.1 L84.8 40.7 L88.6 41.5 L90.9 42.8 L92.7 44.4 L94.0 46.2 L94.7 48.0Z"/>
+<symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3 3 11h2v9h5v-6h4v6h5v-9h2z"/></symbol>
+<symbol id="i-apps" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6a2 2 0 0 1 2-2h13v3H5v1h15a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm14 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3h-4l-.4 3a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.7 7.7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.4 3h4l.4-3a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7z"/></symbol>
+<symbol id="i-flame" viewBox="0 0 24 24"><path fill="currentColor" d="M13 2c.6 3-1.2 4.4-2.6 6.2C9 10 8 11.6 8 13.6A4 4 0 0 0 12 18a4 4 0 0 0 4-4.2c0-1.3-.5-2.3-1.2-3.3.1 1 0 1.8-.7 2.4.2-3-1-6.3-1.1-10.9zM7 14a5 5 0 0 0 10 0c0 3.6-2.2 6-5 6s-5-2.4-5-6z"/></symbol>
+</defs></svg>
+<div class="th">
+<h2>Themes: one layout, twelve palettes, light and dark each</h2>
+<p class="subtitle">The Home you picked (B), re-coloured with four of the twelve presets (two dark, two light), plus the new Appearance screen. Tell me if any of these feels wrong or too low-key, and which presets to look at next.</p>
+<div class="row">
+<div class="col2"><span class="tag2">Catppuccin Mocha &middot; dark</span>
+<div class="ph" style="background:#1e1e2e;color:#cdd6f4">
+  <div class="sb"><span>9:30</span><span>5G ▮</span></div>
+  <div class="pd">
+    <div class="hd"><div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#cba6f7"><svg width="26" height="26" viewBox="0 0 100 100"><use href="#burst" fill="#cba6f7"/><svg x="27" y="27" width="46" height="46" viewBox="0 0 24 24" style="color:#2a1650"><use href="#i-flame"/></svg></svg>Today</div>
+      <div class="ib" style="background:#313244"><svg width="17" height="17" style="color:#cdd6f4"><use href="#i-gear"/></svg></div></div>
+    <div class="nw"><div class="num" style="color:#cba6f7">1.38</div><div class="bdg"><svg viewBox="0 0 100 100" width="62" height="62"><use href="#cookie" fill="#cba6f7"/></svg><span style="color:#2a1650">GB</span></div></div>
+    <div class="lf">12.4 GB left <small style="color:#a6adc8">of 20 GB &middot; renews in 18 days</small></div>
+    <svg width="100%" height="18" viewBox="0 0 250 18" preserveAspectRatio="none" style="margin:7px 0 2px"><path d="M2 9 Q10 0 18 9 T34 9 T50 9 T66 9 T82 9 T98 9 T114 9 T130 9 T146 9" fill="none" stroke="#cba6f7" stroke-width="4.5" stroke-linecap="round"/><path d="M156 9 H248" stroke="#cba6f7" stroke-opacity=".28" stroke-width="4.5" stroke-linecap="round"/></svg>
+    <div class="r2"><div class="t1" style="background:#45475a"><div class="k">Live &middot; Wi-Fi</div><div class="v" style="color:#cba6f7">&darr; 0 B/s</div></div>
+      <div class="t2" style="background:#a6e3a1;color:#10331a"><div class="k">Forecast</div><div class="v">Safe</div><div class="s">Lasts to renewal</div></div></div>
+    <div class="nt" style="background:#313244"><div style="display:flex;justify-content:space-between;font-weight:600;font-size:12px"><span>Today by network</span><span style="color:#a6adc8">1.38 GB</span></div>
+      <div class="br"><div style="flex:3;background:#f38ba8"></div><div style="flex:22;background:#cba6f7"></div></div></div>
+  </div>
+  <div class="nv" style="background:#313244"><div class="it on" style="background:#cba6f7;color:#2a1650"><svg><use href="#i-home"/></svg>Home</div><div class="it" style="color:#a6adc8"><svg><use href="#i-apps"/></svg></div><div class="it" style="color:#a6adc8"><svg><use href="#i-wallet"/></svg></div></div>
+</div></div>
+<div class="col2"><span class="tag2">Gruvbox &middot; light</span>
+<div class="ph" style="background:#fbf1c7;color:#3c3836">
+  <div class="sb"><span>9:30</span><span>5G ▮</span></div>
+  <div class="pd">
+    <div class="hd"><div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#af3a03"><svg width="26" height="26" viewBox="0 0 100 100"><use href="#burst" fill="#af3a03"/><svg x="27" y="27" width="46" height="46" viewBox="0 0 24 24" style="color:#fbf1c7"><use href="#i-flame"/></svg></svg>Today</div>
+      <div class="ib" style="background:#ebdbb2"><svg width="17" height="17" style="color:#3c3836"><use href="#i-gear"/></svg></div></div>
+    <div class="nw"><div class="num" style="color:#af3a03">1.38</div><div class="bdg"><svg viewBox="0 0 100 100" width="62" height="62"><use href="#cookie" fill="#af3a03"/></svg><span style="color:#fbf1c7">GB</span></div></div>
+    <div class="lf">12.4 GB left <small style="color:#665c54">of 20 GB &middot; renews in 18 days</small></div>
+    <svg width="100%" height="18" viewBox="0 0 250 18" preserveAspectRatio="none" style="margin:7px 0 2px"><path d="M2 9 Q10 0 18 9 T34 9 T50 9 T66 9 T82 9 T98 9 T114 9 T130 9 T146 9" fill="none" stroke="#af3a03" stroke-width="4.5" stroke-linecap="round"/><path d="M156 9 H248" stroke="#af3a03" stroke-opacity=".28" stroke-width="4.5" stroke-linecap="round"/></svg>
+    <div class="r2"><div class="t1" style="background:#d5c4a1"><div class="k">Live &middot; Wi-Fi</div><div class="v" style="color:#af3a03">&darr; 0 B/s</div></div>
+      <div class="t2" style="background:#79740e;color:#fbf1c7"><div class="k">Forecast</div><div class="v">Safe</div><div class="s">Lasts to renewal</div></div></div>
+    <div class="nt" style="background:#ebdbb2"><div style="display:flex;justify-content:space-between;font-weight:600;font-size:12px"><span>Today by network</span><span style="color:#665c54">1.38 GB</span></div>
+      <div class="br"><div style="flex:3;background:#9d0006"></div><div style="flex:22;background:#af3a03"></div></div></div>
+  </div>
+  <div class="nv" style="background:#ebdbb2"><div class="it on" style="background:#af3a03;color:#fbf1c7"><svg><use href="#i-home"/></svg>Home</div><div class="it" style="color:#665c54"><svg><use href="#i-apps"/></svg></div><div class="it" style="color:#665c54"><svg><use href="#i-wallet"/></svg></div></div>
+</div></div>
+<div class="col2"><span class="tag2">Nord &middot; dark</span>
+<div class="ph" style="background:#2e3440;color:#eceff4">
+  <div class="sb"><span>9:30</span><span>5G ▮</span></div>
+  <div class="pd">
+    <div class="hd"><div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#88c0d0"><svg width="26" height="26" viewBox="0 0 100 100"><use href="#burst" fill="#88c0d0"/><svg x="27" y="27" width="46" height="46" viewBox="0 0 24 24" style="color:#12303a"><use href="#i-flame"/></svg></svg>Today</div>
+      <div class="ib" style="background:#3b4252"><svg width="17" height="17" style="color:#eceff4"><use href="#i-gear"/></svg></div></div>
+    <div class="nw"><div class="num" style="color:#88c0d0">1.38</div><div class="bdg"><svg viewBox="0 0 100 100" width="62" height="62"><use href="#cookie" fill="#88c0d0"/></svg><span style="color:#12303a">GB</span></div></div>
+    <div class="lf">12.4 GB left <small style="color:#d8dee9">of 20 GB &middot; renews in 18 days</small></div>
+    <svg width="100%" height="18" viewBox="0 0 250 18" preserveAspectRatio="none" style="margin:7px 0 2px"><path d="M2 9 Q10 0 18 9 T34 9 T50 9 T66 9 T82 9 T98 9 T114 9 T130 9 T146 9" fill="none" stroke="#88c0d0" stroke-width="4.5" stroke-linecap="round"/><path d="M156 9 H248" stroke="#88c0d0" stroke-opacity=".28" stroke-width="4.5" stroke-linecap="round"/></svg>
+    <div class="r2"><div class="t1" style="background:#434c5e"><div class="k">Live &middot; Wi-Fi</div><div class="v" style="color:#88c0d0">&darr; 0 B/s</div></div>
+      <div class="t2" style="background:#a3be8c;color:#1f2d12"><div class="k">Forecast</div><div class="v">Safe</div><div class="s">Lasts to renewal</div></div></div>
+    <div class="nt" style="background:#3b4252"><div style="display:flex;justify-content:space-between;font-weight:600;font-size:12px"><span>Today by network</span><span style="color:#d8dee9">1.38 GB</span></div>
+      <div class="br"><div style="flex:3;background:#d08770"></div><div style="flex:22;background:#88c0d0"></div></div></div>
+  </div>
+  <div class="nv" style="background:#3b4252"><div class="it on" style="background:#88c0d0;color:#12303a"><svg><use href="#i-home"/></svg>Home</div><div class="it" style="color:#d8dee9"><svg><use href="#i-apps"/></svg></div><div class="it" style="color:#d8dee9"><svg><use href="#i-wallet"/></svg></div></div>
+</div></div>
+<div class="col2"><span class="tag2">Solarized &middot; light</span>
+<div class="ph" style="background:#fdf6e3;color:#073642">
+  <div class="sb"><span>9:30</span><span>5G ▮</span></div>
+  <div class="pd">
+    <div class="hd"><div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#1f6fb0"><svg width="26" height="26" viewBox="0 0 100 100"><use href="#burst" fill="#1f6fb0"/><svg x="27" y="27" width="46" height="46" viewBox="0 0 24 24" style="color:#fdf6e3"><use href="#i-flame"/></svg></svg>Today</div>
+      <div class="ib" style="background:#eee8d5"><svg width="17" height="17" style="color:#073642"><use href="#i-gear"/></svg></div></div>
+    <div class="nw"><div class="num" style="color:#1f6fb0">1.38</div><div class="bdg"><svg viewBox="0 0 100 100" width="62" height="62"><use href="#cookie" fill="#1f6fb0"/></svg><span style="color:#fdf6e3">GB</span></div></div>
+    <div class="lf">12.4 GB left <small style="color:#586e75">of 20 GB &middot; renews in 18 days</small></div>
+    <svg width="100%" height="18" viewBox="0 0 250 18" preserveAspectRatio="none" style="margin:7px 0 2px"><path d="M2 9 Q10 0 18 9 T34 9 T50 9 T66 9 T82 9 T98 9 T114 9 T130 9 T146 9" fill="none" stroke="#1f6fb0" stroke-width="4.5" stroke-linecap="round"/><path d="M156 9 H248" stroke="#1f6fb0" stroke-opacity=".28" stroke-width="4.5" stroke-linecap="round"/></svg>
+    <div class="r2"><div class="t1" style="background:#e4dcc2"><div class="k">Live &middot; Wi-Fi</div><div class="v" style="color:#1f6fb0">&darr; 0 B/s</div></div>
+      <div class="t2" style="background:#8a6a00;color:#fdf6e3"><div class="k">Forecast</div><div class="v">Safe</div><div class="s">Lasts to renewal</div></div></div>
+    <div class="nt" style="background:#eee8d5"><div style="display:flex;justify-content:space-between;font-weight:600;font-size:12px"><span>Today by network</span><span style="color:#586e75">1.38 GB</span></div>
+      <div class="br"><div style="flex:3;background:#c0392b"></div><div style="flex:22;background:#1f6fb0"></div></div></div>
+  </div>
+  <div class="nv" style="background:#eee8d5"><div class="it on" style="background:#1f6fb0;color:#fdf6e3"><svg><use href="#i-home"/></svg>Home</div><div class="it" style="color:#586e75"><svg><use href="#i-apps"/></svg></div><div class="it" style="color:#586e75"><svg><use href="#i-wallet"/></svg></div></div>
+</div></div></div>
+<div class="row" style="margin-top:26px">
+<div class="col2"><span class="tag2" style="background:#d0bcff;color:#2a1858">Settings &rsaquo; Appearance</span>
+<div class="ph" style="background:#110f19;color:#e8e1f5;height:690px">
+  <div class="sb"><span>9:30</span><span>5G ▮</span></div>
+  <div class="pd">
+    <div style="display:flex;align-items:center;gap:10px;height:44px;font-size:18px;font-weight:700"><span style="font-size:20px">&larr;</span>Appearance</div>
+    <div class="lbl">Mode</div>
+    <div class="seg"><div>System</div><div class="on">Dark</div><div>Light</div></div>
+    <div class="lbl">Theme</div>
+    <div class="grid"><div class="tc" style="background:#110f19;border:2px solid #d0bcff"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#d0bcff"/></svg><div class="dot" style="background:#c9f0d3"></div><div class="ck" style="background:#d0bcff;color:#110f19">✓</div><div class="nm" style="color:#d0bcff">Dusk</div></div><div class="tc" style="background:#17110e;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#ff9650"/></svg><div class="dot" style="background:#6fd6c1"></div><div class="nm" style="color:#ff9650">Ember</div></div><div class="tc" style="background:#121212;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#e0e0e0"/></svg><div class="dot" style="background:#9e9e9e"></div><div class="nm" style="color:#e0e0e0">Monochrome</div></div><div class="tc" style="background:#1e1e2e;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#cba6f7"/></svg><div class="dot" style="background:#a6e3a1"></div><div class="nm" style="color:#cba6f7">Catppuccin</div></div><div class="tc" style="background:#282828;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#fabd2f"/></svg><div class="dot" style="background:#8ec07c"></div><div class="nm" style="color:#fabd2f">Gruvbox</div></div><div class="tc" style="background:#2e3440;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#88c0d0"/></svg><div class="dot" style="background:#a3be8c"></div><div class="nm" style="color:#88c0d0">Nord</div></div><div class="tc" style="background:#191724;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#c4a7e7"/></svg><div class="dot" style="background:#ebbcba"></div><div class="nm" style="color:#c4a7e7">Rosé Pine</div></div><div class="tc" style="background:#002b36;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#268bd2"/></svg><div class="dot" style="background:#b58900"></div><div class="nm" style="color:#268bd2">Solarized</div></div><div class="tc" style="background:#282a36;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#bd93f9"/></svg><div class="dot" style="background:#50fa7b"></div><div class="nm" style="color:#bd93f9">Dracula</div></div><div class="tc" style="background:#1a1b26;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#7aa2f7"/></svg><div class="dot" style="background:#9ece6a"></div><div class="nm" style="color:#7aa2f7">Tokyo Night</div></div><div class="tc" style="background:#2d353b;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#a7c080"/></svg><div class="dot" style="background:#e69875"></div><div class="nm" style="color:#a7c080">Everforest</div></div><div class="tc" style="background:#1f1f28;border:2px solid transparent"><svg viewBox="0 0 100 100" width="54" height="54"><use href="#cookie" fill="#957fb8"/></svg><div class="dot" style="background:#98bb6c"></div><div class="nm" style="color:#957fb8">Kanagawa</div></div></div>
+    <div class="sw"><div><b>Wallpaper colours</b><br><small>Android 12+, replaces the theme</small></div><div class="tg"></div></div>
+    <div class="sw"><div><b>Pure black (AMOLED)</b><br><small>Dark mode only</small></div><div class="tg on"></div></div>
+  </div>
+</div>
+<div class="cp"><b>Every theme has a light and a dark version.</b> Cards show the theme in the mode you are using. Wallpaper colours is a switch, not a theme.</div></div></div>
+<p class="subtitle" style="margin-top:20px">Catppuccin, Gruvbox, Nord and Solarized colours are their official palettes mapped to our roles; I nudged a few so text and graphics keep their 4.5:1 and 3:1 contrast, and every theme and mode will be checked by the contrast test.</p>
+</div><script>function toggleSelect(){}</script></body></html>
