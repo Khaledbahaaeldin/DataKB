@@ -24,7 +24,7 @@ encrypted local backups.
 - **Totals by Mobile & Wi-Fi**: Clear separation of cellular mobile data and Wi-Fi network consumption.
 - **Per-App History**: Breakdown of data usage per application across daily and 2-hour measurement windows.
 - **Flexible Data Plans with Forecast & Alerts**: Custom billing cycles (monthly or every N days), SIM binding, add-on quota packs, free data windows (e.g. night data), and usage rollover (capped or uncapped). Predicts run-out dates based on your learned hourly usage curve over the last 28 days and alerts at 50%, 80%, 90%, and 100% quota.
-- **Home-Screen Widgets**: Jetpack Glance widgets displaying today's usage, remaining data or run-out forecast caption, live transfer speed, and top apps.
+- **Home-Screen Widgets**: Jetpack Glance widgets (Hero and Bento). Hero shows today's usage and the remaining data; Bento adds the run-out forecast caption, the download speed as of the last refresh, and the top apps.
 - **Per-App Data Budgets**: Set daily or billing-cycle cellular budgets per application with warning notifications.
 - **Spike Detector**: Alerts when an app consumes an unusual surge of mobile data against a 14-day median baseline.
 - **"What If" Scenario Planner**: Explore how hypothetical extra daily usage alters your projected run-out date.
@@ -52,11 +52,11 @@ Every permission declared in [`AndroidManifest.xml`](app/src/main/AndroidManifes
 | `android.permission.QUERY_ALL_PACKAGES` | System / Store Policy | Required to resolve installed app names, icons, and package visibility across UIDs for data usage breakdown on Android 11+ (API 30+). |
 | `android.permission.ACCESS_NETWORK_STATE` | Normal | Required to observe active network connectivity (Wi-Fi vs Cellular vs Metered) and network capabilities. |
 | `android.permission.READ_PHONE_STATE` | Dangerous / Runtime | Required on multi-SIM devices to detect active subscription IDs and correlate cellular usage with the user's configured data plan SIM slot. |
-| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post threshold warning notifications (50%, 80%, 90%, 100% plan quota) and promoted ongoing live sampler notifications. |
+| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post plan alerts (thresholds chosen per plan from 50%, 80%, 90% and 100%; default 80% and 100%), budget and spike alerts, and the ongoing live notification. |
 | `android.permission.POST_PROMOTED_NOTIFICATIONS` | Normal (API 36+) | Required for Android 16+ Promoted Ongoing live status bar indicator showing remaining plan data (e.g. 3.2 GB or 0 B). |
 | `android.permission.FOREGROUND_SERVICE` | Normal | Required to run `SamplerService` as a background foreground service for periodic network rate sampling and threshold checks. |
 | `android.permission.FOREGROUND_SERVICE_SPECIAL_USE` | Foreground Service Type (API 34+) | Declares the specific foreground service subtype (`data_metering_sampler`) for continuous background network traffic monitoring under modern platform restrictions. |
-| `android.permission.RECEIVE_BOOT_COMPLETED` | Normal | Allows `BootReceiver` to restore `SamplerService` and alarms immediately when the device boots, preventing unmonitored data leaks after restart. |
+| `android.permission.RECEIVE_BOOT_COMPLETED` | Normal | Allows `BootReceiver` to start `SamplerService` after a reboot or an app update (only once onboarding is complete), so measuring continues without opening the app. |
 | `android.permission.WAKE_LOCK` | Normal | Merged by AndroidX WorkManager runtime to allow background periodic maintenance and catch-up jobs to acquire wake locks during execution. |
 | `io.github.khaledbahaaeldin.emberbyte.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Signature | Merged by AndroidX Core library to protect internal dynamic broadcast receivers from unauthorized external broadcasts on modern Android versions. |
 

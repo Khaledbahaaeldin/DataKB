@@ -71,11 +71,11 @@ Every permission declared in [`app/src/main/AndroidManifest.xml`](../../app/src/
 | `android.permission.QUERY_ALL_PACKAGES` | System / Store Policy | Required to resolve installed app names, icons, and package visibility across UIDs for data usage breakdown on Android 11+ (API 30+). |
 | `android.permission.ACCESS_NETWORK_STATE` | Normal | Required to observe active network connectivity (Wi-Fi vs Cellular vs Metered) and network capabilities. |
 | `android.permission.READ_PHONE_STATE` | Dangerous / Runtime | Required on multi-SIM devices to detect active subscription IDs and correlate cellular usage with the user's configured data plan SIM slot. |
-| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post threshold warning notifications (50%, 80%, 90%, 100% plan quota) and promoted ongoing live sampler notifications. |
+| `android.permission.POST_NOTIFICATIONS` | Runtime (API 33+) | Required to post plan alerts (thresholds chosen per plan from 50%, 80%, 90% and 100%; default 80% and 100%), budget and spike alerts, and the ongoing live notification. |
 | `android.permission.POST_PROMOTED_NOTIFICATIONS` | Normal (API 36+) | Required for Android 16+ Promoted Ongoing live status bar indicator showing remaining plan data (e.g. 3.2 GB or 0 B). |
 | `android.permission.FOREGROUND_SERVICE` | Normal | Required to run `SamplerService` as a background foreground service for periodic network rate sampling and threshold checks. |
 | `android.permission.FOREGROUND_SERVICE_SPECIAL_USE` | Foreground Service Type (API 34+) | Declares the specific foreground service subtype (`data_metering_sampler`) for continuous background network traffic monitoring under modern platform restrictions. |
-| `android.permission.RECEIVE_BOOT_COMPLETED` | Normal | Allows `BootReceiver` to restore `SamplerService` and alarms immediately when the device boots, preventing unmonitored data leaks after restart. |
+| `android.permission.RECEIVE_BOOT_COMPLETED` | Normal | Allows `BootReceiver` to start `SamplerService` after a reboot or an app update (only once onboarding is complete), so measuring continues without opening the app. |
 | `android.permission.WAKE_LOCK` | Normal | Merged by AndroidX WorkManager runtime to allow background periodic maintenance and catch-up jobs to acquire wake locks during execution. |
 | `io.github.khaledbahaaeldin.emberbyte.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Signature | Merged by AndroidX Core library to protect internal dynamic broadcast receivers from unauthorized external broadcasts on modern Android versions. |
 
@@ -103,13 +103,10 @@ To verify that two clean checkouts produce identical builds:
    ```
    *(Note: The traditional `unzip` + `diff -r` approach silently drops 178 entries whose names differ only by case on case-insensitive filesystems like Windows and macOS APFS; `tools/compare-apks.py` inspects the zip central directory directly).*
 
-   **Verified Baseline Figures**:
-   - Release APK Size: ~5.96 MB (5,956,467 bytes)
-   - Total Zip Entries: 1,088
-   - Non-META-INF Entries Compared: 998 (100% matched)
-   - Current Unsigned Release APK SHA-256: `084201b0149ef3ae783750b5bf2fdb625ee47c3e4661c7daa2478af3511fcbb7`
-   
-   *(Note: The whole-file APK SHA-256 and size vary between commits because AGP embeds VCS revision metadata into `META-INF/version-control-info.textproto`. The python script `tools/compare-apks.py` inspects the zip central directory directly and proves functional byte-identity across all 998 non-META-INF entries between independent builds of the same commit).*
+   **Verified figures** (two independent clean builds of the same sources, 2026-10-16):
+   - Release APK size: about 5.96 MB (5,956,467 bytes)
+   - Total zip entries: 1,088; entries outside `META-INF/`: 998, all identical between the two builds
+   - The whole-file SHA-256 is deliberately not recorded here. It depends on the exact sources, the build environment and whether the build is made from a git checkout or from a source archive (an archive carries no version-control information, so the embedded `META-INF/version-control-info.textproto` differs), so a hash copied from one machine proves nothing on another. Reproducibility is checked by comparing two builds of the same commit with `tools/compare-apks.py`, which ignores the signature and version-control files.
 
 ---
 
