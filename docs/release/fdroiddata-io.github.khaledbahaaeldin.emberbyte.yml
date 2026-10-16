@@ -1,0 +1,41 @@
+# DRAFT metadata recipe for F-Droid submission (gitlab.com/fdroid/fdroiddata).
+# NOTE: This file is a draft prepared for the maintainer to open a Merge Request
+# against gitlab.com/fdroid/fdroiddata once git tag 'v1.0.0' has been tagged and pushed.
+#
+# Anti-Features Audit:
+# - NonFreeNet: NONE. Emberbyte makes zero network calls and declares NO android.permission.INTERNET.
+# - NonFreeDep: NONE. All build and runtime dependencies are verified free/libre open-source software
+#   resolved strictly from Maven Central and Google Maven (audited in NOTICE and P3 dependency verification).
+# - NonFreeAssets: NONE. All bundled assets are free software (Roboto Flex under SIL Open Font License 1.1,
+#   launcher vectors and UI icons under Apache-2.0 / original GPL-3.0-or-later).
+# - Tracking: NONE. The application contains zero analytics, telemetry, crash reporters, or tracking libraries.
+# - UpstreamNonFree: NONE. Entire source code, build configuration, and assets are 100% free software.
+#
+# Category Justification:
+# - System: Emberbyte is a system utility monitoring network interface traffic statistics, managing
+#   cellular quota budgets, and providing real-time transfer sampling indicators.
+
+Categories:
+  - System
+License: GPL-3.0-or-later
+AuthorName: Khaled Bahaaeldin
+AuthorWebSite: https://github.com/Khaledbahaaeldin
+SourceCode: https://github.com/Khaledbahaaeldin/DataKB
+IssueTracker: https://github.com/Khaledbahaaeldin/DataKB/issues
+Changelog: https://github.com/Khaledbahaaeldin/DataKB/blob/main/CHANGELOG.md
+
+RepoType: git
+Repo: https://github.com/Khaledbahaaeldin/DataKB.git
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    subdir: app
+    gradle:
+      - yes

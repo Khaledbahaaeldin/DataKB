@@ -16,8 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,6 +40,10 @@ import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.PermissionPrompt
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.SpeedTile
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.TileContainer
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.UsageBarRow
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.ui.platform.LocalDensity
 
 @Composable
 fun HomeScreen(
@@ -87,7 +91,7 @@ internal fun HomeContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     state.planChips.forEach { chip ->
-                        FilterChip(
+                        EmberbyteFilterChip(
                             selected = chip.selected,
                             onClick = { onEvent(HomeEvent.SelectPlan(chip.id)) },
                             label = { Text(chip.name) },
@@ -104,7 +108,10 @@ internal fun HomeContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onOpenSettings) {
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                ) {
                     Icon(Icons.Rounded.Settings, contentDescription = "Settings")
                 }
             }
@@ -132,18 +139,35 @@ internal fun HomeContent(
             PermissionPrompt(prompt, onAction = { onPromptAction(prompt.id) })
         }
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                SpeedTile(
-                    rxBps = state.liveRxBps,
-                    txBps = state.liveTxBps,
-                    network = state.network,
-                    units = state.units,
-                    modifier = Modifier.weight(1f),
-                )
-                state.forecast?.let { ForecastTile(it, Modifier.weight(1f)) }
+            val fontScale = LocalDensity.current.fontScale
+            if (fontScale >= 1.5f) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SpeedTile(
+                        rxBps = state.liveRxBps,
+                        txBps = state.liveTxBps,
+                        network = state.network,
+                        units = state.units,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    state.forecast?.let { ForecastTile(it, Modifier.fillMaxWidth()) }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SpeedTile(
+                        rxBps = state.liveRxBps,
+                        txBps = state.liveTxBps,
+                        network = state.network,
+                        units = state.units,
+                        modifier = Modifier.weight(1f),
+                    )
+                    state.forecast?.let { ForecastTile(it, Modifier.weight(1f)) }
+                }
             }
         }
         state.spike?.let { spike ->
@@ -165,6 +189,7 @@ internal fun HomeContent(
                     TextButton(
                         onClick = { onEvent(HomeEvent.DismissSpike(spike.id)) },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     ) {
                         Text("Dismiss")
                     }
@@ -191,7 +216,9 @@ internal fun HomeContent(
             item {
                 BentoTile(title = "Data plan", modifier = Modifier.fillMaxWidth(), onClick = onSetUpPlan) {
                     Text("Set up your data plan to see what is left and when it runs out.", style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = onSetUpPlan) { Text("Set up your data plan") }
+                    TextButton(onClick = onSetUpPlan, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
+                        Text("Set up your data plan")
+                    }
                 }
             }
         }
@@ -210,11 +237,17 @@ internal fun HomeContent(
             }
         }
         item {
+            val weekSummary = run {
+                val highest = state.week.maxByOrNull { it.bytes }
+                if (highest != null) "Daily usage, last 7 days, highest ${highest.description}"
+                else "Daily usage, last 7 days"
+            }
             UsageBarRow(
                 points = state.week,
                 selectedIndex = state.selectedDay,
                 onSelect = { onEvent(HomeEvent.SelectDay(it)) },
                 openAtEnd = false,
+                summaryDescription = weekSummary,
             )
         }
     }

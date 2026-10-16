@@ -1,5 +1,6 @@
 package io.github.khaledbahaaeldin.emberbyte.sampler
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
@@ -40,6 +41,20 @@ class SamplerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var job: Job? = null
     @Volatile private var lastText: LiveNotificationText? = null
+    @Volatile internal var liveUpdateFailed: Boolean = false
+
+    internal fun buildNotificationSafely(builder: LiveNotificationBuilder, text: LiveNotificationText): Notification {
+        if (liveUpdateFailed) {
+            return builder.buildStandard(text)
+        }
+        return try {
+            builder.build(text)
+        } catch (t: Throwable) {
+            liveUpdateFailed = true
+            Log.e(TAG, "Live notification build failed with ${t.javaClass.name}; falling back to standard notification")
+            builder.buildStandard(text)
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -55,7 +70,7 @@ class SamplerService : Service() {
         val builder = LiveNotificationBuilder(this)
         // Re-post the last known text, never a zero placeholder, when Android calls us again while the work is already running.
         val text = lastText ?: LiveNotificationText(getString(R.string.notification_measuring), null)
-        val notification = builder.build(text)
+        val notification = buildNotificationSafely(builder, text)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
@@ -131,16 +146,19 @@ class SamplerService : Service() {
     private suspend fun updateNotification(graph: AppGraph, builder: LiveNotificationBuilder) {
         val manager = getSystemService(NotificationManager::class.java)
         val speeds = graph.usage.observeLiveSpeed().map<LiveSpeed, LiveSpeed?> { it }.onStart { emit(null) }
-        val remaining = graph.plans.observeActivePlanStates().map { it.firstOrNull()?.remainingBytes }
-        combine(speeds, graph.usage.observeToday(), graph.settings.observe(), remaining) { speed, today, settings, left ->
+        val activePlans = graph.plans.observeActivePlanStates()
+        combine(speeds, graph.usage.observeToday(), graph.settings.observe(), activePlans) { speed, today, settings, plans ->
             if (settings.liveNotificationEnabled) {
+                val active = plans.firstOrNull()
+                val units = settings.unitSystem.toByteUnits()
                 liveNotificationText(
                     todayBytes = today.totalBytes,
                     rxBps = speed?.rxBps ?: 0L,
-                    units = settings.unitSystem.toByteUnits(),
+                    units = units,
                     showSpeed = settings.notificationShowsSpeed,
                     offline = speed != null && speed.network == null,
-                    remainingBytes = left,
+                    remainingBytes = active?.remainingBytes,
+                    progress = liveProgressOf(active, units),
                 )
             } else {
                 // A foreground service must show a notification; keep it minimal when the user turned this off.
@@ -148,7 +166,8 @@ class SamplerService : Service() {
             }
         }.distinctUntilChanged().conflate().collect { text ->
             lastText = text
-            manager.notify(NOTIFICATION_ID, builder.build(text))
+            val notification = buildNotificationSafely(builder, text)
+            manager.notify(NOTIFICATION_ID, notification)
             delay(1_000L) // at most one update per second
         }
     }

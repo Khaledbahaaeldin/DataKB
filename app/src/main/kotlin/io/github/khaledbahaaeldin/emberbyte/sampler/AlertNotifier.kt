@@ -25,6 +25,7 @@ object AlertNotifier {
             .setSmallIcon(R.drawable.ic_stat_ember)
             .setContentTitle(text.title)
             .setContentText(text.text)
+            .setTicker(text.contentDescription)
             .setAutoCancel(true)
             .setContentIntent(open)
             .build()

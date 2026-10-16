@@ -7,6 +7,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Offset
@@ -29,8 +30,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.EmberbyteTheme
 import io.github.khaledbahaaeldin.emberbyte.ui.design.theme.LocalReduceMotion
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -120,6 +126,13 @@ class FloatingPillNavBarTest {
         }
     }
 
+    @Test fun selected_tab_has_no_content_description_because_it_has_visible_text() {
+        show("home")
+        val homeNode = rule.onNodeWithTag("nav_home").fetchSemanticsNode()
+        val desc = homeNode.config.getOrNull(SemanticsProperties.ContentDescription)
+        assertTrue("Selected tab should not set contentDescription because visible text is present", desc.isNullOrEmpty())
+    }
+
     @Test fun the_bar_is_a_tablist_container_with_a_description() {
         show("home")
         rule.onNodeWithTag("pill_nav_bar")
@@ -161,15 +174,211 @@ class FloatingPillNavBarTest {
         rule.onNodeWithTag("pill_nav_bar").assertIsDisplayed()
     }
 
-    @Test fun reduce_motion_disables_the_drag_but_taps_still_select() {
+    @Test fun reduce_motion_keeps_drag_selection_and_taps_still_select() {
         var picked: String? = null
         show("home", reduceMotion = true) { picked = it }
         rule.onNodeWithTag("pill_nav_bar").performTouchInput {
             swipe(start = Offset(30f, centerY), end = Offset(width - 12f, centerY), durationMillis = 300)
         }
         rule.waitForIdle()
-        assertNull(picked)
+        assertEquals("extra", picked)
         rule.onNodeWithTag("nav_plans").performClick()
         assertEquals("plans", picked)
     }
+
+    // ---- 3-item navbar accessibility & drag (M6 Task P2) ----
+
+    private val threeItems = listOf(
+        NavBarItem("home", "Home", Icons.Rounded.Home, NavAccent.Primary),
+        NavBarItem("apps", "Apps", Icons.Rounded.Apps, NavAccent.Tertiary),
+        NavBarItem("plans", "Plans", Icons.Rounded.AccountBalanceWallet, NavAccent.Secondary),
+    )
+
+    private fun showThree(
+        initialSelectedId: String = "home",
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        reduceMotion: Boolean = false,
+        onSelect: (String) -> Unit = {},
+    ) {
+        rule.setContent {
+            var currentSelected by remember { mutableStateOf(initialSelectedId) }
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                CompositionLocalProvider(
+                    LocalLayoutDirection provides layoutDirection,
+                    LocalReduceMotion provides reduceMotion,
+                ) {
+                    FloatingPillNavBar(
+                        items = threeItems,
+                        selectedId = currentSelected,
+                        onSelect = {
+                            currentSelected = it
+                            onSelect(it)
+                        },
+                        visible = true,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test fun three_items_are_role_tab_with_selected_state_and_name_and_touch_target_at_least_48dp() {
+        showThree("home")
+        threeItems.forEach { item ->
+            val selected = item.id == "home"
+            val tabNode = rule.onNodeWithTag("nav_${item.id}")
+            tabNode.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+            if (selected) tabNode.assertIsSelected() else tabNode.assertIsNotSelected()
+
+            val semantics = tabNode.fetchSemanticsNode()
+            val hasName = semantics.config.getOrNull(SemanticsProperties.Text)?.isNotEmpty() == true ||
+                semantics.config.getOrNull(SemanticsProperties.ContentDescription)?.isNotEmpty() == true
+            assertTrue("Tab ${item.id} must expose an accessible name on its semantics node", hasName)
+
+            val widthDp = with(rule.density) { semantics.size.width.toDp() }
+            val heightDp = with(rule.density) { semantics.size.height.toDp() }
+            assertTrue("Touch target width ($widthDp) must be >= 48.dp", widthDp >= 47.9.dp)
+            assertTrue("Touch target height ($heightDp) must be >= 48.dp", heightDp >= 47.9.dp)
+        }
+    }
+
+    @Test fun three_items_selection_by_click_for_each_index() {
+        var picked: String? = null
+        showThree("home") { picked = it }
+        rule.onNodeWithTag("nav_apps").performClick()
+        assertEquals("apps", picked)
+
+        rule.onNodeWithTag("nav_plans").performClick()
+        assertEquals("plans", picked)
+
+        rule.onNodeWithTag("nav_home").performClick()
+        assertEquals("home", picked)
+    }
+
+    @Test fun three_items_drag_snap_lands_on_the_right_item_for_each_index() {
+        var picked: String? = null
+        showThree("home") { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // Drag to apps (center)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.50f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("apps", picked)
+
+        // Drag to plans (right)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.85f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
+
+        // Drag to home (left)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.85f, centerY), end = Offset(width * 0.15f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("home", picked)
+    }
+
+    @Test fun three_items_rtl_drag_snap_lands_on_the_right_item_for_each_index() {
+        var picked: String? = null
+        showThree("home", layoutDirection = LayoutDirection.Rtl) { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // In RTL, index 0 (home) is at the right, index 1 (apps) in center, index 2 (plans) at the left.
+        // Drag from home (right) to plans (left)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.85f, centerY), end = Offset(width * 0.15f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
+
+        // Drag from plans (left) to apps (center)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.50f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("apps", picked)
+
+        // Drag from apps (center) to home (right)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.50f, centerY), end = Offset(width * 0.85f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("home", picked)
+    }
+
+    @Test fun navbar_tabs_are_ordered_from_right_to_left_in_rtl() {
+        showThree("home", layoutDirection = LayoutDirection.Rtl)
+        val homeBounds = rule.onNodeWithTag("nav_home").getBoundsInRoot()
+        val appsBounds = rule.onNodeWithTag("nav_apps").getBoundsInRoot()
+        val plansBounds = rule.onNodeWithTag("nav_plans").getBoundsInRoot()
+
+        assertTrue(
+            "In RTL, Home (${homeBounds.left}) must be to the right of Apps (${appsBounds.left})",
+            homeBounds.left > appsBounds.left,
+        )
+        assertTrue(
+            "In RTL, Apps (${appsBounds.left}) must be to the right of Plans (${plansBounds.left})",
+            appsBounds.left > plansBounds.left,
+        )
+    }
+
+    @Test
+    fun navbar_item_spring_and_pill_follow_snap_when_reduce_motion_is_true() {
+        var capturedSize: androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize>? = null
+        var capturedColor: androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color>? = null
+        var capturedFollow: androidx.compose.animation.core.AnimationSpec<Float>? = null
+
+        rule.setContent {
+            EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                CompositionLocalProvider(LocalReduceMotion provides true) {
+                    FloatingPillNavBar(
+                        items = items,
+                        selectedId = "home",
+                        onSelect = {},
+                        visible = true,
+                        onMotionResolved = { size, color, follow ->
+                            capturedSize = size
+                            capturedColor = color
+                            capturedFollow = follow
+                        },
+                    )
+                }
+            }
+        }
+
+        assertTrue("Item size spec must be SnapSpec when reduce motion is enabled", capturedSize is androidx.compose.animation.core.SnapSpec)
+        assertTrue("Item color spec must be SnapSpec when reduce motion is enabled", capturedColor is androidx.compose.animation.core.SnapSpec)
+        assertTrue("Pill follow spec must be SnapSpec when reduce motion is enabled", capturedFollow is androidx.compose.animation.core.SnapSpec)
+    }
+
+    @Test
+    fun horizontal_drag_from_item_0_to_item_2_with_reduce_motion_selects_plans() {
+        var picked: String? = null
+        showThree("home", reduceMotion = true) { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.15f, centerY), end = Offset(width * 0.85f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
+    }
+
+    @Test
+    fun rtl_horizontal_drag_with_reduce_motion_selects_plans() {
+        var picked: String? = null
+        showThree("home", layoutDirection = LayoutDirection.Rtl, reduceMotion = true) { picked = it }
+        val bar = rule.onNodeWithTag("pill_nav_bar")
+
+        // In RTL, home is at right (0.85f), plans is at left (0.15f)
+        bar.performTouchInput {
+            swipe(start = Offset(width * 0.85f, centerY), end = Offset(width * 0.15f, centerY), durationMillis = 200)
+        }
+        rule.waitForIdle()
+        assertEquals("plans", picked)
+    }
 }
+

@@ -7,14 +7,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -130,17 +131,30 @@ private fun ChipRow(content: @Composable () -> Unit) {
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(selected = selected, onClick = onClick, label = { ForceLtr { Text(label) } })
+    EmberbyteFilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { ForceLtr { Text(label) } },
+    )
 }
 
 @Composable
 private fun SortMenu(sort: AppSort, onSort: (AppSort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { open = true }) { Text("Sort: ${sortLabel(sort)}") }
+        TextButton(
+            onClick = { open = true },
+            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        ) {
+            Text("Sort: ${sortLabel(sort)}")
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             listOf(AppSort.BYTES_DESC, AppSort.BYTES_ASC, AppSort.NAME).forEach { option ->
-                DropdownMenuItem(text = { Text(sortLabel(option)) }, onClick = { onSort(option); open = false })
+                DropdownMenuItem(
+                    text = { Text(sortLabel(option)) },
+                    onClick = { onSort(option); open = false },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                )
             }
         }
     }

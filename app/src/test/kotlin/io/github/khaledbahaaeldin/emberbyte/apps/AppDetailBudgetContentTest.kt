@@ -115,8 +115,8 @@ class AppDetailBudgetContentTest {
         rule.onNodeWithText("80%").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("90%").performScrollTo().assertIsDisplayed().performClick()
 
-        rule.onNodeWithText("Save").assertIsDisplayed().performClick()
-        rule.onNodeWithText("Cancel").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Save").performScrollTo().assertIsDisplayed().performClick()
+        rule.onNodeWithText("Cancel").performScrollTo().assertIsDisplayed().performClick()
 
         assertTrue(events.contains(AppDetailEvent.SetBudgetUnit(CapUnit.MB)))
         assertTrue(events.contains(AppDetailEvent.SetBudgetPeriod(BudgetPeriod.DAILY)))

@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -78,6 +79,17 @@ internal fun glassTintAlpha(hasGlass: Boolean, sdkInt: Int): Float = if (hasGlas
 
 private const val MAX_NAV_FONT_SCALE = 1.15f
 
+internal object FloatingPillNavMotion {
+    fun itemSizeSpec(reduceMotion: Boolean, motion: androidx.compose.material3.MotionScheme): androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize> =
+        if (reduceMotion) androidx.compose.animation.core.snap() else motion.fastSpatialSpec()
+
+    fun itemColorSpec(reduceMotion: Boolean, motion: androidx.compose.material3.MotionScheme): androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color> =
+        if (reduceMotion) androidx.compose.animation.core.snap() else motion.fastEffectsSpec()
+
+    fun pillFollowSpec(previewIndex: Int?, reduceMotion: Boolean, motion: androidx.compose.material3.MotionScheme): androidx.compose.animation.core.AnimationSpec<Float> =
+        if (previewIndex != null || reduceMotion) androidx.compose.animation.core.snap() else motion.fastSpatialSpec()
+}
+
 @Composable
 fun FloatingPillNavBar(
     items: List<NavBarItem>,
@@ -87,6 +99,7 @@ fun FloatingPillNavBar(
     modifier: Modifier = Modifier,
     hapticsEnabled: Boolean = true,
     glass: GlassSource? = null,
+    onMotionResolved: ((androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize>, androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color>, androidx.compose.animation.core.AnimationSpec<Float>) -> Unit)? = null,
 ) {
     val reduceMotion = LocalReduceMotion.current
     val motion = MaterialTheme.motionScheme
@@ -94,7 +107,7 @@ fun FloatingPillNavBar(
     val cappedDensity = remember(density) { Density(density.density, minOf(density.fontScale, MAX_NAV_FONT_SCALE)) }
     CompositionLocalProvider(LocalDensity provides cappedDensity) {
         val content: @Composable () -> Unit = {
-            PillSurface(items, selectedId, onSelect, hapticsEnabled, glass, dragEnabled = !reduceMotion)
+            PillSurface(items, selectedId, onSelect, hapticsEnabled, glass, dragEnabled = true, onMotionResolved = onMotionResolved)
         }
         if (reduceMotion) {
             // Reduced motion: no hide animation and no scroll-hide at all; the bar always stays visible.
@@ -120,8 +133,10 @@ private fun PillSurface(
     hapticsEnabled: Boolean,
     glass: GlassSource?,
     dragEnabled: Boolean,
+    onMotionResolved: ((androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize>, androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color>, androidx.compose.animation.core.AnimationSpec<Float>) -> Unit)? = null,
 ) {
     val motion = MaterialTheme.motionScheme
+    val reduceMotion = LocalReduceMotion.current
     val haptics = LocalHapticFeedback.current
     val selectedIndex = items.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
     var previewIndex by remember { mutableStateOf<Int?>(null) }
@@ -145,10 +160,15 @@ private fun PillSurface(
         }
     }
 
+    val followSpec = FloatingPillNavMotion.pillFollowSpec(previewIndex, reduceMotion, motion)
+    val sizeSpec = FloatingPillNavMotion.itemSizeSpec(reduceMotion, motion)
+    val colorSpec = FloatingPillNavMotion.itemColorSpec(reduceMotion, motion)
+    onMotionResolved?.invoke(sizeSpec, colorSpec, followSpec)
+
     // The previewed pill follows the finger with resistance while dragging, then springs home on release.
     val followDx by animateFloatAsState(
         targetValue = if (previewIndex != null) dragDx else 0f,
-        animationSpec = if (previewIndex != null) snap() else motion.fastSpatialSpec(),
+        animationSpec = followSpec,
         label = "navPillFollow",
     )
 
@@ -205,6 +225,8 @@ private fun PillSurface(
                     item = item,
                     selected = index == shownIndex,
                     dragOffset = { if (index == shownIndex) followDx else 0f },
+                    sizeSpec = sizeSpec,
+                    colorSpec = colorSpec,
                     onBounds = { start, end ->
                         starts[index] = start
                         ends[index] = end
@@ -226,22 +248,22 @@ private fun NavItem(
     item: NavBarItem,
     selected: Boolean,
     dragOffset: () -> Float,
+    sizeSpec: androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntSize>,
+    colorSpec: androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.graphics.Color>,
     onBounds: (start: Float, end: Float) -> Unit,
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val (container, content) = item.accent.colors(scheme)
-    val reduceMotion = LocalReduceMotion.current
-    val motion = MaterialTheme.motionScheme
 
     val background by animateColorAsState(
         targetValue = if (selected) container else Color.Transparent,
-        animationSpec = if (reduceMotion) snap() else motion.fastEffectsSpec(),
+        animationSpec = colorSpec,
         label = "navItemBackground",
     )
     val foreground by animateColorAsState(
         targetValue = if (selected) content else scheme.onSurfaceVariant,
-        animationSpec = if (reduceMotion) snap() else motion.fastEffectsSpec(),
+        animationSpec = colorSpec,
         label = "navItemForeground",
     )
 
@@ -254,16 +276,18 @@ private fun NavItem(
             }
             .graphicsLayer { translationX = dragOffset() }
             .height(48.dp)
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .clip(CircleShape)
             .background(background)
-            .animateContentSize(if (reduceMotion) snap<IntSize>() else motion.fastSpatialSpec<IntSize>())
+            .animateContentSize(sizeSpec)
             .selectable(selected = selected, onClick = onClick, role = Role.Tab)
+            .semantics { if (!selected) contentDescription = item.label }
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // The selected item is named by its visible label; the others need an explicit name for TalkBack.
-        Icon(imageVector = item.icon, contentDescription = if (selected) null else item.label, tint = foreground)
+        // The selected item is named by its visible label; the others need an explicit name on the tab for TalkBack.
+        Icon(imageVector = item.icon, contentDescription = null, tint = foreground)
         if (selected) {
             Text(
                 text = item.label,

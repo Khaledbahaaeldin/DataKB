@@ -13,11 +13,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+
 @Composable
-internal fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ScreenHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    backModifier: Modifier = Modifier,
+) {
     Row(modifier.fillMaxWidth().statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                .semantics {
+                    contentDescription = "Back"
+                }
+                .then(backModifier),
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
         }
         Text(title, style = MaterialTheme.typography.headlineSmall)
     }

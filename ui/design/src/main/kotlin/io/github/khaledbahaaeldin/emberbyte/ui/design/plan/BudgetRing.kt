@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BudgetStateUi
@@ -71,14 +72,26 @@ fun BudgetRing(
             val inset = stroke.width / 2
             val arcSize = Size(this.size.width - stroke.width, this.size.height - stroke.width)
             drawArc(track, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
+            if (sweep == 0f) {
+                drawArc(scheme.outline, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(width = 1.5.dp.toPx()))
+            }
             if (sweep > 0f) drawArc(color, -90f, 360f * sweep, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
         }
-        Text(displayText, style = MaterialTheme.typography.labelLarge, color = scheme.onSurface, maxLines = 1)
+        val fontScale = LocalDensity.current.fontScale
+        val baseStyle = MaterialTheme.typography.labelLarge
+        val textStyle = if (fontScale > 1.2f && displayText.length >= 4) {
+            baseStyle.copy(fontSize = baseStyle.fontSize * (1.3f / fontScale))
+        } else if (fontScale > 1.4f) {
+            baseStyle.copy(fontSize = baseStyle.fontSize * (1.35f / fontScale))
+        } else {
+            baseStyle
+        }
+        Text(displayText, style = textStyle, color = scheme.onSurface, maxLines = 1)
         // A state is never colour only: warning and exceeded also show an icon in the corner.
         if (state != BudgetStateUi.Ok) {
             Icon(
                 imageVector = if (state == BudgetStateUi.Exceeded) Icons.Rounded.Error else Icons.Rounded.Warning,
-                contentDescription = null,
+                contentDescription = if (state == BudgetStateUi.Exceeded) "Over the cap" else "Nearly used up",
                 tint = color,
                 modifier = Modifier.align(Alignment.TopEnd).size(size / 4),
             )

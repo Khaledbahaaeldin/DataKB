@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -40,6 +43,8 @@ fun DataSection(
     var showRangeDialog by remember { mutableStateOf(false) }
     var showCreateBackupDialog by remember { mutableStateOf(false) }
     var showRestoreWarningDialog by remember { mutableStateOf(false) }
+    val createBackupRequester = remember { FocusRequester() }
+    val restoreBackupRequester = remember { FocusRequester() }
 
     if (showRangeDialog) {
         CsvRangeDialog(
@@ -53,17 +58,24 @@ fun DataSection(
 
     if (showCreateBackupDialog) {
         CreateBackupPassphraseDialog(
-            onDismiss = { showCreateBackupDialog = false },
+            onDismiss = {
+                showCreateBackupDialog = false
+                createBackupRequester.requestFocus()
+            },
             onCreate = { passphrase ->
                 showCreateBackupDialog = false
                 onCreateBackup(passphrase)
+                createBackupRequester.requestFocus()
             },
         )
     }
 
     if (showRestoreWarningDialog) {
         RestoreWarningDialog(
-            onDismiss = { showRestoreWarningDialog = false },
+            onDismiss = {
+                showRestoreWarningDialog = false
+                restoreBackupRequester.requestFocus()
+            },
             onConfirm = {
                 showRestoreWarningDialog = false
                 onRestoreChosen()
@@ -73,8 +85,14 @@ fun DataSection(
 
     if (restoreFileChosen) {
         RestorePassphraseDialog(
-            onDismiss = onDismissRestorePassphrase,
-            onRestore = onRestoreBackup,
+            onDismiss = {
+                onDismissRestorePassphrase()
+                restoreBackupRequester.requestFocus()
+            },
+            onRestore = { passphrase ->
+                onRestoreBackup(passphrase)
+                restoreBackupRequester.requestFocus()
+            },
         )
     }
 
@@ -98,12 +116,14 @@ fun DataSection(
             subtitle = "Save an encrypted copy of your data",
             enabled = rowsEnabled,
             onClick = { showCreateBackupDialog = true },
+            modifier = Modifier.focusRequester(createBackupRequester),
         )
         ActionRow(
             title = "Restore backup",
             subtitle = "Replace data from an encrypted backup",
             enabled = rowsEnabled,
             onClick = { showRestoreWarningDialog = true },
+            modifier = Modifier.focusRequester(restoreBackupRequester),
         )
 
         if (uiState.busy) {
@@ -135,7 +155,10 @@ fun DataSection(
                         .weight(1f)
                         .padding(end = 8.dp),
                 )
-                TextButton(onClick = onClearMessage) {
+                TextButton(
+                    onClick = onClearMessage,
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                ) {
                     Text("Dismiss")
                 }
             }
@@ -147,11 +170,12 @@ fun DataSection(
 private fun ActionRow(
     title: String,
     subtitle: String?,
-    enabled: Boolean = true,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .semantics(mergeDescendants = true) {}

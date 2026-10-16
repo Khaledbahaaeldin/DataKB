@@ -5,14 +5,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import io.github.khaledbahaaeldin.emberbyte.ui.design.chips.EmberbyteFilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.onEach
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -60,10 +62,12 @@ data class HistoryUiState(
     val units: ByteUnits = ByteUnits.DECIMAL,
     val needsUsageAccess: Boolean = false,
     val loaded: Boolean = false,
+    val selectedIndex: Int? = null,
 )
 
 sealed interface HistoryEvent {
     data class SetGranularity(val granularity: Granularity) : HistoryEvent
+    data class SelectBar(val index: Int) : HistoryEvent
 }
 
 /** Day: last 14 days. Week: last 12 weeks (Monday start). Month: last 12 months. Ends at the end of [today]. */
@@ -106,6 +110,7 @@ internal fun buildHistoryUiState(
     zone: ZoneId,
     locale: Locale,
     needsUsageAccess: Boolean = false,
+    selectedIndex: Int? = null,
 ): HistoryUiState {
     val total = points.sumOf { it.totalBytes }
     val activeBuckets = points.count { it.totalBytes > 0 }
@@ -118,6 +123,7 @@ internal fun buildHistoryUiState(
         units = units,
         needsUsageAccess = needsUsageAccess,
         loaded = true,
+        selectedIndex = selectedIndex,
     )
 }
 
@@ -132,23 +138,41 @@ class HistoryViewModel(
     dates: Flow<LocalDate> = DayClock(clock).dates(),
 ) : ViewModel() {
     private val granularity = MutableStateFlow(Granularity.DAY)
+    private val selectedBar = MutableStateFlow<Int?>(null)
 
     val uiState: StateFlow<HistoryUiState> = combine(dates, granularity) { date, g -> date to g }
         .flatMapLatest { (date, g) ->
+            selectedBar.value = null
             val zone = clock.zone
+            var lastKeys: List<java.time.Instant>? = null
+            val pointsFlow = usage.observeSeries(rangeForHistory(g, date, zone), g)
+                .onEach { pts ->
+                    val keys = pts.map { it.start }
+                    if (lastKeys != null && lastKeys != keys) {
+                        selectedBar.value = null
+                    }
+                    lastKeys = keys
+                }
             combine(
-                usage.observeSeries(rangeForHistory(g, date, zone), g),
+                pointsFlow,
                 settings.observe(),
                 permissions.observe(),
-            ) { points, s, perm ->
-                buildHistoryUiState(g, points, s.unitSystem.toByteUnits(), zone, locale, needsUsageAccess = !perm.usageAccess)
+                selectedBar,
+            ) { points, s, perm, sel ->
+                buildHistoryUiState(g, points, s.unitSystem.toByteUnits(), zone, locale, needsUsageAccess = !perm.usageAccess, selectedIndex = sel)
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState())
 
     fun onEvent(event: HistoryEvent) {
         when (event) {
-            is HistoryEvent.SetGranularity -> granularity.value = event.granularity
+            is HistoryEvent.SetGranularity -> {
+                granularity.value = event.granularity
+                selectedBar.value = null
+            }
+            is HistoryEvent.SelectBar -> {
+                selectedBar.value = if (selectedBar.value == event.index) null else event.index
+            }
         }
     }
 }
@@ -169,17 +193,17 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, modifier: Mod
         item { ScreenHeader("History", onBack) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+                EmberbyteFilterChip(
                     selected = state.granularity == Granularity.DAY,
                     onClick = { viewModel.onEvent(HistoryEvent.SetGranularity(Granularity.DAY)) },
                     label = { Text("Day") },
                 )
-                FilterChip(
+                EmberbyteFilterChip(
                     selected = state.granularity == Granularity.WEEK,
                     onClick = { viewModel.onEvent(HistoryEvent.SetGranularity(Granularity.WEEK)) },
                     label = { Text("Week") },
                 )
-                FilterChip(
+                EmberbyteFilterChip(
                     selected = state.granularity == Granularity.MONTH,
                     onClick = { viewModel.onEvent(HistoryEvent.SetGranularity(Granularity.MONTH)) },
                     label = { Text("Month") },
@@ -187,25 +211,63 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, modifier: Mod
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BentoTile(title = "Total", modifier = Modifier.weight(1f), container = TileContainer.Primary) {
-                    ForceLtr {
-                        Text(plainBytes(state.totalBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+            val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            if (fontScale >= 1.5f) {
+                androidx.compose.foundation.layout.Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    BentoTile(title = "Total", modifier = Modifier.fillMaxWidth(), container = TileContainer.Primary) {
+                        ForceLtr {
+                            Text(plainBytes(state.totalBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                    BentoTile(title = "Average per active $unit", modifier = Modifier.fillMaxWidth()) {
+                        ForceLtr {
+                            Text(plainBytes(state.averageBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                        }
                     }
                 }
-                BentoTile(title = "Average per active $unit", modifier = Modifier.weight(1f)) {
-                    ForceLtr {
-                        Text(plainBytes(state.averageBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BentoTile(title = "Total", modifier = Modifier.weight(1f), container = TileContainer.Primary) {
+                        ForceLtr {
+                            Text(plainBytes(state.totalBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                    BentoTile(title = "Average per active $unit", modifier = Modifier.weight(1f)) {
+                        ForceLtr {
+                            Text(plainBytes(state.averageBytes, state.units), style = MaterialTheme.typography.headlineSmall)
+                        }
                     }
                 }
             }
         }
         item {
+            val summary = when (state.granularity) {
+                Granularity.DAY -> {
+                    val highest = state.bars.maxByOrNull { it.bytes }
+                    if (highest != null) "Daily usage, last 14 days, highest ${highest.description}"
+                    else "Daily usage, last 14 days"
+                }
+                Granularity.WEEK -> {
+                    val highest = state.bars.maxByOrNull { it.bytes }
+                    if (highest != null) "Weekly usage, last 12 weeks, highest ${highest.description}"
+                    else "Weekly usage, last 12 weeks"
+                }
+                Granularity.MONTH -> {
+                    val highest = state.bars.maxByOrNull { it.bytes }
+                    if (highest != null) "Monthly usage, last 12 months, highest ${highest.description}"
+                    else "Monthly usage, last 12 months"
+                }
+                else -> null
+            }
             UsageBarRow(
                 points = state.bars,
-                selectedIndex = null,
-                onSelect = {},
+                selectedIndex = state.selectedIndex,
+                onSelect = { viewModel.onEvent(HistoryEvent.SelectBar(it)) },
                 scrollKey = state.granularity,
+                summaryDescription = summary,
             )
         }
         if (state.needsUsageAccess) {

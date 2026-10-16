@@ -96,6 +96,29 @@ class PlanCardTest {
         assertTrue("Days left height ($daysHeightDp) must be <= 96.dp", daysHeightDp <= 96.dp)
     }
 
+    @Test fun three_digit_percent_at_font_scale_2_does_not_exceed_inner_ring_bounds() {
+        val testModel = model.copy(
+            percentText = "137%",
+            fraction = 1.37f,
+            ringState = io.github.khaledbahaaeldin.emberbyte.ui.design.model.BudgetStateUi.Exceeded,
+        )
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 2f)
+            ) {
+                EmberbyteTheme(darkTheme = true, dynamicColor = false) {
+                    PlanCard(testModel, onClick = {})
+                }
+            }
+        }
+        val percentNode = rule.onNodeWithText("137%", useUnmergedTree = true).assertIsDisplayed()
+        val percentWidthDp = with(rule.density) { percentNode.fetchSemanticsNode().size.width.toDp() }
+        // Inner radius is 72dp/2 - 8.64dp = 27.36dp. For a text box of height ~25dp, max chord width is 2 * sqrt(27.36^2 - 12.5^2) = 48.6dp.
+        // To guarantee corners do not touch/overlap stroke, width must be <= 40.dp.
+        assertTrue("Percent width ($percentWidthDp) must be <= 40.dp to stay inside inner ring", percentWidthDp <= 40.dp)
+    }
+
     @Test fun rtl_layout_direction_keeps_number_nodes_unbroken() {
         rule.setContent {
             CompositionLocalProvider(

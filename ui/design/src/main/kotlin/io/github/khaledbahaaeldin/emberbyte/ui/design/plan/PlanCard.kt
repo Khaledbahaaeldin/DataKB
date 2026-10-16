@@ -18,13 +18,27 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.khaledbahaaeldin.emberbyte.ui.design.format.ForceLtr
+import io.github.khaledbahaaeldin.emberbyte.ui.design.model.BudgetStateUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.model.PlanCardUi
 import io.github.khaledbahaaeldin.emberbyte.ui.design.tiles.EstimatedBadge
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlanCard(model: PlanCardUi, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val summary = "${model.name}, ${model.percentText.removeSuffix("%")} percent used, ${model.remainingText}, ${model.daysLeftText}"
+    val summary = buildString {
+        append("${model.name}, ${model.percentText.removeSuffix("%")} percent used, ${model.remainingText}, ${model.daysLeftText}")
+        when (model.ringState) {
+            BudgetStateUi.Warning -> append(", nearly used up")
+            BudgetStateUi.Exceeded -> append(", over the cap")
+            BudgetStateUi.Ok -> Unit
+        }
+        if (model.isEstimated) {
+            append(", estimated")
+        }
+        if (model.archived) {
+            append(", archived")
+        }
+    }
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = summary },

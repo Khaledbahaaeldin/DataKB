@@ -32,6 +32,7 @@ object BudgetNotifier {
             .setSmallIcon(R.drawable.ic_stat_ember)
             .setContentTitle(text.title)
             .setContentText(text.text)
+            .setTicker(text.contentDescription)
             .setAutoCancel(true)
             .setContentIntent(open)
             .addAction(0, context.getString(R.string.notification_action_data_settings), settings)
